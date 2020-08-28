@@ -4,24 +4,12 @@ import (
 	"strings"
 
 	"github.com/mattn/go-runewidth"
+	"github.com/mrmarble/termsvg/stripansi"
 )
 
 type measuredText struct {
 	rows    int
 	columns int
-}
-
-func sliceUniq(s []int) []int {
-	for i := 0; i < len(s); i++ {
-		for i2 := i + 1; i2 < len(s); i2++ {
-			if s[i] == s[i2] {
-				// delete
-				s = append(s[:i2], s[i2+1:]...)
-				i2--
-			}
-		}
-	}
-	return s
 }
 
 func measureTextArea(plainText string) measuredText {
@@ -36,4 +24,16 @@ func measureTextArea(plainText string) measuredText {
 		}
 	}
 	return measuredText{rows, colums}
+}
+
+func atomize(text string) struct {
+	words  []string
+	ansies []string
+} {
+	ansies := sliceUniq(stripansi.AnsiRegex.FindAllString(text, -1))
+	words := superSplit(text, append(ansies, "\n"))
+	return struct {
+		words  []string
+		ansies []string
+	}{words, ansies}
 }
