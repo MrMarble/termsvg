@@ -6,9 +6,9 @@ import (
 )
 
 func TestAnsiRegex(t *testing.T) {
-	test := "\u001B[4mcake\u001B[0m"
+	test := "\\u001B[4mcake\\u001B[0m"
 	got := AnsiRegex.FindAllString(test, -1)
-	expected := []string{"\u001B[4m", "\u001B[0m"}
+	expected := []string{"\\u001B[4m", "\\u001B[0m"}
 	test2 := "cake"
 
 	if AnsiRegex.MatchString(test2) {
@@ -21,7 +21,7 @@ func TestAnsiRegex(t *testing.T) {
 }
 
 func TestStript(t *testing.T) {
-	text := "\u001B[4mcake\u001B[0m"
+	text := "\\u001B[4mcake\\u001B[0m"
 	got := Strip(text)
 	expected := "cake"
 
