@@ -1,2 +1,5 @@
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
+github.com/mrmarble/termsvg v0.0.0-20200828060706-d5101be4c1f6 h1:p1NRSeZOoBwof/ciwSBZGvUkihnX3Coa53DuqSHgvio=
+github.com/mrmarble/termsvg/stripansi v0.0.0-20200828060706-d5101be4c1f6 h1:bsbgOOvA90n4wMCVS1hyb0PwQaCC5Vkyzmm1r28E9LE=
+github.com/mrmarble/termsvg/stripansi v0.0.0-20200828060706-d5101be4c1f6/go.mod h1:qMRFmMwR84AC3ComgA/87xWEanZkHTlEhqTWgu8BQ9c=
