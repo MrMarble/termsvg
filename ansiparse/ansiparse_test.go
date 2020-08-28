@@ -29,16 +29,30 @@ func TestMeasueTextArea(t *testing.T) {
 
 func TestAtomize(t *testing.T) {
 	test := "I like to \\u001b[34mmove it\\u001b[39m, move it."
-	got := atomize(test)
-	expected := struct {
-		words  []string
-		ansies []string
-	}{
-		[]string{"I like to ", "\\u001b[34m", "move it", "\\u001b[39m", ", move it."},
-		[]string{"\\u001b[34m", "\\u001b[39m"},
-	}
+	gotWords, gotAnsies := atomize(test)
+	expectedWords := []string{"I like to ", "\\u001b[34m", "move it", "\\u001b[39m", ", move it."}
+	expectedAnsies := []string{"\\u001b[34m", "\\u001b[39m"}
 
-	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("Expected: %#v, got: %#v", expected, got)
+	if !reflect.DeepEqual(gotWords, expectedWords) {
+		t.Errorf("Expected: %#v, got: %#v", expectedWords, gotWords)
 	}
+	if !reflect.DeepEqual(gotAnsies, expectedAnsies) {
+		t.Errorf("Expected: %#v, got: %#v", expectedAnsies, gotAnsies)
+	}
+}
+
+func TestParse(t *testing.T) {
+	t.Run("gets opening red ansi scape char", func(t *testing.T) {
+		text := "\\u001B[31m_"
+		expected := "\\u001B[31m"
+		got := Parse(text)
+
+		if len(got.chunks) == 0 {
+			t.Fatalf("Expected: %#v, got: %#v", expected, got)
+		}
+
+		if got.chunks[0].value.ansi != expected {
+			t.Errorf("Expected: %v, got: %v", expected, got.chunks[0].value.ansi)
+		}
+	})
 }

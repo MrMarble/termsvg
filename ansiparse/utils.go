@@ -18,15 +18,19 @@ func sliceUniq(s []string) []string {
 }
 
 func splitString(str, delimiter string) []string {
-	result := make([]string, 0)
+	result := []string{}
 	for _, chunk := range strings.Split(str, delimiter) {
-		result = append(result, chunk, delimiter)
+		if chunk == "" {
+			result = append(result, delimiter)
+		} else {
+			result = append(result, chunk, delimiter)
+		}
 	}
 	return result[:len(result)-1]
 }
 
 func splitSlice(slice []string, delimiter string) []string {
-	result := make([]string, 0)
+	result := []string{}
 	for _, str := range slice {
 		result = append(result, splitString(str, delimiter)...)
 	}
@@ -50,4 +54,13 @@ func superSplit(str interface{}, delimiters []string) []string {
 		return superSplit(split, delimiters[:len(delimiters)-1])
 	}
 	return nil
+}
+
+func includes(slice []string, search string) bool {
+	for _, item := range slice {
+		if item == search {
+			return true
+		}
+	}
+	return false
 }
