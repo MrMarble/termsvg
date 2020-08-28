@@ -5,6 +5,15 @@ import (
 	"testing"
 )
 
+func TestSliceUniq(t *testing.T) {
+	test := []string{"a", "b", "c", "a", "c"}
+	expected := []string{"a", "b", "c"}
+	got := sliceUniq(test)
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("Expected: %#v, got: %#v", expected, got)
+	}
+}
+
 func TestSplitString(t *testing.T) {
 	test := "foo bar"
 	delimiter := " "

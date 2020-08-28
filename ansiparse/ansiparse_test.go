@@ -28,12 +28,15 @@ func TestMeasueTextArea(t *testing.T) {
 }
 
 func TestAtomize(t *testing.T) {
-	test := "I like to \u001b[34mmove it\u001b[39m, move it."
+	test := "I like to \\u001b[34mmove it\\u001b[39m, move it."
 	got := atomize(test)
 	expected := struct {
 		words  []string
 		ansies []string
-	}{}
+	}{
+		[]string{"I like to ", "\\u001b[34m", "move it", "\\u001b[39m", ", move it."},
+		[]string{"\\u001b[34m", "\\u001b[39m"},
+	}
 
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Expected: %#v, got: %#v", expected, got)
