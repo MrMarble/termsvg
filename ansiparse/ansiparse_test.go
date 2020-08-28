@@ -1,6 +1,9 @@
 package ansiparse
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 var MeasureTextAreaTests = []struct {
 	text     string
@@ -21,5 +24,18 @@ func TestMeasueTextArea(t *testing.T) {
 				t.Errorf("Expected: %v, got: %v", tt.expected, got)
 			}
 		})
+	}
+}
+
+func TestAtomize(t *testing.T) {
+	test := "I like to \u001b[34mmove it\u001b[39m, move it."
+	got := atomize(test)
+	expected := struct {
+		words  []string
+		ansies []string
+	}{}
+
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("Expected: %#v, got: %#v", expected, got)
 	}
 }
