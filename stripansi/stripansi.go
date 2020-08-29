@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	pattern = `(?i)\\u001B\[.*?m`
+	pattern = `(?i)\\(?:u001B|x1b)\[.*?m`
 	// AnsiRegex holds the regex expression to interact with ansi escape sequences
 	AnsiRegex = regexp.MustCompile(pattern)
 )
