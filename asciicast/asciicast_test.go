@@ -23,4 +23,7 @@ func TestReadRecords(t *testing.T) {
 	if record.Header.Env.Term != "alacritty" {
 		t.Errorf("Expected term: %v, got: %v", "alacritty", record.Header.Env.Term)
 	}
+	if record.Events[1].EventData != `\u001b]2;~\u0007` {
+		t.Errorf("Expected term: %v, got: %v", `\u001b]2;~\u0007`, record.Events[1].EventData)
+	}
 }

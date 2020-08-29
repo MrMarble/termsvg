@@ -1,6 +1,7 @@
 package asciicast
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"strings"
@@ -59,12 +60,16 @@ func (r *Record) fromJSON(file string) {
 	}
 }
 
+func escapeBytes(file []byte) []byte {
+	return bytes.ReplaceAll(file, []byte("\\"), []byte("\\\\"))
+}
+
 // ReadRecords ...
 func ReadRecords(filename string) (*Record, error) {
 	file, err := ioutil.ReadFile(filename)
 	if err == nil {
 		var record Record
-		record.fromJSON(string(file))
+		record.fromJSON(string(escapeBytes(file)))
 		return &record, nil
 	}
 	return nil, err
