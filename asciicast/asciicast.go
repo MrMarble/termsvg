@@ -30,6 +30,7 @@ type Event struct {
 	EventData string  `json:"event-data"`
 }
 
+// UnmarshalJSON reads json list as Event fields
 func (e *Event) UnmarshalJSON(data []byte) error {
 	var v []interface{}
 	if err := json.Unmarshal(data, &v); err != nil {
