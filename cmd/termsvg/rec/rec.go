@@ -52,7 +52,8 @@ func (cmd *Cmd) Run() error {
 	return nil
 }
 
-func newPty(command string) (*os.File, error) {
+//nolint
+func run(command string) ([]asciicast.Event, error) {
 	// Create arbitrary command.
 	c := exec.Command("sh", "-c", command)
 	// Start the command with a pty.
@@ -67,29 +68,8 @@ func newPty(command string) (*os.File, error) {
 		}
 	}() // Best effort.
 
-	// Handle pty size.
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGWINCH)
-
-	go func() {
-		for range ch {
-			if err = pty.InheritSize(os.Stdin, ptmx); err != nil {
-				log.Printf("error resizing pty: %s", err)
-			}
-		}
-	}()
-	ch <- syscall.SIGWINCH // Initial resize.
-
+	ch := handlePtySize(ptmx)
 	defer func() { signal.Stop(ch); close(ch) }() // Cleanup signals when done.
-
-	return ptmx, err
-}
-
-func run(command string) ([]asciicast.Event, error) {
-	ptmx, err := newPty(command)
-	if err != nil {
-		return nil, err
-	}
 
 	// Set stdin in raw mode.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -138,8 +118,22 @@ func run(command string) ([]asciicast.Event, error) {
 		events = append(events, event)
 	}
 
-	//_, _ = io.Copy(output, ptmx)
-
-	// os.WriteFile("output.test", buff.Bytes(), 0644)
 	return events, nil
+}
+
+func handlePtySize(ptmx *os.File) chan os.Signal {
+	// Handle pty size.
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGWINCH)
+
+	go func() {
+		for range ch {
+			if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
+				log.Printf("error resizing pty: %s", err)
+			}
+		}
+	}()
+	ch <- syscall.SIGWINCH // Initial resize.
+
+	return ch
 }
