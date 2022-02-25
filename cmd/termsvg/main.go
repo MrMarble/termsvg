@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/mrmarble/termsvg/cmd/termsvg/export"
 	"github.com/mrmarble/termsvg/cmd/termsvg/play"
 	"github.com/mrmarble/termsvg/cmd/termsvg/rec"
 	"github.com/rs/zerolog"
@@ -25,8 +26,9 @@ func main() {
 	var cli struct {
 		Debug bool `help:"Enable debug mode."`
 
-		Play play.Cmd `cmd:"" help:"Play a recording."`
-		Rec  rec.Cmd  `cmd:"" help:"Record a terminal sesion."`
+		Play   play.Cmd   `cmd:"" help:"Play a recording."`
+		Rec    rec.Cmd    `cmd:"" help:"Record a terminal sesion."`
+		Export export.Cmd `cmd:"" help:"Export asciicast."`
 	}
 
 	ctx := kong.Parse(&cli,
