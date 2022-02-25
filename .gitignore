@@ -1,5 +1,5 @@
 .vscode
-termsvg
+/termsvg
 *.cast
 *.txt
 .task
