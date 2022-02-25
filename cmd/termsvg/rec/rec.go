@@ -33,6 +33,13 @@ func (cmd *Cmd) Run() error {
 
 	rec := asciicast.NewRecord()
 
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return err
+	}
+
+	rec.Header.Width = width
+	rec.Header.Height = height
 	rec.Events = events
 
 	js, err := rec.ToJSON()
