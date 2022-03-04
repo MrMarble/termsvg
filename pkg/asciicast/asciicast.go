@@ -36,10 +36,10 @@ func (h *Header) CaptureEnv() {
 	h.Env.Term = os.Getenv("TERM")
 }
 
-func (r *Cast) fromJSON(file string) error {
+func (c *Cast) fromJSON(file string) error {
 	lines := strings.Split(file, "\n")
 	if lines[0][0] == '{' {
-		err := json.Unmarshal([]byte(lines[0]), &r.Header)
+		err := json.Unmarshal([]byte(lines[0]), &c.Header)
 		if err != nil {
 			return err
 		}
@@ -55,22 +55,22 @@ func (r *Cast) fromJSON(file string) error {
 			return err
 		}
 
-		r.Events = append(r.Events, event)
+		c.Events = append(c.Events, event)
 	}
 
 	return nil
 }
 
-func (r *Cast) ToJSON() ([]byte, error) {
-	header, err := json.Marshal(&r.Header)
+func (c *Cast) ToJSON() ([]byte, error) {
+	header, err := json.Marshal(&c.Header)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range r.Events {
+	for i := range c.Events {
 		header = append(header, '\n')
 
-		js, err := json.Marshal(&r.Events[i])
+		js, err := json.Marshal(&c.Events[i])
 		if err != nil {
 			return nil, err
 		}
@@ -81,37 +81,56 @@ func (r *Cast) ToJSON() ([]byte, error) {
 	return header, nil
 }
 
-func (r *Cast) ToRelativeTime() {
+func (c *Cast) ToRelativeTime() {
 	prev := 0.
 
-	for i, frame := range r.Events {
+	for i, frame := range c.Events {
 		delay := frame.Time - prev
 		prev = frame.Time
-		r.Events[i].Time = delay
+		c.Events[i].Time = delay
 	}
 }
 
-func (r *Cast) CapRelativeTime(limit float64) {
+func (c *Cast) CapRelativeTime(limit float64) {
 	if limit > 0 {
-		for i, frame := range r.Events {
-			r.Events[i].Time = math.Min(frame.Time, limit)
+		for i, frame := range c.Events {
+			c.Events[i].Time = math.Min(frame.Time, limit)
 		}
 	}
 }
 
-func (r *Cast) ToAbsoluteTime() {
+func (c *Cast) ToAbsoluteTime() {
 	time := 0.
 
-	for i, frame := range r.Events {
+	for i, frame := range c.Events {
 		time += frame.Time
-		r.Events[i].Time = time
+		c.Events[i].Time = time
 	}
 }
 
-func (r *Cast) AdjustSpeed(speed float64) {
-	for i := range r.Events {
-		r.Events[i].Time /= speed
+func (c *Cast) AdjustSpeed(speed float64) {
+	for i := range c.Events {
+		c.Events[i].Time /= speed
 	}
+}
+
+func (c *Cast) Compress() {
+	var events []Event
+
+	for i, event := range c.Events {
+		if i == 0 {
+			events = append(events, event)
+			continue
+		} else {
+			if event.Time == events[len(events)-1].Time {
+				events[len(events)-1].EventData += event.EventData
+			} else {
+				events = append(events, event)
+			}
+		}
+	}
+
+	c.Events = events
 }
 
 // ReadRecords ...

@@ -42,6 +42,7 @@ func (cmd *Cmd) Run() error {
 	rec.Header.Height = height
 	rec.Header.Duration = events[len(events)-1].Time
 	rec.Events = events
+	rec.Compress()
 
 	js, err := rec.ToJSON()
 	if err != nil {

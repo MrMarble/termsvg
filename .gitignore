@@ -4,3 +4,4 @@
 *.txt
 .task
 dist
+*.svg

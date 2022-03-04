@@ -72,6 +72,17 @@ func TestToRelativeTime(t *testing.T) {
 	}
 }
 
+func TestCompress(t *testing.T) {
+	cast := setup(t)
+	cast.Events[1].Time = 1
+
+	cast.Compress()
+
+	diff(t, len(cast.Events), 2)
+	diff(t, cast.Events[0].EventData, "FirstSecond")
+	diff(t, cast.Events[1].EventData, "Third")
+}
+
 func TestToAbsoluteTime(t *testing.T) {
 	cast := setup(t)
 
