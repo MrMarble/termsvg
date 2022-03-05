@@ -16,7 +16,7 @@ func TestParse(t *testing.T) {
 		"Multiple rule": {css.CSS{
 			"transform":                 "translate(10)",
 			"animation-iteration-count": "infinite",
-		}, "transform:translate(10);animation-iteration-count:infinite"},
+		}, "animation-iteration-count:infinite;transform:translate(10)"},
 	}
 
 	for name, test := range tests {

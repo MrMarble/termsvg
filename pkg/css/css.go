@@ -2,6 +2,7 @@ package css
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -13,6 +14,8 @@ func (c *CSS) Compile() string {
 	for property, value := range *c {
 		compiled = append(compiled, fmt.Sprintf("%s:%s", property, value))
 	}
+
+	sort.Strings(compiled)
 
 	return strings.Join(compiled, ";")
 }
