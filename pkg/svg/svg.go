@@ -49,8 +49,8 @@ func (c *Canvas) createWindow() {
 	buttonRadius := 7
 	buttonColors := [3]string{"#ff5f58", "#ffbd2e", "#18c132"}
 
-	c.Start(c.width, c.paddedHeight())
-	c.Roundrect(0, 0, c.width, c.paddedHeight(), windowRadius, windowRadius, "fill:#282d35")
+	c.Start(c.paddedWidth(), c.paddedHeight())
+	c.Roundrect(0, 0, c.paddedWidth(), c.paddedHeight(), windowRadius, windowRadius, "fill:#282d35")
 
 	for i := range buttonColors {
 		c.Circle((i*(padding+buttonRadius/2))+padding, padding, buttonRadius, fmt.Sprintf("fill:%s", buttonColors[i]))
