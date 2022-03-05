@@ -79,6 +79,7 @@ func (c *Canvas) addStyles() {
 
 func (c *Canvas) createFrames() {
 	term := vt10x.New(vt10x.WithSize(c.Header.Width, c.Header.Height))
+	c.bgColors = map[string]byte{}
 	for i, event := range c.Events {
 		_, err := term.Write([]byte(event.EventData))
 		if err != nil {
@@ -86,7 +87,6 @@ func (c *Canvas) createFrames() {
 		}
 
 		c.Gtransform(fmt.Sprintf("translate(%d)", c.paddedWidth()*i))
-		c.bgColors = map[string]byte{}
 
 		for row := 0; row < c.Header.Height; row++ {
 			frame := ""
