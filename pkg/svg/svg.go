@@ -185,5 +185,5 @@ func generateKeyframes(cast asciicast.Cast, width int32) string {
 }
 
 func generateKeyframe(percent float32, translate int32) string {
-	return fmt.Sprintf("%2f%%{transform:translateX(-%dpx)}", percent, translate)
+	return fmt.Sprintf("%.3f%%{transform:translateX(-%dpx)}", percent, translate)
 }

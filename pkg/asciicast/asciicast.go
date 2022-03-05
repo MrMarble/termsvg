@@ -147,6 +147,10 @@ func ReadRecords(filename string) (*Cast, error) {
 		return nil, err
 	}
 
+	if record.Header.Duration == 0 {
+		record.Header.Duration = record.Events[len(record.Events)-1].Time
+	}
+
 	return &record, nil
 }
 
