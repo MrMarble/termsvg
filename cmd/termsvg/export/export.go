@@ -6,8 +6,8 @@ import (
 )
 
 type Cmd struct {
-	Input  string  `short:"i" type:"existingfile" help:"asciicast file to export"`
-	Output float64 `optional:"" short:"o" help:"where to save the file"`
+	Input  string `short:"i" type:"existingfile" help:"asciicast file to export"`
+	Output string `optional:"" short:"o" help:"where to save the file"`
 }
 
 func (cmd *Cmd) Run() error {
@@ -16,7 +16,11 @@ func (cmd *Cmd) Run() error {
 		return err
 	}
 
-	svg.New(*records)
+	if cmd.Output == "" {
+		cmd.Output = cmd.Input
+	}
+
+	svg.Export(*records, cmd.Output)
 
 	return nil
 }

@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b
 	github.com/creack/pty v1.1.17
+	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 )
 
