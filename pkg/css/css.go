@@ -6,16 +6,40 @@ import (
 	"strings"
 )
 
-type CSS map[string]string
+type IRules interface {
+	String() string
+}
 
-func (c *CSS) Compile() string {
+type Blocks []Block
+
+type Block struct {
+	Selector string
+	Rules    IRules
+}
+
+type Rules map[string]string
+
+func (c Rules) String() string {
 	var compiled []string
 
-	for property, value := range *c {
+	for property, value := range c {
 		compiled = append(compiled, fmt.Sprintf("%s:%s", property, value))
 	}
 
 	sort.Strings(compiled)
 
 	return strings.Join(compiled, ";")
+}
+
+func (b Block) String() string {
+	return fmt.Sprintf("%s{%s}", b.Selector, b.Rules)
+}
+
+func (b Blocks) String() string {
+	result := ""
+	for _, block := range b {
+		result += block.String()
+	}
+
+	return result
 }
