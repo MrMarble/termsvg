@@ -1,9 +1,13 @@
 # termsvg
 
+[![golangci-lint](https://github.com/MrMarble/termsvg/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/MrMarble/termsvg/actions/workflows/golangci-lint.yml)
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mrmarble/termsvg)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mrmarble/termsvg.svg)](https://pkg.go.dev/github.com/mrmarble/termsvg)
+
 CLI tool to record, share and export your terminal as a animated SVG image.
 It uses the same format as [asciinema](https://asciinema.org) so it should be compatible both ways.
 
-
+---
 ## Usage
 
 ```
