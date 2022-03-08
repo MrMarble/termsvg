@@ -4,18 +4,18 @@ import (
 	"encoding/json"
 )
 
-type EventType string
+type eventType string
 
 // Event is a 3-tuple encoded as JSON array.
 type Event struct {
 	Time      float64   `json:"time"`
-	EventType EventType `json:"event-type"`
+	EventType eventType `json:"event-type"`
 	EventData string    `json:"event-data"`
 }
 
 const (
-	Input  EventType = "i" // Data read from stdin.
-	Output EventType = "o" // Data writed to stdout.
+	Input  eventType = "i" // Data read from stdin.
+	Output eventType = "o" // Data writed to stdout.
 )
 
 // UnmarshalJSON reads json list as Event fields.
@@ -26,7 +26,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	}
 
 	e.Time = v[0].(float64)
-	e.EventType = EventType(v[1].(string))
+	e.EventType = eventType(v[1].(string))
 	e.EventData = v[2].(string)
 
 	return nil

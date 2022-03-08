@@ -2,6 +2,7 @@ package play
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
@@ -14,15 +15,24 @@ type Cmd struct {
 }
 
 func (cmd *Cmd) Run() error {
-	records, err := asciicast.ReadRecords(cmd.File)
+	return play(cmd.File, cmd.IdleCap, cmd.Speed)
+}
+
+func play(path string, idleCap, speed float64) error {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	records, err := asciicast.Unmarshal(file)
 	if err != nil {
 		return err
 	}
 
 	records.ToRelativeTime()
-	records.CapRelativeTime(cmd.IdleCap)
+	records.CapRelativeTime(idleCap)
 	records.ToAbsoluteTime()
-	records.AdjustSpeed(cmd.Speed)
+	records.AdjustSpeed(speed)
 
 	baseTime := time.Duration(time.Now().UnixMilli()) * time.Millisecond
 

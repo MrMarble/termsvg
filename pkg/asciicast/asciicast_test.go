@@ -1,16 +1,19 @@
 package asciicast_test
 
 import (
-	"fmt"
-	"strings"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
+	"github.com/sebdah/goldie/v2"
 )
 
 func TestReadRecords(t *testing.T) {
-	record, err := asciicast.ReadRecords("./test_data/test")
+	golden := goldenData(t, "TestUnmarshal")
+
+	record, err := asciicast.Unmarshal(golden)
 	if err != nil {
 		t.Fatalf("Error reading: %v", err)
 	}
@@ -38,26 +41,14 @@ func TestReadRecords(t *testing.T) {
 
 func TestWriteRecords(t *testing.T) {
 	record := setup(t)
-	record.Header.Timestamp = 1337
 
-	got, err := record.ToJSON()
+	got, err := record.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := []string{
-		`{"version":2,"width":0,"height":0,"timestamp":1337,"env":{"SHELL":"TEST_SHELL","TERM":"TEST_TERM"}}`,
-		`[1,"o","First"]`,
-		`[2,"o","Second"]`,
-		`[3,"i","Third"]`,
-	}
-
-	lines := strings.Split(string(got), "\n")
-	for i, line := range lines {
-		t.Run(fmt.Sprintf("Test %d", i), func(t *testing.T) {
-			diff(t, line, want[i])
-		})
-	}
+	want := goldie.New(t)
+	want.AssertWithTemplate(t, "TestMarshal", record.Header, got)
 }
 
 func TestToRelativeTime(t *testing.T) {
@@ -121,7 +112,7 @@ func setup(t *testing.T) *asciicast.Cast {
 	t.Setenv("TERM", "TEST_TERM")
 	t.Setenv("SHELL", "TEST_SHELL")
 
-	cast := asciicast.NewRecord()
+	cast := asciicast.New()
 
 	cast.Events = append(cast.Events,
 		asciicast.Event{Time: 1, EventType: asciicast.Output, EventData: "First"},
@@ -139,4 +130,23 @@ func diff(t *testing.T, x interface{}, y interface{}) {
 	if diff != "" {
 		t.Fatalf(diff)
 	}
+}
+
+func goldenData(t *testing.T, identifier string) []byte {
+	t.Helper()
+
+	goldenPath := "testdata/" + identifier + ".golden"
+
+	f, err := os.Open(goldenPath)
+	if err != nil {
+		t.Fatalf("Error opening file %s: %s", goldenPath, err)
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatalf("Error reading file %s: %s", goldenPath, err)
+	}
+
+	return data
 }

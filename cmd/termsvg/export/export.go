@@ -1,6 +1,9 @@
 package export
 
 import (
+	"os"
+
+	"github.com/fatih/color"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/mrmarble/termsvg/pkg/svg"
 )
@@ -11,16 +14,32 @@ type Cmd struct {
 }
 
 func (cmd *Cmd) Run() error {
-	records, err := asciicast.ReadRecords(cmd.Input)
+	err := export(cmd.Input, cmd.Output)
 	if err != nil {
 		return err
 	}
 
-	if cmd.Output == "" {
-		cmd.Output = cmd.Input
+	color.Green("Svg file saved to %s", cmd.Output)
+
+	return nil
+}
+
+func export(input, output string) error {
+	file, err := os.ReadFile(input)
+	if err != nil {
+		return err
 	}
 
-	svg.Export(*records, cmd.Output)
+	if output == "" {
+		output = input
+	}
+
+	cast, err := asciicast.Unmarshal(file)
+	if err != nil {
+		return err
+	}
+
+	svg.Export(*cast, output)
 
 	return nil
 }

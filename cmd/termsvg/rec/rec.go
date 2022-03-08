@@ -26,12 +26,24 @@ func (cmd *Cmd) Run() error {
 	color.Green("recording asciicast to %s", cmd.File)
 	color.Green("exit the opened program when you're done")
 
-	events, err := run(cmd.Command)
+	err := rec(cmd.File, cmd.Command)
 	if err != nil {
 		return err
 	}
 
-	rec := asciicast.NewRecord()
+	color.Green("recording finished")
+	color.Green("asciicast saved to %s", cmd.File)
+
+	return nil
+}
+
+func rec(file, command string) error {
+	events, err := run(command)
+	if err != nil {
+		return err
+	}
+
+	rec := asciicast.New()
 
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
@@ -44,19 +56,15 @@ func (cmd *Cmd) Run() error {
 	rec.Events = events
 	rec.Compress()
 
-	js, err := rec.ToJSON()
+	js, err := rec.Marshal()
 	if err != nil {
 		return err
 	}
 
-	color.Green("recording finished")
-
-	err = os.WriteFile(cmd.File, js, os.ModePerm)
+	err = os.WriteFile(file, js, os.ModePerm)
 	if err != nil {
 		return err
 	}
-
-	color.Green("asciicast saved to %s", cmd.File)
 
 	return nil
 }
