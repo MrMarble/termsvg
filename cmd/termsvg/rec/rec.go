@@ -111,12 +111,12 @@ func run(command string) ([]asciicast.Event, error) {
 	var events []asciicast.Event
 
 	p := make([]byte, readSize)
-	baseTime := time.Now().UnixMilli()
+	baseTime := time.Now().UnixMicro()
 
 	for {
 		n, err := ptmx.Read(p)
 		event := asciicast.Event{
-			Time:      float64(time.Now().UnixMilli()-baseTime) / float64(time.Microsecond),
+			Time:      float64(time.Now().UnixMicro()-baseTime) / float64(time.Millisecond),
 			EventType: asciicast.Output, EventData: string(p[:n]),
 		}
 
