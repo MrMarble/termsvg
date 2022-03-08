@@ -7,6 +7,7 @@ import (
 
 	svg "github.com/ajstarks/svgo"
 	"github.com/hinshun/vt10x"
+	"github.com/mrmarble/termsvg/internal/uniqueid"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/mrmarble/termsvg/pkg/color"
 	"github.com/mrmarble/termsvg/pkg/css"
@@ -22,22 +23,64 @@ const (
 type Canvas struct {
 	*svg.SVG
 	asciicast.Cast
-	width    int
-	height   int
-	bgColors map[string]byte
+	id     *uniqueid.ID
+	width  int
+	height int
+	colors map[string]string
 }
 
 type Output interface {
 	io.Writer
 }
 
-func createSVG(svg *svg.SVG, cast asciicast.Cast) {
-	canvas := &Canvas{SVG: svg, Cast: cast}
+func Export(input asciicast.Cast, output Output) {
+	input.Compress() // to reduce the number of frames
+
+	createCanvas(svg.New(output), input)
+}
+
+func createCanvas(svg *svg.SVG, cast asciicast.Cast) {
+	canvas := &Canvas{SVG: svg, Cast: cast, id: uniqueid.New(), colors: make(map[string]string)}
 	canvas.width = cast.Header.Width * colWidth
 	canvas.height = cast.Header.Height * rowHeight
 
+	parseCast(canvas)
 	canvas.createWindow()
 	canvas.End()
+}
+
+func parseCast(c *Canvas) {
+	term := vt10x.New(vt10x.WithSize(c.Header.Width, c.Header.Height))
+
+	for _, event := range c.Events {
+		_, err := term.Write([]byte(event.EventData))
+		if err != nil {
+			panic(err)
+		}
+
+		for row := 0; row < c.Header.Height; row++ {
+			for col := 0; col < c.Header.Width; col++ {
+				cell := term.Cell(col, row)
+
+				c.getColors(cell)
+			}
+		}
+	}
+}
+
+func (c *Canvas) getColors(cell vt10x.Glyph) {
+	fg := color.GetColor(cell.FG)
+	bg := color.GetColor(cell.BG)
+
+	if _, ok := c.colors[fg]; !ok {
+		c.colors[fg] = c.id.String()
+		c.id.Next()
+	}
+
+	if _, ok := c.colors[bg]; !ok {
+		c.colors[bg] = c.id.String()
+		c.id.Next()
+	}
 }
 
 func (c *Canvas) paddedWidth() int {
@@ -67,23 +110,29 @@ func (c *Canvas) createWindow() {
 }
 
 func (c *Canvas) addStyles() {
-	styles := css.CSS{
+	c.Gstyle(css.Rules{
 		"animation-duration":        fmt.Sprintf("%.2fs", c.Header.Duration),
 		"animation-iteration-count": "infinite",
 		"animation-name":            "k",
 		"animation-timing-function": "steps(1,end)",
 		"font-family":               "Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace",
 		"font-size":                 "20px",
+	}.String())
+
+	colors := css.Blocks{}
+	for color, class := range c.colors {
+		colors = append(colors, css.Block{Selector: fmt.Sprintf(".%s", class), Rules: css.Rules{"fill": color}})
 	}
 
-	c.Gstyle(styles.Compile())
-	c.Style("text/css", generateKeyframes(c.Cast, int32(c.paddedWidth())))
+	styles := generateKeyframes(c.Cast, int32(c.paddedWidth()))
+	styles += colors.String()
+	c.Style("text/css", styles)
 	c.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
 }
 
 func (c *Canvas) createFrames() {
 	term := vt10x.New(vt10x.WithSize(c.Header.Width, c.Header.Height))
-	c.bgColors = map[string]byte{}
+
 	for i, event := range c.Events {
 		_, err := term.Write([]byte(event.EventData))
 		if err != nil {
@@ -104,7 +153,7 @@ func (c *Canvas) createFrames() {
 				if cell.Char == ' ' || cell.FG != lastColor {
 					if frame != "" {
 						c.Text(lastColummn*colWidth,
-							row*rowHeight, frame, fmt.Sprintf(`fill="%v"`, getColor(lastColor)), c.applyBG(cell.BG))
+							row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]), c.applyBG(cell.BG))
 
 						frame = ""
 					}
@@ -122,53 +171,35 @@ func (c *Canvas) createFrames() {
 			}
 
 			if strings.TrimSpace(frame) != "" {
-				c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`fill="%v"`, getColor(lastColor)))
+				c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]))
 			}
 		}
 		c.Gend()
 	}
 }
 
-func Export(input asciicast.Cast, output Output) {
-	input.Compress() // to reduce the number of frames
-
-	createSVG(svg.New(output), input)
-}
-
 func (c *Canvas) addBG(bg vt10x.Color) {
 	if bg != vt10x.DefaultBG {
-		if _, ok := c.bgColors[fmt.Sprint(bg)]; !ok {
+		if _, ok := c.colors[fmt.Sprint(bg)]; !ok {
 			c.Def()
 			c.Filter(fmt.Sprint(bg))
-			c.FeFlood(svg.Filterspec{Result: "bg"}, getColor(bg), 1.0)
+			c.FeFlood(svg.Filterspec{Result: "bg"}, color.GetColor(bg), 1.0)
 			c.FeMerge([]string{`bg`, `SourceGraphic`})
 			c.Fend()
 			c.DefEnd()
-			c.bgColors[fmt.Sprint(bg)] = 1
+			c.colors[fmt.Sprint(bg)] = ""
 		}
 	}
 }
 
 func (c *Canvas) applyBG(bg vt10x.Color) string {
 	if bg != vt10x.DefaultBG {
-		if _, ok := c.bgColors[fmt.Sprint(bg)]; ok {
+		if _, ok := c.colors[fmt.Sprint(bg)]; ok {
 			return fmt.Sprintf(`filter="url(#%s)"`, fmt.Sprint(bg))
 		}
 	}
 
 	return ""
-}
-
-func getColor(c vt10x.Color) string {
-	colorStr := ""
-
-	if c.ANSI() {
-		colorStr = color.ToHex(color.AnsiToColor(uint32(c)))
-	} else {
-		colorStr = color.ToHex(color.AnsiToColor(uint32(vt10x.LightGrey)))
-	}
-
-	return colorStr
 }
 
 func generateKeyframes(cast asciicast.Cast, width int32) string {

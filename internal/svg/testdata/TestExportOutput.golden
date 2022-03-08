@@ -10,24 +10,24 @@
 <g style="animation-duration:3.35s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
 <style type="text/css">
 <![CDATA[
-@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2383px)}87.777%{transform:translateX(-4766px)}92.767%{transform:translateX(-7149px)}100.000%{transform:translateX(-9532px)}}
+@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2383px)}87.777%{transform:translateX(-4766px)}92.767%{transform:translateX(-7149px)}100.000%{transform:translateX(-9532px)}}.a{fill:#c0c0c0}
 ]]>
 </style>
 <g transform="translate(20,60)" >
 <g transform="translate(0)">
-<text x="0" y="0" fill="#e5e5e5"  >h</text>
+<text x="0" y="0" class="a"  >h</text>
 </g>
 <g transform="translate(2383)">
-<text x="0" y="0" fill="#e5e5e5"  >he</text>
+<text x="0" y="0" class="a"  >he</text>
 </g>
 <g transform="translate(4766)">
-<text x="0" y="0" fill="#e5e5e5"  >hel</text>
+<text x="0" y="0" class="a"  >hel</text>
 </g>
 <g transform="translate(7149)">
-<text x="0" y="0" fill="#e5e5e5"  >hell</text>
+<text x="0" y="0" class="a"  >hell</text>
 </g>
 <g transform="translate(9532)">
-<text x="0" y="0" fill="#e5e5e5"  >hello</text>
+<text x="0" y="0" class="a"  >hello</text>
 </g>
 </g>
 </g>

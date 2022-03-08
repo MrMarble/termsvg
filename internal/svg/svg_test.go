@@ -36,6 +36,7 @@ func BenchmarkExport(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		var output bytes.Buffer
+
 		svg.Export(*cast, &output)
 	}
 }
