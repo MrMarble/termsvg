@@ -1,36 +1,42 @@
 package color
 
 import (
-	"fmt"
-	"image/color"
+	"github.com/hinshun/vt10x"
 )
 
 //nolint
-var ansiColors = []color.Color{
-	color.Black,                              // Black
-	color.RGBA{0x00CD, 0x00, 0x00, 0x00},     // Red
-	color.RGBA{0x00, 0x00CD, 0x00, 0x00},     // Green
-	color.RGBA{0x00CD, 0x00CD, 0x00, 0x00},   // Yellow
-	color.RGBA{0x00, 0x00, 0x00EE, 0x00},     // Blue
-	color.RGBA{0x00CD, 0x00, 0x00CD, 0x00},   // Magent
-	color.RGBA{0x00, 0x00CD, 0x00CD, 0x00},   // Cyan
-	color.RGBA{0x00E5, 0x00E5, 0x00E5, 0x00}, // Grey
+var ansiColors = []string{
+	"#000000", // Black
+	"#800000", // Red
+	"#008000", // Green
+	"#808000", // Yellow
+	"#000080", // Blue
+	"#800080", // Magent
+	"#008080", // Cyan
+	"#c0c0c0", // Grey
 
-	color.RGBA{0x007F, 0x007F, 0x007F, 0x00}, // Dark Grey
-	color.RGBA{0x00FF, 0x00, 0x00, 0x00},     // Light Red
-	color.RGBA{0x00, 0x00FF, 0x00, 0x00},     // Light Green
-	color.RGBA{0x00FF, 0x00FF, 0x00, 0x00},   // Light Yellow
-	color.RGBA{0x005C, 0x005C, 0x00FF, 0x00}, // Light Blue
-	color.RGBA{0x00FF, 0x00, 0x00FF, 0x00},   // Light Magent
-	color.RGBA{0x00, 0x00FF, 0x00FF, 0x00},   // Light Cyan
-	color.White,                              // White
+	"#808080", // Dark Grey
+	"#ff0000", // Light Red
+	"#00ff00", // Light Green
+	"#ffff00", // Light Yellow
+	"#0000ff", // Light Blue
+	"#ff00ff", // Light Magent
+	"#00ffff", // Light Cyan
+	"#ffffff", // White
 }
 
-func AnsiToColor(ansi uint32) color.Color {
+func ansiToColor(ansi uint32) string {
 	return ansiColors[ansi]
 }
 
-func ToHex(c color.Color) string {
-	r, g, b, _ := c.RGBA()
-	return fmt.Sprintf("#%02x%02x%02x", uint8(r), uint8(g), uint8(b))
+func GetColor(c vt10x.Color) string {
+	var colorStr string
+
+	if c.ANSI() {
+		colorStr = ansiToColor(uint32(c))
+	} else {
+		colorStr = ansiToColor(uint32(vt10x.LightGrey))
+	}
+
+	return colorStr
 }
