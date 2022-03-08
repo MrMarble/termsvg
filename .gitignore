@@ -6,3 +6,4 @@
 dist
 *.svg
 !examples/*.*
+*.bench
