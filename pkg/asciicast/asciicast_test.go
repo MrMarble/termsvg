@@ -1,17 +1,15 @@
 package asciicast_test
 
 import (
-	"io"
-	"os"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/mrmarble/termsvg/internal/testutils"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/sebdah/goldie/v2"
 )
 
 func TestReadRecords(t *testing.T) {
-	golden := goldenData(t, "TestUnmarshal")
+	golden := testutils.GoldenData(t, "TestUnmarshal")
 
 	record, err := asciicast.Unmarshal(golden)
 	if err != nil {
@@ -34,7 +32,7 @@ func TestReadRecords(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			diff(t, tc.output, tc.input)
+			testutils.Diff(t, tc.output, tc.input)
 		})
 	}
 }
@@ -58,7 +56,7 @@ func TestToRelativeTime(t *testing.T) {
 
 	for _, event := range cast.Events {
 		t.Run(event.EventData, func(t *testing.T) {
-			diff(t, event.Time, float64(1))
+			testutils.Diff(t, event.Time, float64(1))
 		})
 	}
 }
@@ -69,9 +67,9 @@ func TestCompress(t *testing.T) {
 
 	cast.Compress()
 
-	diff(t, len(cast.Events), 2)
-	diff(t, cast.Events[0].EventData, "FirstSecond")
-	diff(t, cast.Events[1].EventData, "Third")
+	testutils.Diff(t, len(cast.Events), 2)
+	testutils.Diff(t, cast.Events[0].EventData, "FirstSecond")
+	testutils.Diff(t, cast.Events[1].EventData, "Third")
 }
 
 func TestToAbsoluteTime(t *testing.T) {
@@ -79,9 +77,9 @@ func TestToAbsoluteTime(t *testing.T) {
 
 	cast.ToAbsoluteTime()
 
-	diff(t, cast.Events[0].Time, float64(1))
-	diff(t, cast.Events[1].Time, float64(3))
-	diff(t, cast.Events[2].Time, float64(6))
+	testutils.Diff(t, cast.Events[0].Time, float64(1))
+	testutils.Diff(t, cast.Events[1].Time, float64(3))
+	testutils.Diff(t, cast.Events[2].Time, float64(6))
 }
 
 func TestCapRelativeTime(t *testing.T) {
@@ -91,7 +89,7 @@ func TestCapRelativeTime(t *testing.T) {
 
 	for _, event := range cast.Events {
 		t.Run(event.EventData, func(t *testing.T) {
-			diff(t, event.Time, 0.5)
+			testutils.Diff(t, event.Time, 0.5)
 		})
 	}
 }
@@ -101,9 +99,9 @@ func TestAdjustSpeed(t *testing.T) {
 
 	cast.AdjustSpeed(2.0)
 
-	diff(t, cast.Events[0].Time, float64(0.5))
-	diff(t, cast.Events[1].Time, float64(1))
-	diff(t, cast.Events[2].Time, float64(1.5))
+	testutils.Diff(t, cast.Events[0].Time, float64(0.5))
+	testutils.Diff(t, cast.Events[1].Time, float64(1))
+	testutils.Diff(t, cast.Events[2].Time, float64(1.5))
 }
 
 func setup(t *testing.T) *asciicast.Cast {
@@ -121,32 +119,4 @@ func setup(t *testing.T) *asciicast.Cast {
 	)
 
 	return cast
-}
-
-func diff(t *testing.T, x interface{}, y interface{}) {
-	t.Helper()
-
-	diff := cmp.Diff(x, y)
-	if diff != "" {
-		t.Fatalf(diff)
-	}
-}
-
-func goldenData(t *testing.T, identifier string) []byte {
-	t.Helper()
-
-	goldenPath := "testdata/" + identifier + ".golden"
-
-	f, err := os.Open(goldenPath)
-	if err != nil {
-		t.Fatalf("Error opening file %s: %s", goldenPath, err)
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(f)
-	if err != nil {
-		t.Fatalf("Error reading file %s: %s", goldenPath, err)
-	}
-
-	return data
 }

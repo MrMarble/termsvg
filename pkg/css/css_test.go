@@ -3,7 +3,7 @@ package css_test
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/mrmarble/termsvg/internal/testutils"
 	"github.com/mrmarble/termsvg/pkg/css"
 )
 
@@ -21,16 +21,7 @@ func TestParse(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			diff(t, test.input.Compile(), test.output)
+			testutils.Diff(t, test.input.Compile(), test.output)
 		})
-	}
-}
-
-func diff(t *testing.T, x interface{}, y interface{}) {
-	t.Helper()
-
-	diff := cmp.Diff(x, y)
-	if diff != "" {
-		t.Fatalf(diff)
 	}
 }
