@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/mrmarble/termsvg/internal/svg"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
-	"github.com/mrmarble/termsvg/pkg/svg"
 )
 
 type Cmd struct {
