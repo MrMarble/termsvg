@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/fatih/color"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/term"
@@ -23,16 +22,16 @@ type Cmd struct {
 const readSize = 1024
 
 func (cmd *Cmd) Run() error {
-	color.Green("recording asciicast to %s", cmd.File)
-	color.Green("exit the opened program when you're done")
+	log.Info().Str("output", cmd.File).Msg("recording asciicast.")
+	log.Info().Msg("exit the opened program when you're done.")
 
 	err := rec(cmd.File, cmd.Command)
 	if err != nil {
 		return err
 	}
 
-	color.Green("recording finished")
-	color.Green("asciicast saved to %s", cmd.File)
+	log.Info().Msg("recording finished.")
+	log.Info().Str("output", cmd.File).Msg("asciicast saved.")
 
 	return nil
 }
@@ -81,7 +80,7 @@ func run(command string) ([]asciicast.Event, error) {
 	// Make sure to close the pty at the end.
 	defer func() {
 		if err = ptmx.Close(); err != nil {
-			log.Printf("error closing pty: %s", err)
+			log.Fatal().Err(err).Msg("error closing pty")
 		}
 	}() // Best effort.
 
@@ -91,12 +90,12 @@ func run(command string) ([]asciicast.Event, error) {
 	// Set stdin in raw mode.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		panic(err)
+		log.Fatal().Err(err).Msg("error setting stin in raw mode")
 	}
 
 	defer func() {
 		if err = term.Restore(int(os.Stdin.Fd()), oldState); err != nil {
-			log.Printf("error restoring terminal: %s", err)
+			log.Fatal().Err(err).Msg("error restoring terminal")
 		}
 	}() // Best effort.
 
@@ -104,7 +103,7 @@ func run(command string) ([]asciicast.Event, error) {
 	// NOTE: The goroutine will keep reading until the next keystroke before returning.
 	go func() {
 		if _, err = io.Copy(ptmx, os.Stdin); err != nil {
-			log.Printf("error reading stdin: %s", err)
+			log.Fatal().Err(err).Msg("error reading stdin")
 		}
 	}()
 
@@ -146,7 +145,7 @@ func handlePtySize(ptmx *os.File) chan os.Signal {
 	go func() {
 		for range ch {
 			if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
-				log.Printf("error resizing pty: %s", err)
+				log.Fatal().Err(err).Msg("error resizing pty")
 			}
 		}
 	}()

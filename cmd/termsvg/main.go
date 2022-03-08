@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/mrmarble/termsvg/cmd/termsvg/export"
@@ -19,7 +18,7 @@ type Context struct {
 func init() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, PartsExclude: []string{"time"}})
 }
 
 func main() {
