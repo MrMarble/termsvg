@@ -2,7 +2,7 @@ package svg
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	svg "github.com/ajstarks/svgo"
@@ -25,6 +25,10 @@ type Canvas struct {
 	width    int
 	height   int
 	bgColors map[string]byte
+}
+
+type Output interface {
+	io.Writer
 }
 
 func createSVG(svg *svg.SVG, cast asciicast.Cast) {
@@ -125,16 +129,10 @@ func (c *Canvas) createFrames() {
 	}
 }
 
-func Export(input asciicast.Cast, output string) {
-	file, err := os.Create(fmt.Sprintf("%s.svg", output))
-	if err != nil {
-		panic(err)
-	}
+func Export(input asciicast.Cast, output Output) {
+	input.Compress() // to reduce the number of frames
 
-	defer file.Close()
-	input.Compress()
-
-	createSVG(svg.New(file), input)
+	createSVG(svg.New(output), input)
 }
 
 func (c *Canvas) addBG(bg vt10x.Color) {

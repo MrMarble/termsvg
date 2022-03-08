@@ -25,21 +25,28 @@ func (cmd *Cmd) Run() error {
 }
 
 func export(input, output string) error {
-	file, err := os.ReadFile(input)
+	inputFile, err := os.ReadFile(input)
 	if err != nil {
 		return err
 	}
 
 	if output == "" {
-		output = input
+		output = input + ".svg"
 	}
 
-	cast, err := asciicast.Unmarshal(file)
+	cast, err := asciicast.Unmarshal(inputFile)
 	if err != nil {
 		return err
 	}
 
-	svg.Export(*cast, output)
+	outputFile, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+
+	defer outputFile.Close()
+
+	svg.Export(*cast, outputFile)
 
 	return nil
 }
