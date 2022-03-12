@@ -11,14 +11,8 @@ tasks:
   dev:
     desc: Setup pre-commit hook
     cmds:
-      - |
-        echo "#!/bin/bash
-        FILES=\$(git diff --cached --name-only --diff-filter=ACMR)
-
-        gofumpt -l -w .
-        golangci-lint run --new --fix
-
-        git add $FILES" > .git/hooks/pre-commit
+      - pre-commit install
+      - pre-commit install --hook-type commit-msg
   setup:
     desc: Install dependencies
     cmds:
@@ -63,9 +57,10 @@ tasks:
     desc: Run all CI steps
     cmds:
       - task: setup
-      - task: build
+      - task: lint
       - task: test
-  
+      - task: build
+
   default:
     desc: Runs the default tasks
     cmds:

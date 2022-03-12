@@ -1,0 +1,19 @@
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v3.2.0
+      hooks:
+        - id: trailing-whitespace
+        - id: check-yaml
+        - id: check-added-large-files
+    - repo: https://github.com/compilerla/conventional-pre-commit
+      rev: v1.2.0
+      hooks:
+        - id: conventional-pre-commit
+          stages: [commit-msg]
+    - repo: https://github.com/TekWizely/pre-commit-golang
+      rev: v1.0.0-beta.5
+      hooks:
+        - id: go-fumpt
+        - id: golangci-lint-mod
+        - id: go-test-mod
+exclude: 'examples|testdata'

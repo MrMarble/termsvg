@@ -1,6 +1,7 @@
 # termsvg
 
 [![golangci-lint](https://github.com/MrMarble/termsvg/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/MrMarble/termsvg/actions/workflows/golangci-lint.yml)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mrmarble/termsvg)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mrmarble/termsvg.svg)](https://pkg.go.dev/github.com/mrmarble/termsvg)
 
