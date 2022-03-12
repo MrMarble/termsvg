@@ -10,7 +10,7 @@
 <g style="animation-duration:7.44s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
 <style type="text/css">
 <![CDATA[
-@keyframes k {6.708%{transform:translateX(-0px)}7.044%{transform:translateX(-1360px)}7.057%{transform:translateX(-2720px)}19.976%{transform:translateX(-4080px)}21.898%{transform:translateX(-5440px)}23.390%{transform:translateX(-6800px)}24.398%{transform:translateX(-8160px)}33.459%{transform:translateX(-9520px)}33.472%{transform:translateX(-10880px)}33.620%{transform:translateX(-12240px)}34.870%{transform:translateX(-13600px)}55.101%{transform:translateX(-14960px)}75.319%{transform:translateX(-16320px)}82.713%{transform:translateX(-17680px)}82.726%{transform:translateX(-19040px)}83.008%{transform:translateX(-20400px)}91.477%{transform:translateX(-21760px)}93.951%{transform:translateX(-23120px)}95.712%{transform:translateX(-24480px)}96.975%{transform:translateX(-25840px)}99.987%{transform:translateX(-27200px)}100.000%{transform:translateX(-28560px)}}.h{fill:#008000}.i{fill:#008080}.j{fill:#800000}.k{fill:#000080}.l{fill:#808000}.m{fill:#000000}.g{fill:#808080}.a{fill:#c0c0c0}.b{fill:#00ff00}.c{fill:#00ffff}.d{fill:#0000ff}.e{fill:#ff0000}.f{fill:#ffff00}
+@keyframes k {6.708%{transform:translateX(-0px)}7.044%{transform:translateX(-1360px)}7.057%{transform:translateX(-2720px)}19.976%{transform:translateX(-4080px)}21.898%{transform:translateX(-5440px)}23.390%{transform:translateX(-6800px)}24.398%{transform:translateX(-8160px)}33.459%{transform:translateX(-9520px)}33.472%{transform:translateX(-10880px)}33.620%{transform:translateX(-12240px)}34.870%{transform:translateX(-13600px)}55.101%{transform:translateX(-14960px)}75.319%{transform:translateX(-16320px)}82.713%{transform:translateX(-17680px)}82.726%{transform:translateX(-19040px)}83.008%{transform:translateX(-20400px)}91.477%{transform:translateX(-21760px)}93.951%{transform:translateX(-23120px)}95.712%{transform:translateX(-24480px)}96.975%{transform:translateX(-25840px)}99.987%{transform:translateX(-27200px)}100.000%{transform:translateX(-28560px)}}.j{fill:#cd0000}.l{fill:#cdcd00}.m{fill:#000000}.c{fill:#00ffff}.d{fill:#5c5cff}.e{fill:#ff0000}.i{fill:#00cdcd}.h{fill:#00cd00}.k{fill:#0000ee}.a{fill:#e5e5e5}.b{fill:#00ff00}.f{fill:#ffff00}.g{fill:#7f7f7f}
 ]]>
 </style>
 <g transform="translate(20,60)" >
@@ -216,7 +216,7 @@
 <text x="748" y="225" class="c"  >13:54:53</text>
 <defs>
 <filter id="2" >
-<feFlood result="bg"  flood-color="#008000" flood-opacity="1" />
+<feFlood result="bg"  flood-color="#00cd00" flood-opacity="1" />
 <feMerge>
 <feMergeNode in="bg"/>
 <feMergeNode in="SourceGraphic"/>
@@ -233,7 +233,7 @@
 <text x="462" y="275" class="m" filter="url(#2)" >S</text>
 <defs>
 <filter id="6" >
-<feFlood result="bg"  flood-color="#008080" flood-opacity="1" />
+<feFlood result="bg"  flood-color="#00cdcd" flood-opacity="1" />
 <feMerge>
 <feMergeNode in="bg"/>
 <feMergeNode in="SourceGraphic"/>
