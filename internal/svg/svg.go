@@ -70,17 +70,20 @@ func parseCast(c *Canvas) {
 
 func (c *Canvas) getColors(cell vt10x.Glyph) {
 	fg := color.GetColor(cell.FG)
-	bg := color.GetColor(cell.BG)
 
 	if _, ok := c.colors[fg]; !ok {
 		c.colors[fg] = c.id.String()
 		c.id.Next()
 	}
 
-	if _, ok := c.colors[bg]; !ok {
-		c.colors[bg] = c.id.String()
-		c.id.Next()
+	if cell.BG != vt10x.DefaultBG {
+		bg := color.GetColor(cell.BG)
+		if _, ok := c.colors[bg]; !ok {
+			c.colors[bg] = c.id.String()
+			c.id.Next()
+		}
 	}
+
 }
 
 func (c *Canvas) paddedWidth() int {

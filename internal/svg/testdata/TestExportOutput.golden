@@ -10,7 +10,7 @@
 <g style="animation-duration:3.35s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
 <style type="text/css">
 <![CDATA[
-@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2383px)}87.777%{transform:translateX(-4766px)}92.767%{transform:translateX(-7149px)}100.000%{transform:translateX(-9532px)}}.a{fill:#c0c0c0}
+@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2383px)}87.777%{transform:translateX(-4766px)}92.767%{transform:translateX(-7149px)}100.000%{transform:translateX(-9532px)}}.a{fill:#e5e5e5}
 ]]>
 </style>
 <g transform="translate(20,60)" >
