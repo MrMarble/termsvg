@@ -83,7 +83,6 @@ func (c *Canvas) getColors(cell vt10x.Glyph) {
 			c.id.Next()
 		}
 	}
-
 }
 
 func (c *Canvas) paddedWidth() int {
