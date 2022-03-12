@@ -35,15 +35,15 @@ var packageTemplate = template.Must(template.New("").Funcs(customFuncs).Parse(`/
 // {{ .Timestamp }}
 package color
 
-var ansiColors = []string{
+var colors = []string{
+	// ANSI colors
 {{- range $index, $element := .AnsiColors }}
 	{{ printf "%-4s%q" (colon $index) (hex $element)}},
 {{- end }}
-}
 
-var xtermColors = []string{
+	// XTERM colors
 {{- range $index, $element := .XtermColors }}
-	{{ printf "%-5s%q" (colon $index) $element}},
+	{{ printf "%-5s%q" (colon (inc $index)) $element}},
 {{- end }}
 }
 `))
