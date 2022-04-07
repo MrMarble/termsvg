@@ -16,15 +16,34 @@ builds:
     goos:
       - linux
       - darwin
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - 386
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: freebsd
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.CommitDate}}
+
+    mod_timestamp: '{{ .CommitTimestamp }}'
     main: ./cmd/termsvg
 
 archives:
   - format: tar.gz
     wrap_in_directory: true
     format_overrides:
-      - goos: windows
+      - goos: darwin
         format: zip
-    name_template: '{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+    name_template: '{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     files:
       - LICENSE
       - README.md
