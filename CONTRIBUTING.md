@@ -14,7 +14,7 @@ If you found a bug and made a patch for it:
 
 1. Make sure your changes pass the [pre-commit](https://pre-commit.com/)
    [hooks](.pre-commit-config.yaml). You can install the hooks in your work
-   tree by running `pre-commit install` in your checked out copy.
+   tree by running `task setup` in your checked out copy.
 1. Make sure all tests pass. If you add new functionality, add new tests.
 1. Send a pull request, including a description of the fix (referencing an
    existing issue if there's one).
