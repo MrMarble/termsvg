@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/alecthomas/kong"
@@ -11,8 +12,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	// Populated by goreleaser during build
+	version = "master"
+	commit  = "?"
+	date    = ""
+)
+
 type Context struct {
 	Debug bool
+}
+
+type VersionFlag string
+
+func (v VersionFlag) Decode(ctx *kong.DecodeContext) error { return nil }
+func (v VersionFlag) IsBool() bool                         { return true }
+func (v VersionFlag) BeforeApply(app *kong.Kong) error {
+	fmt.Printf("termsvg has version %s built from %s on %s\n", version, commit, date)
+	app.Exit(0)
+	return nil
 }
 
 func init() {
@@ -23,7 +41,8 @@ func init() {
 
 func main() {
 	var cli struct {
-		Debug bool `help:"Enable debug mode."`
+		Debug   bool        `help:"Enable debug mode."`
+		Version VersionFlag `name:"version" help:"Print version information and quit"`
 
 		Play   play.Cmd   `cmd:"" help:"Play a recording."`
 		Rec    rec.Cmd    `cmd:"" help:"Record a terminal sesion."`
