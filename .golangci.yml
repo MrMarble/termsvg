@@ -14,7 +14,6 @@ linters:
     - funlen
     - goimports
     - gci
-    - gochecknoglobals
     - goconst
     - gofumpt
     - gomnd

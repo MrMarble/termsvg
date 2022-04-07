@@ -25,18 +25,19 @@ type Context struct {
 
 type VersionFlag string
 
+func init() {
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, PartsExclude: []string{"time"}})
+}
+
 func (v VersionFlag) Decode(ctx *kong.DecodeContext) error { return nil }
 func (v VersionFlag) IsBool() bool                         { return true }
 func (v VersionFlag) BeforeApply(app *kong.Kong) error {
 	fmt.Printf("termsvg has version %s built from %s on %s\n", version, commit, date)
 	app.Exit(0)
+
 	return nil
-}
-
-func init() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, PartsExclude: []string{"time"}})
 }
 
 func main() {
