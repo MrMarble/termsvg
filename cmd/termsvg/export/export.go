@@ -12,18 +12,18 @@ import (
 )
 
 type Cmd struct {
-	Input  string `short:"i" type:"existingfile" help:"asciicast file to export"`
-	Output string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input>.svg"`
+	File   string `arg:"" type:"existingfile" help:"asciicast file to export"`
+	Output string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input_file>.svg"`
 	Mini   bool   `name:"minify" optional:"" short:"m" help:"minify output file. May be slower"`
 }
 
 func (cmd *Cmd) Run() error {
 	output := cmd.Output
 	if output == "" {
-		output = cmd.Input + ".svg"
+		output = cmd.File + ".svg"
 	}
 
-	err := export(cmd.Input, output, cmd.Mini)
+	err := export(cmd.File, output, cmd.Mini)
 	if err != nil {
 		return err
 	}
