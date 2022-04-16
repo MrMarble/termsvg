@@ -100,6 +100,25 @@ Available options:
 > a terminal of dimensions not smaller than the one used for recording, as
 > there's no "transcoding" of control sequences for new terminal size.
 
+### `export`
+
+**Export recorded asciicast to svg.**
+
+This command exports given asciicast (as recorded by `rec` command) to svg.
+
+Exporting from a local file:
+
+```sh
+termsvg export -i /path/to/asciicast.cast
+```
+
+Available options:
+
+- `-i, --input=<file>` - Asciicast file to export.
+- `-o, --output=<file>` - Output svg to be created. Defaults to [input].svg
+- `-m, --minify` - Minify svg using [Minify](https://github.com/tdewolff/minify)
+
+
 ## Example
 
 Asciinema recording [inverted pendulum](https://asciinema.org/a/444816)
