@@ -7,7 +7,7 @@ import (
 //go:generate go run colorsgen.go
 
 func GetColor(c vt10x.Color) string {
-	if c == vt10x.DefaultFG {
+	if c >= 1<<24 {
 		return colors[int(vt10x.LightGrey)]
 	}
 
