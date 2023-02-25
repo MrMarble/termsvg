@@ -22,5 +22,5 @@ require (
 	github.com/alecthomas/kong v0.4.1
 	github.com/google/go-cmp v0.5.7
 	github.com/rs/zerolog v1.26.1
-	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e // indirect
+	golang.org/x/sys v0.1.0 // indirect
 )
