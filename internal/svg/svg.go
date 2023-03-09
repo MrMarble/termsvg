@@ -20,6 +20,12 @@ const (
 	headerSize = 3
 )
 
+// If user passed custom background and text colors, use them
+var (
+	foregroundColorOverride = ""
+	backgroundColorOverride = ""
+)
+
 type Canvas struct {
 	*svg.SVG
 	asciicast.Cast
@@ -33,7 +39,11 @@ type Output interface {
 	io.Writer
 }
 
-func Export(input asciicast.Cast, output Output) {
+func Export(input asciicast.Cast, output Output, bgColor, textColor string) {
+	// Set the custom foreground and background colors
+	foregroundColorOverride = textColor
+	backgroundColorOverride = bgColor
+
 	input.Compress() // to reduce the number of frames
 
 	createCanvas(svg.New(output), input)
@@ -99,7 +109,13 @@ func (c *Canvas) createWindow() {
 	buttonColors := [3]string{"#ff5f58", "#ffbd2e", "#18c132"}
 
 	c.Start(c.paddedWidth(), c.paddedHeight())
-	c.Roundrect(0, 0, c.paddedWidth(), c.paddedHeight(), windowRadius, windowRadius, "fill:#282d35")
+
+	// If the user has specified a background color, use that instead of the default
+	if backgroundColorOverride != "" {
+		c.Roundrect(0, 0, c.paddedWidth(), c.paddedHeight(), windowRadius, windowRadius, "fill:"+backgroundColorOverride)
+	} else {
+		c.Roundrect(0, 0, c.paddedWidth(), c.paddedHeight(), windowRadius, windowRadius, "fill:#282d35")
+	}
 
 	for i := range buttonColors {
 		c.Circle((i*(padding+buttonRadius/2))+padding, padding, buttonRadius, fmt.Sprintf("fill:%s", buttonColors[i]))
@@ -121,13 +137,19 @@ func (c *Canvas) addStyles() {
 		"font-size":                 "20px",
 	}.String())
 
+	// Foreground color gets set here
 	colors := css.Blocks{}
 	for color, class := range c.colors {
 		colors = append(colors, css.Block{Selector: fmt.Sprintf(".%s", class), Rules: css.Rules{"fill": color}})
 	}
 
 	styles := generateKeyframes(c.Cast, int32(c.paddedWidth()))
-	styles += colors.String()
+	// If custom colors have been provided, use them instead
+	if foregroundColorOverride != "" {
+		styles += fmt.Sprintf(".a{fill:%s}", foregroundColorOverride)
+	} else {
+		styles += colors.String()
+	}
 	c.Style("text/css", styles)
 	c.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
 }
