@@ -27,6 +27,10 @@ func (cmd *Cmd) Run() error {
 	log.Info().Str("output", cmd.File).Msg("recording asciicast.")
 	log.Info().Msg("exit the opened program when you're done.")
 
+	if cmd.SkipFirstLine {
+		log.Warn().Msg("Skipping the first line of recording.")
+	}
+
 	err := rec(cmd.File, cmd.Command, cmd.SkipFirstLine)
 	if err != nil {
 		return err
