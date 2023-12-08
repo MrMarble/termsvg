@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,8 +16,9 @@ import (
 )
 
 type Cmd struct {
-	File    string `arg:"" type:"path" help:"filename/path to save the recording to"`
-	Command string `short:"c" optional:"" env:"SHELL" help:"Specify command to record, defaults to $SHELL"`
+	File          string `arg:"" type:"path" help:"filename/path to save the recording to"`
+	Command       string `short:"c" optional:"" env:"SHELL" help:"Specify command to record, defaults to $SHELL"`
+	SkipFirstLine bool   `short:"s" help:"Skip the first line of recording"`
 }
 
 const readSize = 1024
@@ -25,7 +27,11 @@ func (cmd *Cmd) Run() error {
 	log.Info().Str("output", cmd.File).Msg("recording asciicast.")
 	log.Info().Msg("exit the opened program when you're done.")
 
-	err := rec(cmd.File, cmd.Command)
+	if cmd.SkipFirstLine {
+		log.Warn().Msg("Skipping the first line of recording.")
+	}
+
+	err := rec(cmd.File, cmd.Command, cmd.SkipFirstLine)
 	if err != nil {
 		return err
 	}
@@ -36,8 +42,8 @@ func (cmd *Cmd) Run() error {
 	return nil
 }
 
-func rec(file, command string) error {
-	events, err := run(command)
+func rec(file, command string, skipFirstLine bool) error {
+	events, err := run(command, skipFirstLine)
 	if err != nil {
 		return err
 	}
@@ -68,8 +74,8 @@ func rec(file, command string) error {
 	return nil
 }
 
-//nolint
-func run(command string) ([]asciicast.Event, error) {
+// nolint
+func run(command string, skipFirstLine bool) ([]asciicast.Event, error) {
 	// Create arbitrary command.
 	c := exec.Command("sh", "-c", command)
 	// Start the command with a pty.
@@ -112,6 +118,8 @@ func run(command string) ([]asciicast.Event, error) {
 	p := make([]byte, readSize)
 	baseTime := time.Now().UnixMicro()
 
+	startTriggered := false
+
 	for {
 		n, err := ptmx.Read(p)
 		event := asciicast.Event{
@@ -130,6 +138,19 @@ func run(command string) ([]asciicast.Event, error) {
 		}
 
 		os.Stdout.Write(p[:n])
+
+		// Skip the first line
+		if skipFirstLine {
+			if !startTriggered {
+				if strings.Contains(string(p[:n]), "\n") {
+					startTriggered = true
+					baseTime = time.Now().UnixMicro()
+					continue
+				} else {
+					continue
+				}
+			}
+		}
 
 		events = append(events, event)
 	}

@@ -12,9 +12,11 @@ import (
 )
 
 type Cmd struct {
-	File   string `arg:"" type:"existingfile" help:"asciicast file to export"`
-	Output string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input_file>.svg"`
-	Mini   bool   `name:"minify" optional:"" short:"m" help:"minify output file. May be slower"`
+	File            string `arg:"" type:"existingfile" help:"asciicast file to export"`
+	Output          string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input_file>.svg"`
+	Mini            bool   `name:"minify" optional:"" short:"m" help:"minify output file. May be slower"`
+	BackgroundColor string `optional:"" short:"b" help:"background color in hexadecimal format (e.g. #FFFFFF)"`
+	TextColor       string `optional:"" short:"t" help:"text color in hexadecimal format (e.g. #000000)"`
 }
 
 func (cmd *Cmd) Run() error {
@@ -23,7 +25,7 @@ func (cmd *Cmd) Run() error {
 		output = cmd.File + ".svg"
 	}
 
-	err := export(cmd.File, output, cmd.Mini)
+	err := export(cmd.File, output, cmd.Mini, cmd.BackgroundColor, cmd.TextColor)
 	if err != nil {
 		return err
 	}
@@ -33,7 +35,7 @@ func (cmd *Cmd) Run() error {
 	return nil
 }
 
-func export(input, output string, mini bool) error {
+func export(input, output string, mini bool, bgColor, textColor string) error {
 	inputFile, err := os.ReadFile(input)
 	if err != nil {
 		return err
@@ -52,7 +54,7 @@ func export(input, output string, mini bool) error {
 
 	if mini {
 		out := new(bytes.Buffer)
-		svg.Export(*cast, out)
+		svg.Export(*cast, out, bgColor, textColor)
 
 		m := minify.New()
 		m.AddFunc("image/svg+xml", msvg.Minify)
@@ -67,7 +69,7 @@ func export(input, output string, mini bool) error {
 			return err
 		}
 	} else {
-		svg.Export(*cast, outputFile)
+		svg.Export(*cast, outputFile, bgColor, textColor)
 	}
 
 	return nil
