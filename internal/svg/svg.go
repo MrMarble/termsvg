@@ -60,8 +60,11 @@ func createCanvas(svg *svg.SVG, cast asciicast.Cast, no_window bool) {
 		canvas.createWindow()
 		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
 	} else {
-		// canvas.Roundrect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), 5, 5, "fill:#282d35")
-		canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:#282d35")
+		if backgroundColorOverride == "" {
+			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:#282d35")
+		} else {
+			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:"+backgroundColorOverride)
+		}
 		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, int(padding*1.5)))
 	}
 	canvas.addStyles()
