@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build windows
 
 package main
 
@@ -9,7 +9,6 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/mrmarble/termsvg/cmd/termsvg/export"
 	"github.com/mrmarble/termsvg/cmd/termsvg/play"
-	"github.com/mrmarble/termsvg/cmd/termsvg/rec"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -48,7 +47,6 @@ func main() {
 		Version VersionFlag `name:"version" help:"Print version information and quit"`
 
 		Play   play.Cmd   `cmd:"" help:"Play a recording."`
-		Rec    rec.Cmd    `cmd:"" help:"Record a terminal sesion."`
 		Export export.Cmd `cmd:"" help:"Export asciicast."`
 	}
 

@@ -19,6 +19,7 @@ builds:
       - linux
       - darwin
       - freebsd
+      - windows
     goarch:
       - amd64
       - arm64
@@ -32,6 +33,13 @@ builds:
         goarch: "386"
       - goos: freebsd
         goarch: arm64
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: "arm"
+      - goos: windows
+        goarch: "386"
+
     flags:
       - -trimpath
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.CommitDate}}
