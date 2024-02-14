@@ -13,19 +13,6 @@ import (
 	"github.com/mrmarble/termsvg/pkg/css"
 )
 
-const (
-	rowHeight  = 25
-	colWidth   = 12
-	padding    = 20
-	headerSize = 3
-)
-
-// If user passed custom background and text colors, use them
-var (
-	foregroundColorOverride = ""
-	backgroundColorOverride = ""
-)
-
 type Canvas struct {
 	*svg.SVG
 	asciicast.Cast
@@ -39,24 +26,37 @@ type Output interface {
 	io.Writer
 }
 
-func Export(input asciicast.Cast, output Output, bgColor, textColor string, no_window bool) {
+const (
+	rowHeight  = 25
+	colWidth   = 12
+	padding    = 20
+	headerSize = 3
+)
+
+// If user passed custom background and text colors, use them
+var (
+	foregroundColorOverride = ""
+	backgroundColorOverride = ""
+)
+
+func Export(input asciicast.Cast, output Output, bgColor, textColor string, noWindow bool) {
 	// Set the custom foreground and background colors
 	foregroundColorOverride = textColor
 	backgroundColorOverride = bgColor
 
 	input.Compress() // to reduce the number of frames
 
-	createCanvas(svg.New(output), input, no_window)
+	createCanvas(svg.New(output), input, noWindow)
 }
 
-func createCanvas(svg *svg.SVG, cast asciicast.Cast, no_window bool) {
+func createCanvas(svg *svg.SVG, cast asciicast.Cast, noWindow bool) {
 	canvas := &Canvas{SVG: svg, Cast: cast, id: uniqueid.New(), colors: make(map[string]string)}
 	canvas.width = cast.Header.Width * colWidth
 	canvas.height = cast.Header.Height * rowHeight
 
 	parseCast(canvas)
 	canvas.Start(canvas.paddedWidth(), canvas.paddedHeight())
-	if !no_window {
+	if !noWindow {
 		canvas.createWindow()
 		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
 	} else {
@@ -65,6 +65,7 @@ func createCanvas(svg *svg.SVG, cast asciicast.Cast, no_window bool) {
 		} else {
 			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:"+backgroundColorOverride)
 		}
+		//nolint:gomnd
 		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, int(padding*1.5)))
 	}
 	canvas.addStyles()
@@ -192,10 +193,10 @@ func (c *Canvas) createFrames() {
 					if cell.Char == ' ' {
 						lastColummn = col + 1
 						continue
-					} else {
-						lastColor = cell.FG
-						lastColummn = col
 					}
+					lastColor = cell.FG
+					lastColummn = col
+
 				}
 
 				frame += string(cell.Char)

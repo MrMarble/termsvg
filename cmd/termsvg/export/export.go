@@ -36,7 +36,7 @@ func (cmd *Cmd) Run() error {
 	return nil
 }
 
-func export(input, output string, mini bool, bgColor, textColor string, no_window bool) error {
+func export(input, output string, mini bool, bgColor, textColor string, noWindow bool) error {
 	inputFile, err := os.ReadFile(input)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func export(input, output string, mini bool, bgColor, textColor string, no_windo
 
 	if mini {
 		out := new(bytes.Buffer)
-		svg.Export(*cast, out, bgColor, textColor, no_window)
+		svg.Export(*cast, out, bgColor, textColor, noWindow)
 
 		m := minify.New()
 		m.AddFunc("image/svg+xml", msvg.Minify)
@@ -70,7 +70,7 @@ func export(input, output string, mini bool, bgColor, textColor string, no_windo
 			return err
 		}
 	} else {
-		svg.Export(*cast, outputFile, bgColor, textColor, no_window)
+		svg.Export(*cast, outputFile, bgColor, textColor, noWindow)
 	}
 
 	return nil

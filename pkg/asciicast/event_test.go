@@ -31,10 +31,13 @@ func TestJSONMarshal(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			output, err := json.Marshal(&tc.input)
+			input := tc.input
+
+			output, err := json.Marshal(&input)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			diff := cmp.Diff(string(output), tc.output)
 			if diff != "" {
 				t.Fatalf(diff)

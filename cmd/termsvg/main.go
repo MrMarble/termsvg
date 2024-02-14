@@ -12,6 +12,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type Context struct {
+	Debug bool
+}
+
+type VersionFlag string
+
 var (
 	// Populated by goreleaser during build
 	version = "master"
@@ -19,20 +25,14 @@ var (
 	date    = ""
 )
 
-type Context struct {
-	Debug bool
-}
-
-type VersionFlag string
-
 func init() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, PartsExclude: []string{"time"}})
 }
 
-func (v VersionFlag) Decode(ctx *kong.DecodeContext) error { return nil }
-func (v VersionFlag) IsBool() bool                         { return true }
+func (v VersionFlag) Decode(_ *kong.DecodeContext) error { return nil }
+func (v VersionFlag) IsBool() bool                       { return true }
 func (v VersionFlag) BeforeApply(app *kong.Kong) error {
 	fmt.Printf("termsvg has version %s built from %s on %s\n", version, commit, date)
 	app.Exit(0)

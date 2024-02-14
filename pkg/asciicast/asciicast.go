@@ -144,13 +144,14 @@ func (c *Cast) Compress() {
 		if i == 0 {
 			events = append(events, event)
 			continue
-		} else {
-			if event.Time == events[len(events)-1].Time {
-				events[len(events)-1].EventData += event.EventData
-			} else {
-				events = append(events, event)
-			}
 		}
+
+		if event.Time == events[len(events)-1].Time {
+			events[len(events)-1].EventData += event.EventData
+		} else {
+			events = append(events, event)
+		}
+
 	}
 
 	c.Events = events
