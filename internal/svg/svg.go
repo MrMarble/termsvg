@@ -15,7 +15,7 @@ import (
 
 const (
 	rowHeight  = 25
-	colWidth   = 11
+	colWidth   = 12
 	padding    = 20
 	headerSize = 3
 )
@@ -39,23 +39,38 @@ type Output interface {
 	io.Writer
 }
 
-func Export(input asciicast.Cast, output Output, bgColor, textColor string) {
+func Export(input asciicast.Cast, output Output, bgColor, textColor string, no_window bool) {
 	// Set the custom foreground and background colors
 	foregroundColorOverride = textColor
 	backgroundColorOverride = bgColor
 
 	input.Compress() // to reduce the number of frames
 
-	createCanvas(svg.New(output), input)
+	createCanvas(svg.New(output), input, no_window)
 }
 
-func createCanvas(svg *svg.SVG, cast asciicast.Cast) {
+func createCanvas(svg *svg.SVG, cast asciicast.Cast, no_window bool) {
 	canvas := &Canvas{SVG: svg, Cast: cast, id: uniqueid.New(), colors: make(map[string]string)}
 	canvas.width = cast.Header.Width * colWidth
 	canvas.height = cast.Header.Height * rowHeight
 
 	parseCast(canvas)
-	canvas.createWindow()
+	canvas.Start(canvas.paddedWidth(), canvas.paddedHeight())
+	if !no_window {
+		canvas.createWindow()
+		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
+	} else {
+		if backgroundColorOverride == "" {
+			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:#282d35")
+		} else {
+			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:"+backgroundColorOverride)
+		}
+		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, int(padding*1.5)))
+	}
+	canvas.addStyles()
+	canvas.createFrames()
+	canvas.Gend() // Transform
+	canvas.Gend() // Styles
 	canvas.End()
 }
 
@@ -108,8 +123,6 @@ func (c *Canvas) createWindow() {
 	buttonRadius := 7
 	buttonColors := [3]string{"#ff5f58", "#ffbd2e", "#18c132"}
 
-	c.Start(c.paddedWidth(), c.paddedHeight())
-
 	// If the user has specified a background color, use that instead of the default
 	if backgroundColorOverride != "" {
 		c.Roundrect(0, 0, c.paddedWidth(), c.paddedHeight(), windowRadius, windowRadius, "fill:"+backgroundColorOverride)
@@ -120,11 +133,6 @@ func (c *Canvas) createWindow() {
 	for i := range buttonColors {
 		c.Circle((i*(padding+buttonRadius/2))+padding, padding, buttonRadius, fmt.Sprintf("fill:%s", buttonColors[i]))
 	}
-
-	c.addStyles()
-	c.createFrames()
-	c.Gend() // Transform
-	c.Gend() // Styles
 }
 
 func (c *Canvas) addStyles() {
@@ -151,7 +159,6 @@ func (c *Canvas) addStyles() {
 		styles += colors.String()
 	}
 	c.Style("text/css", styles)
-	c.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, padding*headerSize))
 }
 
 func (c *Canvas) createFrames() {
