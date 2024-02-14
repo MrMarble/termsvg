@@ -1,3 +1,5 @@
+version: 1
+
 project_name: termsvg
 
 before:
@@ -21,13 +23,13 @@ builds:
       - amd64
       - arm64
       - arm
-      - 386
+      - "386"
     goarm:
-      - 6
-      - 7
+      - "6"
+      - "7"
     ignore:
       - goos: darwin
-        goarch: 386
+        goarch: "386"
       - goos: freebsd
         goarch: arm64
     flags:
