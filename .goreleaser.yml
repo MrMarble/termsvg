@@ -33,7 +33,8 @@ builds:
     flags:
       - -trimpath
     ldflags: -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.CommitDate}}
-
+    gcflags:
+      - all=-l -B
     mod_timestamp: '{{ .CommitTimestamp }}'
     main: ./cmd/termsvg
 
