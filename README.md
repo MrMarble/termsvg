@@ -45,6 +45,9 @@ curl -sL https://raw.githubusercontent.com/MrMarble/termsvg/master/scripts/insta
 wget -O - https://raw.githubusercontent.com/MrMarble/termsvg/master/scripts/install-termsvg.sh | sudo -E bash -
 ```
 
+> [!NOTE]
+> Windows binary does not have the `rec` command.
+
 ---
 
 ## Usage
