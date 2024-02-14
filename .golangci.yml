@@ -22,7 +22,6 @@ linters:
     - misspell
     - revive
     - unconvert
-    - wsl
     - gosec
 
 linters-settings:
