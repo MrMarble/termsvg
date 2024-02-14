@@ -2,6 +2,7 @@
 <img src="assets/logo.png" width="150">
 
 ### Record, share and export your terminal as a animated SVG image.
+
 </div>
 
 <div align="center">
@@ -26,7 +27,6 @@ TermSVG is an all in one cli tool to record, replay and export your terminal ses
 
 You can download a pre compiled binary directly from the [releases](https://github.com/mrmarble/termsvg/releases) for your OS/Architecture.
 
-
 ### Go cli
 
 If you already have Go in your system you can use `go install`
@@ -38,6 +38,7 @@ go install github.com/mrmarble/termsvg/cmd/termsvg@latest # or target a specific
 ### Install script
 
 I made an [installation script](scripts/install-termsvg.sh) that should download the latest available version corresponding to your OS and architecture. `sudo` is needed to copy the binary to `/usr/local/bin`
+
 ```sh
 curl -sL https://raw.githubusercontent.com/MrMarble/termsvg/master/scripts/install-termsvg.sh | sudo -E bash -
 # or with wget
@@ -117,7 +118,6 @@ Available options:
 - `-o, --output=<file>` - Output svg to be created. Defaults to [input].svg
 - `-m, --minify` - Minify svg using [Minify](https://github.com/tdewolff/minify)
 
-
 ## Example
 
 Asciinema recording [inverted pendulum](https://asciinema.org/a/444816)
@@ -132,3 +132,15 @@ If you want to contribute to this project check out [CONTRIBUTING.md](CONTRIBUTI
 ## License
 
 All code is licensed under the GPL, v3 or later. See [LICENSE](LICENSE) file for details.
+
+## ⭐ Stargazers
+
+## Star History
+
+<a href="https://star-history.com/#mrmarble/termsvg&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date" />
+  </picture>
+</a>
