@@ -15,7 +15,7 @@ import (
 
 const (
 	rowHeight  = 25
-	colWidth   = 11
+	colWidth   = 12
 	padding    = 20
 	headerSize = 3
 )
