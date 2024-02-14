@@ -15,7 +15,7 @@ type Cmd struct {
 	File            string `arg:"" type:"existingfile" help:"asciicast file to export"`
 	Output          string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input_file>.svg"`
 	Mini            bool   `name:"minify" optional:"" short:"m" help:"minify output file. May be slower"`
-	NoWindow        bool   `name:"nowindow" optional:"" short:"n" help:"create window in svg"`
+	NoWindow        bool   `name:"nowindow" optional:"" short:"n" help:"don't render terminal window in svg"`
 	BackgroundColor string `optional:"" short:"b" help:"background color in hexadecimal format (e.g. #FFFFFF)"`
 	TextColor       string `optional:"" short:"t" help:"text color in hexadecimal format (e.g. #000000)"`
 }
