@@ -135,8 +135,6 @@ All code is licensed under the GPL, v3 or later. See [LICENSE](LICENSE) file for
 
 ## ⭐ Stargazers
 
-## Star History
-
 <a href="https://star-history.com/#mrmarble/termsvg&Date">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date&theme=dark" />
