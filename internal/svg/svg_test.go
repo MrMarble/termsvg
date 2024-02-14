@@ -21,7 +21,7 @@ func TestExport(t *testing.T) {
 	var output bytes.Buffer
 
 	// Pass empty override bg and text colors
-	svg.Export(*cast, &output, "", "")
+	svg.Export(*cast, &output, "", "", false)
 
 	g := goldie.New(t)
 	g.Assert(t, "TestExportOutput", output.Bytes())
@@ -39,6 +39,6 @@ func BenchmarkExport(b *testing.B) {
 		var output bytes.Buffer
 
 		// Pass empty override bg and text colors
-		svg.Export(*cast, &output, "", "")
+		svg.Export(*cast, &output, "", "", false)
 	}
 }
