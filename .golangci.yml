@@ -16,7 +16,6 @@ linters:
     - gci
     - goconst
     - gofumpt
-    - gomnd
     - gosec
     - lll
     - misspell
