@@ -171,6 +171,9 @@ func (c *Cast) fromJSON(data string) error {
 	}
 
 	for _, line := range lines {
+		if line == "" {
+			continue
+		}
 		var event Event
 
 		err := json.Unmarshal([]byte(line), &event)
