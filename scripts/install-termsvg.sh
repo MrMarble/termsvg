@@ -74,7 +74,7 @@ function get_termsvg() {
   FILENAME="termsvg-${VER}-${DIST}.${EXT}"
 
   echo " - Downloading ${URL}/${FILENAME}"
-  TMP_DIR=$(mktemp --directory)
+  TMP_DIR=$(mktemp -d -t termsvg-install-XXXX)
   curl -sLo "${TMP_DIR}/${FILENAME}" "${URL}/${FILENAME}"
 
   echo " - Unpacking ${FILENAME}"
