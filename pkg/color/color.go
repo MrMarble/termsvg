@@ -15,7 +15,7 @@ func GetColor(c vt10x.Color) string {
 		return colors[int(vt10x.LightGrey)]
 	case c >= 1<<8:
 		rgb := intToRGB(uint32(c))
-		return fmt.Sprintf("#%02x%02x%02x", rgb.R, rgb.B, rgb.G)
+		return fmt.Sprintf("#%02x%02x%02x", rgb.R, rgb.G, rgb.B)
 	default:
 		return colors[int(c)]
 	}
