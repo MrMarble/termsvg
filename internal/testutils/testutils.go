@@ -17,10 +17,13 @@ func GoldenData(t Helper, identifier string) []byte {
 
 	goldenPath := "testdata/" + identifier + ".golden"
 
+	//nolint:gosec
 	f, err := os.Open(goldenPath)
 	if err != nil {
 		t.Fatalf("Error opening file %s: %s", goldenPath, err)
 	}
+
+	//nolint:errcheck
 	defer f.Close()
 
 	data, err := io.ReadAll(f)

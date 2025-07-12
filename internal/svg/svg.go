@@ -65,7 +65,6 @@ func createCanvas(svg *svg.SVG, cast asciicast.Cast, noWindow bool) {
 		} else {
 			canvas.Rect(0, 0, canvas.paddedWidth(), canvas.paddedHeight(), "fill:"+backgroundColorOverride)
 		}
-		//nolint:gomnd
 		canvas.Group(fmt.Sprintf(`transform="translate(%d,%d)"`, padding, int(padding*1.5)))
 	}
 	canvas.addStyles()
@@ -152,7 +151,7 @@ func (c *Canvas) addStyles() {
 		colors = append(colors, css.Block{Selector: fmt.Sprintf(".%s", class), Rules: css.Rules{"fill": color}})
 	}
 
-	styles := generateKeyframes(c.Cast, int32(c.paddedWidth()))
+	styles := generateKeyframes(c.Cast, c.paddedWidth())
 	// If custom colors have been provided, use them instead
 	if foregroundColorOverride != "" {
 		styles += fmt.Sprintf(".a{fill:%s}", foregroundColorOverride)
@@ -234,10 +233,10 @@ func (c *Canvas) applyBG(bg vt10x.Color) string {
 	return ""
 }
 
-func generateKeyframes(cast asciicast.Cast, width int32) string {
+func generateKeyframes(cast asciicast.Cast, width int) string {
 	css := "@keyframes k {"
 	for i, frame := range cast.Events {
-		css += generateKeyframe(float32(frame.Time*100/cast.Header.Duration), width*int32(i))
+		css += generateKeyframe(float32(frame.Time*100/cast.Header.Duration), width*i)
 	}
 
 	css += "}"
@@ -245,6 +244,6 @@ func generateKeyframes(cast asciicast.Cast, width int32) string {
 	return css
 }
 
-func generateKeyframe(percent float32, translate int32) string {
+func generateKeyframe(percent float32, translate int) string {
 	return fmt.Sprintf("%.3f%%{transform:translateX(-%dpx)}", percent, translate)
 }

@@ -3,6 +3,7 @@ package export
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 
 	"github.com/mrmarble/termsvg/internal/svg"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
@@ -37,7 +38,7 @@ func (cmd *Cmd) Run() error {
 }
 
 func export(input, output string, mini bool, bgColor, textColor string, noWindow bool) error {
-	inputFile, err := os.ReadFile(input)
+	inputFile, err := os.ReadFile(filepath.Clean(input))
 	if err != nil {
 		return err
 	}
@@ -47,31 +48,31 @@ func export(input, output string, mini bool, bgColor, textColor string, noWindow
 		return err
 	}
 
-	outputFile, err := os.Create(output)
-	if err != nil {
-		return err
-	}
-	defer outputFile.Close()
+	out := new(bytes.Buffer)
+	var data []byte
 
+	svg.Export(*cast, out, bgColor, textColor, noWindow)
 	if mini {
-		out := new(bytes.Buffer)
-		svg.Export(*cast, out, bgColor, textColor, noWindow)
-
 		m := minify.New()
 		m.AddFunc("image/svg+xml", msvg.Minify)
-
 		b, err := m.Bytes("image/svg+xml", out.Bytes())
 		if err != nil {
 			return err
 		}
-
-		_, err = outputFile.Write(b)
-		if err != nil {
-			return err
-		}
+		data = b
 	} else {
-		svg.Export(*cast, outputFile, bgColor, textColor, noWindow)
+		data = out.Bytes()
+	}
+	outputFile, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	_, err = outputFile.Write(data)
+	if err != nil {
+		//nolint:gosec,errcheck
+		outputFile.Close()
+		return err
 	}
 
-	return nil
+	return outputFile.Close()
 }
