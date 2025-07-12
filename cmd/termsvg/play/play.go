@@ -3,6 +3,7 @@ package play
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
@@ -19,7 +20,7 @@ func (cmd *Cmd) Run() error {
 }
 
 func play(path string, idleCap, speed float64) error {
-	file, err := os.ReadFile(path)
+	file, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return err
 	}

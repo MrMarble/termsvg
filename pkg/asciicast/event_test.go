@@ -40,7 +40,7 @@ func TestJSONMarshal(t *testing.T) {
 
 			diff := cmp.Diff(string(output), tc.output)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatal(diff)
 			}
 		})
 	}
@@ -76,7 +76,7 @@ func TestJSONUnmarshal(t *testing.T) {
 			}
 			diff := cmp.Diff(output, tc.output)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatal(diff)
 			}
 		})
 	}

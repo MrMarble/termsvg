@@ -66,7 +66,7 @@ func rec(file, command string, skipFirstLine bool) error {
 		return err
 	}
 
-	err = os.WriteFile(file, js, os.ModePerm)
+	err = os.WriteFile(file, js, 0o600)
 	if err != nil {
 		return err
 	}
