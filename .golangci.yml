@@ -35,22 +35,16 @@ linters:
       - linters:
           - revive
         text: "should have a package comment"
-
-linters-settings:
-  errcheck:
-    # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.
-    check-blank: true
-  gosimple:
-    # Select the Go version to target.
-    go: "1.17"
-    # https://staticcheck.io/docs/options#checks
-    checks: ["all"]
-  govet:
-    check-shadowing: true
-  staticcheck:
-    go: "1.17"
-    # https://staticcheck.io/docs/options#checks
-    checks: ["all"]
-  decorder:
-    disable-dec-order-check: false
-    disable-init-func-first-check: false
+  settings:
+    errcheck:
+      # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.
+      check-blank: true
+    govet:
+      enable:
+        - shadow
+    staticcheck:
+      # https://staticcheck.io/docs/options#checks
+      checks: ["all"]
+    decorder:
+      disable-dec-order-check: false
+      disable-init-func-first-check: false
