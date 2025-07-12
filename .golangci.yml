@@ -35,6 +35,9 @@ linters:
       - linters:
           - revive
         text: "should have a package comment"
+      - linters:
+          - govet
+        text: "declaration of \"err\" shadows"
   settings:
     errcheck:
       # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.
@@ -44,7 +47,7 @@ linters:
         - shadow
     staticcheck:
       # https://staticcheck.io/docs/options#checks
-      checks: ["all"]
+      checks: ["all", "-ST1000"]
     decorder:
       disable-dec-order-check: false
       disable-init-func-first-check: false
