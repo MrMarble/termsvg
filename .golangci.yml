@@ -1,3 +1,11 @@
+version: "2"
+
+formatters:
+  enable:
+    - goimports
+    - gci
+    - gofumpt
+
 linters:
   enable:
     - asciicheck
@@ -12,16 +20,21 @@ linters:
     - errname
     - errorlint
     - funlen
-    - goimports
-    - gci
     - goconst
-    - gofumpt
     - gosec
     - lll
     - misspell
     - revive
     - unconvert
     - gosec
+  exclusions:
+    rules:
+      - linters:
+          - revive
+        text: "exported (type|function|const|method) .* should have comment"
+      - linters:
+          - revive
+        text: "should have a package comment"
 
 linters-settings:
   errcheck:

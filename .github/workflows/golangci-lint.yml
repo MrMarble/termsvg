@@ -13,28 +13,24 @@ permissions:
   contents: read
 
 jobs:
-  golangci:
-    name: lint
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          fetch-depth: 0
+          go-version-file: go.mod
+      - name: go mod tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Run 'go mod tidy' and push it"
+            exit 1
+          fi
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+        uses: golangci/golangci-lint-action@v8
         with:
-          fetch-depth: 0
-
-      - name: Setup go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '>=1.17'
-
-      - name: Run tests
+          version: latest
+      - name: Run unit tests
         run: go test -v ./...
