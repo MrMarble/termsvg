@@ -1,0 +1,4 @@
+[tools]
+go = "latest"
+golangci-lint = "latest"
+task = "latest"
