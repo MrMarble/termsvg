@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -107,9 +108,33 @@ func run(command string, skipFirstLine bool) ([]asciicast.Event, error) {
 
 	// Copy stdin to the pty and the pty to stdout.
 	// NOTE: The goroutine will keep reading until the next keystroke before returning.
+	var paused atomic.Bool
 	go func() {
-		if _, err = io.Copy(ptmx, os.Stdin); err != nil {
-			log.Fatal().Err(err).Msg("error reading stdin")
+		buf := make([]byte, readSize)
+		for {
+			n, err := os.Stdin.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					log.Fatal().Err(err).Msg("error reading stdin")
+				}
+				return
+			}
+			
+			// Check for Ctrl+P (0x10)
+			for i := 0; i < n; i++ {
+				if buf[i] == 0x10 { // Ctrl+P
+					if paused.Load() {
+						paused.Store(false)
+					} else {
+						paused.Store(true)
+					}
+					continue
+				}
+				// Write byte to pty
+				if _, err := ptmx.Write(buf[i:i+1]); err != nil {
+					log.Fatal().Err(err).Msg("error writing to pty")
+				}
+			}
 		}
 	}()
 
@@ -120,24 +145,44 @@ func run(command string, skipFirstLine bool) ([]asciicast.Event, error) {
 
 	startTriggered := false
 
+	pauseStartTime := int64(0)
+	totalPausedTime := int64(0)
+
 	for {
 		n, err := ptmx.Read(p)
-		event := asciicast.Event{
-			Time:      float64(time.Now().UnixMicro()-baseTime) / float64(time.Millisecond),
-			EventType: asciicast.Output, EventData: string(p[:n]),
-		}
-
+		
 		if err != nil {
 			if err == io.EOF {
 				os.Stdout.Write(p[:n]) // should handle any remainding bytes.
-
-				events = append(events, event)
+				
+				// Only record if not paused
+				if !paused.Load() {
+					event := asciicast.Event{
+						Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
+						EventType: asciicast.Output, EventData: string(p[:n]),
+					}
+					events = append(events, event)
+				}
 			}
 
 			break
 		}
 
 		os.Stdout.Write(p[:n])
+
+		// Handle pause state
+		isPaused := paused.Load()
+		if isPaused {
+			if pauseStartTime == 0 {
+				pauseStartTime = time.Now().UnixMicro()
+			}
+			continue
+		} else {
+			if pauseStartTime != 0 {
+				totalPausedTime += time.Now().UnixMicro() - pauseStartTime
+				pauseStartTime = 0
+			}
+		}
 
 		// Skip the first line
 		if skipFirstLine {
@@ -152,6 +197,10 @@ func run(command string, skipFirstLine bool) ([]asciicast.Event, error) {
 			}
 		}
 
+		event := asciicast.Event{
+			Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
+			EventType: asciicast.Output, EventData: string(p[:n]),
+		}
 		events = append(events, event)
 	}
 
