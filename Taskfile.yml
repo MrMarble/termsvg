@@ -1,11 +1,10 @@
 # https://taskfile.dev
 
-version: '3'
+version: "3"
 
 env:
   GO111MODULE: on
   GOPROXY: https://proxy.golang.org,direct
-
 
 tasks:
   setup:
@@ -75,7 +74,18 @@ tasks:
       - echo {{.NEXT}}
       - git push origin --tags
 
-
+  examples:
+    desc: Regenerate examples
+    deps:
+      - build
+    sources:
+      - ./examples/*.cast
+      - ./termsvg
+    generates:
+      - ./examples/*.svg
+    cmds:
+      - for f in ./examples/*.cast; do ./termsvg export "$f" -m -o "${f%.cast}.svg"; done
+      - ./scripts/update-filesize.sh
   goreleaser:
     desc: Run GoReleaser either in snapshot or release mode
     deps:
@@ -85,3 +95,4 @@ tasks:
         sh: 'if [[ $GITHUB_REF != refs/tags/v* ]]; then echo "--snapshot"; fi'
     cmds:
       - goreleaser release --rm-dist {{.SNAPSHOT}}
+
