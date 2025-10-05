@@ -141,7 +141,7 @@ func (c *Canvas) addStyles() {
 		"animation-iteration-count": "infinite",
 		"animation-name":            "k",
 		"animation-timing-function": "steps(1,end)",
-		"font-family":               "Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace",
+		"font-family":               "Monago,Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace",
 		"font-size":                 "20px",
 	}.String())
 
@@ -152,6 +152,10 @@ func (c *Canvas) addStyles() {
 	}
 
 	styles := generateKeyframes(c.Cast, c.paddedWidth())
+	styles += css.Block{Selector: ".bold", Rules: css.Rules{"font-weight": "bold"}}.String()
+	styles += css.Block{Selector: ".italic", Rules: css.Rules{"font-style": "italic"}}.String()
+	styles += css.Block{Selector: ".underline", Rules: css.Rules{"text-decoration": "underline"}}.String()
+	styles += css.Block{Selector: ".dim", Rules: css.Rules{"opacity": "0.5"}}.String()
 	// If custom colors have been provided, use them instead
 	if foregroundColorOverride != "" {
 		styles += fmt.Sprintf(".a{fill:%s}", foregroundColorOverride)
@@ -176,15 +180,36 @@ func (c *Canvas) createFrames() {
 			frame := ""
 			lastColor := term.Cell(0, row).FG
 			lastColummn := 0
+			lastBold := isBold(term.Cell(0, row))
+			lastItalic := isItalic(term.Cell(0, row))
+			lastUnderline := isUnderline(term.Cell(0, row))
+			lastDim := isDim(term.Cell(0, row))
 
 			for col := 0; col < c.Header.Width; col++ {
 				cell := term.Cell(col, row)
 				c.addBG(cell.BG)
+				cellIsBold := isBold(cell)
+				cellIsItalic := isItalic(cell)
+				cellIsUnderline := isUnderline(cell)
+				cellIsDim := isDim(cell)
 
-				if cell.Char == ' ' || cell.FG != lastColor {
+				if cell.Char == ' ' || cell.FG != lastColor || cellIsBold != lastBold || cellIsItalic != lastItalic || cellIsUnderline != lastUnderline || cellIsDim != lastDim {
 					if frame != "" {
+						class := c.colors[color.GetColor(lastColor)]
+						if cellIsBold {
+							class += " bold"
+						}
+						if cellIsItalic {
+							class += " italic"
+						}
+						if cellIsUnderline {
+							class += " underline"
+						}
+						if cellIsDim {
+							class += " dim"
+						}
 						c.Text(lastColummn*colWidth,
-							row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]), c.applyBG(cell.BG))
+							row*rowHeight, frame, fmt.Sprintf(`class="%s"`, class), c.applyBG(cell.BG))
 
 						frame = ""
 					}
@@ -231,6 +256,22 @@ func (c *Canvas) applyBG(bg vt10x.Color) string {
 	}
 
 	return ""
+}
+
+func isBold(g vt10x.Glyph) bool {
+	return g.Mode&4 != 0
+}
+
+func isItalic(g vt10x.Glyph) bool {
+	return g.Mode&16 != 0
+}
+
+func isUnderline(g vt10x.Glyph) bool {
+	return g.Mode&2 != 0
+}
+
+func isDim(g vt10x.Glyph) bool {
+	return g.Mode&1 != 0
 }
 
 func generateKeyframes(cast asciicast.Cast, width int) string {
