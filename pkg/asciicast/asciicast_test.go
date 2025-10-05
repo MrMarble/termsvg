@@ -46,7 +46,7 @@ func TestWriteRecords(t *testing.T) {
 	}
 
 	want := goldie.New(t)
-	want.AssertWithTemplate(t, "TestMarshal", record.Header, got)
+	want.AssertWithTemplate(t, "TestMarshal", record, got)
 }
 
 func TestToRelativeTime(t *testing.T) {
@@ -111,6 +111,7 @@ func setup(t *testing.T) *asciicast.Cast {
 	t.Setenv("SHELL", "TEST_SHELL")
 
 	cast := asciicast.New()
+	cast.Header.Timestamp = 1337
 
 	cast.Events = append(cast.Events,
 		asciicast.Event{Time: 1, EventType: asciicast.Output, EventData: "First"},

@@ -1,4 +1,4 @@
-{"version":2,"width":0,"height":0,"timestamp":{{.Timestamp}},"env":{"SHELL":"TEST_SHELL","TERM":"TEST_TERM"}}
+{"version":2,"width":0,"height":0,"timestamp":1337,"env":{"SHELL":"TEST_SHELL","TERM":"TEST_TERM"}}
 [1,"o","First"]
 [2,"o","Second"]
 [3,"i","Third"]

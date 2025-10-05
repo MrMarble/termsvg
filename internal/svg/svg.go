@@ -175,63 +175,80 @@ func (c *Canvas) createFrames() {
 		}
 
 		c.Gtransform(fmt.Sprintf("translate(%d)", c.paddedWidth()*i))
-
-		for row := 0; row < c.Header.Height; row++ {
-			frame := ""
-			lastColor := term.Cell(0, row).FG
-			lastColummn := 0
-			lastBold := isBold(term.Cell(0, row))
-			lastItalic := isItalic(term.Cell(0, row))
-			lastUnderline := isUnderline(term.Cell(0, row))
-			lastDim := isDim(term.Cell(0, row))
-
-			for col := 0; col < c.Header.Width; col++ {
-				cell := term.Cell(col, row)
-				c.addBG(cell.BG)
-				cellIsBold := isBold(cell)
-				cellIsItalic := isItalic(cell)
-				cellIsUnderline := isUnderline(cell)
-				cellIsDim := isDim(cell)
-
-				if cell.Char == ' ' || cell.FG != lastColor || cellIsBold != lastBold || cellIsItalic != lastItalic || cellIsUnderline != lastUnderline || cellIsDim != lastDim {
-					if frame != "" {
-						class := c.colors[color.GetColor(lastColor)]
-						if cellIsBold {
-							class += " bold"
-						}
-						if cellIsItalic {
-							class += " italic"
-						}
-						if cellIsUnderline {
-							class += " underline"
-						}
-						if cellIsDim {
-							class += " dim"
-						}
-						c.Text(lastColummn*colWidth,
-							row*rowHeight, frame, fmt.Sprintf(`class="%s"`, class), c.applyBG(cell.BG))
-
-						frame = ""
-					}
-
-					if cell.Char == ' ' {
-						lastColummn = col + 1
-						continue
-					}
-					lastColor = cell.FG
-					lastColummn = col
-
-				}
-
-				frame += string(cell.Char)
-			}
-
-			if strings.TrimSpace(frame) != "" {
-				c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]))
-			}
-		}
+		c.renderRows(term)
 		c.Gend()
 	}
+}
+
+func (c *Canvas) renderRows(term vt10x.Terminal) {
+	for row := 0; row < c.Header.Height; row++ {
+		c.renderRow(term, row)
+	}
+}
+
+func (c *Canvas) renderRow(term vt10x.Terminal, row int) {
+	frame := ""
+	lastColor := term.Cell(0, row).FG
+	lastColummn := 0
+	lastBold := isBold(term.Cell(0, row))
+	lastItalic := isItalic(term.Cell(0, row))
+	lastUnderline := isUnderline(term.Cell(0, row))
+	lastDim := isDim(term.Cell(0, row))
+
+	for col := 0; col < c.Header.Width; col++ {
+		cell := term.Cell(col, row)
+		c.addBG(cell.BG)
+
+		if c.cellAttributesChanged(cell, lastColor, lastBold, lastItalic, lastUnderline, lastDim) {
+			if frame != "" {
+				class := c.buildClassString(lastColor, lastBold, lastItalic, lastUnderline, lastDim)
+				c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`class="%s"`, class), c.applyBG(cell.BG))
+				frame = ""
+			}
+
+			if cell.Char == ' ' {
+				lastColummn = col + 1
+				continue
+			}
+			lastColor = cell.FG
+			lastColummn = col
+			lastBold = isBold(cell)
+			lastItalic = isItalic(cell)
+			lastUnderline = isUnderline(cell)
+			lastDim = isDim(cell)
+		}
+
+		frame += string(cell.Char)
+	}
+
+	if strings.TrimSpace(frame) != "" {
+		c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]))
+	}
+}
+
+func (c *Canvas) cellAttributesChanged(
+	cell vt10x.Glyph, lastColor vt10x.Color, lastBold, lastItalic, lastUnderline, lastDim bool,
+) bool {
+	return cell.Char == ' ' || cell.FG != lastColor ||
+		isBold(cell) != lastBold || isItalic(cell) != lastItalic ||
+		isUnderline(cell) != lastUnderline || isDim(cell) != lastDim
+}
+
+func (c *Canvas) buildClassString(fgColor vt10x.Color, bold, italic, underline, dim bool) string {
+	class := c.colors[color.GetColor(fgColor)]
+	if bold {
+		class += " bold"
+	}
+	if italic {
+		class += " italic"
+	}
+	if underline {
+		class += " underline"
+	}
+	if dim {
+		class += " dim"
+	}
+	return class
 }
 
 func (c *Canvas) addBG(bg vt10x.Color) {
