@@ -8,10 +8,10 @@
 <circle cx="43" cy="20" r="7" style="fill:#ffbd2e" />
 <circle cx="66" cy="20" r="7" style="fill:#18c132" />
 <g transform="translate(20,60)" >
-<g style="animation-duration:3.35s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
+<g style="animation-duration:3.35s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monago,Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
 <style type="text/css">
 <![CDATA[
-@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2596px)}87.777%{transform:translateX(-5192px)}92.767%{transform:translateX(-7788px)}100.000%{transform:translateX(-10384px)}}.a{fill:#e5e5e5}
+@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2596px)}87.777%{transform:translateX(-5192px)}92.767%{transform:translateX(-7788px)}100.000%{transform:translateX(-10384px)}}.bold{font-weight:bold}.italic{font-style:italic}.underline{text-decoration:underline}.dim{opacity:0.5}.a{fill:#e5e5e5}
 ]]>
 </style>
 <g transform="translate(0)">
