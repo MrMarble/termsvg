@@ -8,23 +8,23 @@
 <g style="animation-duration:3.35s;animation-iteration-count:infinite;animation-name:k;animation-timing-function:steps(1,end);font-family:Monago,Monaco,Consolas,Menlo,'Bitstream Vera Sans Mono','Powerline Symbols',monospace;font-size:20px">
 <style type="text/css">
 <![CDATA[
-@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2596px)}87.777%{transform:translateX(-5192px)}92.767%{transform:translateX(-7788px)}100.000%{transform:translateX(-10384px)}}.bold{font-weight:bold}.italic{font-style:italic}.underline{text-decoration:underline}.dim{opacity:0.5}.a{fill:#e5e5e5}
+@keyframes k {79.807%{transform:translateX(-0px)}82.298%{transform:translateX(-2596px)}87.777%{transform:translateX(-5192px)}92.767%{transform:translateX(-7788px)}100.000%{transform:translateX(-10384px)}}.bold{font-weight:bold}.italic{font-style:italic}.underline{text-decoration:underline}.dim{opacity:0.5}text{fill:#e5e5e5}
 ]]>
 </style>
 <g transform="translate(0)">
-<text x="0" y="0" class="a"  >h</text>
+<text x="0" y="0" class=""  >h</text>
 </g>
 <g transform="translate(2596)">
-<text x="0" y="0" class="a"  >he</text>
+<text x="0" y="0" class=""  >he</text>
 </g>
 <g transform="translate(5192)">
-<text x="0" y="0" class="a"  >hel</text>
+<text x="0" y="0" class=""  >hel</text>
 </g>
 <g transform="translate(7788)">
-<text x="0" y="0" class="a"  >hell</text>
+<text x="0" y="0" class=""  >hell</text>
 </g>
 <g transform="translate(10384)">
-<text x="0" y="0" class="a"  >hello</text>
+<text x="0" y="0" class=""  >hello</text>
 </g>
 </g>
 </g>
