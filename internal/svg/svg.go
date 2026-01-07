@@ -94,11 +94,12 @@ func parseCast(c *Canvas) {
 }
 
 func (c *Canvas) getColors(cell vt10x.Glyph) {
-	fg := color.GetColor(cell.FG)
-
-	if _, ok := c.colors[fg]; !ok {
-		c.colors[fg] = c.id.String()
-		c.id.Next()
+	if cell.FG != vt10x.DefaultFG {
+		fg := color.GetColor(cell.FG)
+		if _, ok := c.colors[fg]; !ok {
+			c.colors[fg] = c.id.String()
+			c.id.Next()
+		}
 	}
 
 	if cell.BG != vt10x.DefaultBG {
@@ -158,10 +159,11 @@ func (c *Canvas) addStyles() {
 	styles += css.Block{Selector: ".dim", Rules: css.Rules{"opacity": "0.5"}}.String()
 	// If custom colors have been provided, use them instead
 	if foregroundColorOverride != "" {
-		styles += fmt.Sprintf(".a{fill:%s}", foregroundColorOverride)
+		styles += css.Block{Selector: "text", Rules: css.Rules{"fill": foregroundColorOverride}}.String()
 	} else {
-		styles += colors.String()
+		styles += css.Block{Selector: "text", Rules: css.Rules{"fill": color.GetColor(vt10x.DefaultFG)}}.String()
 	}
+	styles += colors.String()
 	c.Style("text/css", styles)
 }
 
@@ -222,7 +224,8 @@ func (c *Canvas) renderRow(term vt10x.Terminal, row int) {
 	}
 
 	if strings.TrimSpace(frame) != "" {
-		c.Text(lastColummn*colWidth, row*rowHeight, frame, fmt.Sprintf(`class="%s"`, c.colors[color.GetColor(lastColor)]))
+		colorClass := c.buildClassString(lastColor, false, false, false, false)
+		c.Text(lastColummn*colWidth, row*rowHeight, frame, colorClass)
 	}
 }
 
@@ -235,7 +238,10 @@ func (c *Canvas) cellAttributesChanged(
 }
 
 func (c *Canvas) buildClassString(fgColor vt10x.Color, bold, italic, underline, dim bool) string {
-	class := c.colors[color.GetColor(fgColor)]
+	class := ""
+	if fgColor != vt10x.DefaultFG {
+		class = c.colors[color.GetColor(fgColor)]
+	}
 	if bold {
 		class += " bold"
 	}
