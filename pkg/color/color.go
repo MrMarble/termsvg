@@ -49,5 +49,9 @@ func (c Color) ToRGBA(palette Palette) color.RGBA {
 // ToHex returns the color as a hex string (e.g., "#RRGGBB").
 func (c Color) ToHex(palette Palette) string {
 	rgba := c.ToRGBA(palette)
+	return RGBAtoHex(rgba)
+}
+
+func RGBAtoHex(rgba color.RGBA) string {
 	return fmt.Sprintf("#%02X%02X%02X", rgba.R, rgba.G, rgba.B)
 }
