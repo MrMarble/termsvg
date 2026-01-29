@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/mrmarble/termsvg/cmd/termsvg/export"
+	"github.com/mrmarble/termsvg/cmd/termsvg/play"
 	"github.com/mrmarble/termsvg/cmd/termsvg/record"
 )
 
@@ -30,6 +31,7 @@ func main() {
 		Version VersionFlag `name:"version" help:"Print version information and quit"`
 
 		Record record.Cmd `cmd:"" help:"Record a terminal session"`
+		Play   play.Cmd   `cmd:"" help:"Play back a recorded terminal session"`
 		Export export.Cmd `cmd:"" help:"Export asciicast to SVG"`
 	}
 
