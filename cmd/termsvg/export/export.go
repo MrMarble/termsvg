@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/mrmarble/termsvg/pkg/ir"
 	"github.com/mrmarble/termsvg/pkg/renderer"
+	"github.com/mrmarble/termsvg/pkg/renderer/gif"
 	"github.com/mrmarble/termsvg/pkg/renderer/svg"
 	"github.com/tdewolff/minify/v2"
 	msvg "github.com/tdewolff/minify/v2/svg"
@@ -18,8 +20,9 @@ import (
 
 type Cmd struct {
 	File     string        `arg:"" type:"existingfile" help:"Asciicast file to export"`
-	Output   string        `short:"o" type:"path" help:"Output file path (default: <input>.svg)"`
-	Minify   bool          `short:"m" help:"Minify output SVG"`
+	Output   string        `short:"o" type:"path" help:"Output file path (default: <input>.<format>)"`
+	Format   string        `short:"f" default:"svg" enum:"svg,gif" help:"Output format (svg, gif)"`
+	Minify   bool          `short:"m" help:"Minify output (SVG only)"`
 	NoWindow bool          `short:"n" help:"Don't render terminal window chrome"`
 	Speed    float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
 	MaxIdle  time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
@@ -28,9 +31,11 @@ type Cmd struct {
 }
 
 func (cmd *Cmd) Run() error {
+	format := strings.ToLower(cmd.Format)
+
 	output := cmd.Output
 	if output == "" {
-		output = cmd.File + ".svg"
+		output = cmd.File + "." + format
 	}
 
 	// Load cast file
@@ -64,11 +69,23 @@ func (cmd *Cmd) Run() error {
 		return err
 	}
 
-	// Render to SVG
+	// Create renderer based on format
 	renderConfig := renderer.DefaultConfig()
 	renderConfig.ShowWindow = !cmd.NoWindow
 
-	svgRenderer := svg.New(renderConfig)
+	var rdr renderer.Renderer
+	switch format {
+	case "gif":
+		gifRenderer, err := gif.New(renderConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create GIF renderer: %w", err)
+		}
+		rdr = gifRenderer
+	case "svg":
+		rdr = svg.New(renderConfig)
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
 
 	// Create output file
 	outFile, err := os.Create(output)
@@ -77,10 +94,10 @@ func (cmd *Cmd) Run() error {
 	}
 	defer outFile.Close()
 
-	// Render (with optional minification)
-	if cmd.Minify {
+	// Render (with optional minification for SVG)
+	if cmd.Minify && format == "svg" {
 		var buf bytes.Buffer
-		if err := svgRenderer.Render(context.Background(), rec, &buf); err != nil {
+		if err := rdr.Render(context.Background(), rec, &buf); err != nil {
 			return err
 		}
 		m := minify.New()
@@ -89,7 +106,7 @@ func (cmd *Cmd) Run() error {
 			return err
 		}
 	} else {
-		if err := svgRenderer.Render(context.Background(), rec, outFile); err != nil {
+		if err := rdr.Render(context.Background(), rec, outFile); err != nil {
 			return err
 		}
 	}
