@@ -19,7 +19,7 @@ const (
 	RowHeight  = 25 // pixels per row
 	ColWidth   = 12 // pixels per column
 	Padding    = 20 // padding around content
-	HeaderSize = 3  // multiplier for header area (window buttons)
+	HeaderSize = 2  // multiplier for header area (window buttons)
 )
 
 // Renderer implements the renderer.Renderer interface for SVG output.
@@ -80,7 +80,7 @@ func (c *canvas) paddedWidth() int {
 
 func (c *canvas) paddedHeight() int {
 	if c.config.ShowWindow {
-		return c.contentHeight() + Padding*HeaderSize
+		return c.contentHeight() + Padding*HeaderSize + Padding
 	}
 	return c.contentHeight() + 2*Padding
 }

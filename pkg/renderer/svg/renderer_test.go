@@ -417,7 +417,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	// Padded dimensions with window
 	config.ShowWindow = true
 	c.config = config
-	expectedPaddedHeight := c.contentHeight() + Padding*HeaderSize
+	expectedPaddedHeight := c.contentHeight() + Padding*HeaderSize + Padding // header + bottom padding
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() with window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
 	}
