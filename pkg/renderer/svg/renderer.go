@@ -165,10 +165,16 @@ func (c *canvas) writeStyles() {
 	// Keyframes animation
 	sb.WriteString(c.generateKeyframes())
 
+	// Cursor blink animation
+	sb.WriteString("@keyframes blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}")
+
 	// Default text style
 	fgHex := color.RGBAtoHex(c.rec.Colors.DefaultForeground())
 	fmt.Fprintf(&sb, "text{font-family:%s;font-size:%dpx;fill:%s}",
 		c.config.FontFamily, c.config.FontSize, fgHex)
+
+	// Cursor style
+	fmt.Fprintf(&sb, ".cursor{fill:%s;animation:blink 1s step-end infinite}", fgHex)
 
 	// Color classes
 	for id, rgba := range c.rec.Colors.All() {
@@ -259,6 +265,20 @@ func (c *canvas) writeFrame(frame ir.Frame) {
 			c.writeTextRun(run, row.Y)
 		}
 	}
+
+	// Render cursor if visible
+	if frame.Cursor.Visible {
+		c.writeCursor(frame.Cursor)
+	}
+}
+
+func (c *canvas) writeCursor(cursor ir.Cursor) {
+	x := cursor.Col * ColWidth
+	y := cursor.Row * RowHeight
+
+	// Render cursor as a rectangle (block cursor)
+	fmt.Fprintf(c.w, `<rect class="cursor" x="%d" y="%d" width="%d" height="%d"/>`,
+		x, y, ColWidth, RowHeight)
 }
 
 func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
@@ -267,7 +287,7 @@ func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
 	}
 
 	x := run.StartCol * ColWidth
-	y := rowY*RowHeight + RowHeight // baseline offset
+	y := (rowY*RowHeight + RowHeight) - 5 // baseline offset
 
 	// Build class list
 	var classes []string

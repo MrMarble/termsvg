@@ -67,6 +67,17 @@ func (e *Emulator) Cell(col, row int) Cell {
 	}
 }
 
+// Cursor returns the current cursor position (col, row)
+func (e *Emulator) Cursor() (col, row int) {
+	c := e.term.Cursor()
+	return c.X, c.Y
+}
+
+// CursorVisible returns whether the cursor is visible
+func (e *Emulator) CursorVisible() bool {
+	return e.term.CursorVisible()
+}
+
 // convertColor translates vt10x.Color to color.Color
 func convertColor(c vt10x.Color) color.Color {
 	switch {

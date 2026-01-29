@@ -100,11 +100,20 @@ func (p *Processor) captureFrame(
 		rows[y] = p.captureRow(term, catalog, y, stats)
 	}
 
+	// Capture cursor state
+	cursorCol, cursorRow := term.Cursor()
+	cursor := Cursor{
+		Col:     cursorCol,
+		Row:     cursorRow,
+		Visible: term.CursorVisible(),
+	}
+
 	return Frame{
-		Time:  absTime,
-		Delay: delay,
-		Index: index,
-		Rows:  rows,
+		Time:   absTime,
+		Delay:  delay,
+		Index:  index,
+		Rows:   rows,
+		Cursor: cursor,
 	}
 }
 

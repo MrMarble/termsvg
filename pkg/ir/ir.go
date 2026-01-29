@@ -39,6 +39,13 @@ type Stats struct {
 	HasTrueColor  bool
 }
 
+// Cursor represents the cursor state at a point in time.
+type Cursor struct {
+	Col     int
+	Row     int
+	Visible bool
+}
+
 // Frame represents terminal state at a specific point in time.
 type Frame struct {
 	// Time is the absolute timestamp from recording start
@@ -52,6 +59,9 @@ type Frame struct {
 
 	// Rows contains the processed row data with text runs
 	Rows []Row
+
+	// Cursor holds the cursor position and visibility
+	Cursor Cursor
 }
 
 // Row represents a single line of terminal output.
