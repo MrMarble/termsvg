@@ -137,7 +137,7 @@ func (c *canvas) render(ctx context.Context) error {
 }
 
 func (c *canvas) writeBackground() {
-	bgHex := color.RGBAtoHex(c.rec.Colors.DefaultBackground())
+	bgHex := color.RGBAtoHex(c.config.Theme.WindowBackground)
 	fmt.Fprintf(c.w, `<rect width="100%%" height="100%%" fill="%s"/>`, bgHex)
 }
 
@@ -147,12 +147,6 @@ func (c *canvas) writeWindow() {
 	// Window background with rounded corners
 	bgHex := color.RGBAtoHex(theme.WindowBackground)
 	fmt.Fprintf(c.w, `<rect rx="5" width="100%%" height="100%%" fill="%s"/>`, bgHex)
-
-	// Terminal background
-	termBgHex := color.RGBAtoHex(c.rec.Colors.DefaultBackground())
-	contentY := Padding * HeaderSize
-	fmt.Fprintf(c.w, `<rect x="%d" y="%d" width="%d" height="%d" fill="%s"/>`,
-		Padding, contentY, c.contentWidth(), c.contentHeight(), termBgHex)
 
 	// Window buttons (close, minimize, maximize)
 	buttonY := Padding
@@ -304,6 +298,6 @@ func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
 		filterAttr = fmt.Sprintf(` filter="url(#bg_%d)"`, run.Attrs.BG)
 	}
 
-	fmt.Fprintf(c.w, `<text x="%d" y="%d"%s%s>%s</text>`,
+	fmt.Fprintf(c.w, `<text x="%d" y="%d" xml:space="preserve"%s%s>%s</text>`,
 		x, y, classAttr, filterAttr, html.EscapeString(run.Text))
 }
