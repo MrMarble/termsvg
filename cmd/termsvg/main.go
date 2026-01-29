@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/mrmarble/termsvg/cmd/termsvg/export"
+	"github.com/mrmarble/termsvg/cmd/termsvg/record"
 )
 
 // Version info (populated by goreleaser)
@@ -28,6 +29,7 @@ func main() {
 	var cli struct {
 		Version VersionFlag `name:"version" help:"Print version information and quit"`
 
+		Record record.Cmd `cmd:"" help:"Record a terminal session"`
 		Export export.Cmd `cmd:"" help:"Export asciicast to SVG"`
 	}
 
