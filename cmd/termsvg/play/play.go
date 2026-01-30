@@ -10,40 +10,50 @@ import (
 )
 
 type Cmd struct {
-	File    string  `arg:"" type:"existingfile" help:"termsvg recording file"`
-	Speed   float64 `optional:"" short:"s" default:"1.0" help:"Playback speed (can be fractional)"`
-	IdleCap float64 `optional:"" short:"i" default:"-1.0" help:"Limit replayed terminal inactivity to max seconds. (-1 for unlimited)"` //nolint
+	File    string        `arg:"" type:"existingfile" help:"Asciicast file to play"`
+	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
+	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
 }
 
 func (cmd *Cmd) Run() error {
-	return play(cmd.File, cmd.IdleCap, cmd.Speed)
+	f, err := os.Open(filepath.Clean(cmd.File))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	cast, err := asciicast.Parse(f)
+	if err != nil {
+		return err
+	}
+
+	return playback(cast, cmd.Speed, cmd.MaxIdle)
 }
 
-func play(path string, idleCap, speed float64) error {
-	file, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return err
+func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error {
+	// Convert to relative time for idle capping
+	cast.ToRelativeTime()
+
+	// Cap idle time if specified
+	if maxIdle > 0 {
+		cast.CapRelativeTime(maxIdle.Seconds())
 	}
 
-	records, err := asciicast.Unmarshal(file)
-	if err != nil {
-		return err
-	}
+	// Convert back to absolute and adjust speed
+	cast.ToAbsoluteTime()
+	cast.AdjustSpeed(speed)
 
-	records.ToRelativeTime()
-	records.CapRelativeTime(idleCap)
-	records.ToAbsoluteTime()
-	records.AdjustSpeed(speed)
+	startTime := time.Now()
 
-	baseTime := time.Duration(time.Now().UnixMilli()) * time.Millisecond
+	for _, event := range cast.Events {
+		targetTime := time.Duration(event.Time * float64(time.Second))
+		elapsed := time.Since(startTime)
 
-	for _, record := range records.Events {
-		duration := time.Duration(record.Time * float64(time.Second))
+		if delay := targetTime - elapsed; delay > 0 {
+			time.Sleep(delay)
+		}
 
-		delay := duration - ((time.Duration(time.Now().UnixMilli()) * time.Millisecond) - baseTime)
-
-		time.Sleep(delay)
-		fmt.Print(record.EventData)
+		fmt.Print(event.EventData)
 	}
 
 	return nil

@@ -7,32 +7,30 @@ package asciicast
 
 import (
 	"encoding/json"
+	"io"
 	"math"
 	"os"
 	"strings"
 	"time"
 )
 
-// header is JSON-encoded object containing recording meta-data.
+// Header is JSON-encoded object containing recording meta-data.
 // fields with 'omitempty' are optional by asciicast v2 format
-type header struct {
-	Version       int     `json:"version"`
-	Width         int     `json:"width"`
-	Height        int     `json:"height"`
-	Timestamp     int64   `json:"timestamp,omitempty"`
-	Duration      float64 `json:"duration,omitempty"`
-	IdleTimeLimit float64 `json:"idle_time_limit,omitempty"`
-	Command       string  `json:"command,omitempty"`
-	Title         string  `json:"string,omitempty"`
-	Env           struct {
-		Shell string `json:"SHELL,omitempty"`
-		Term  string `json:"TERM,omitempty"`
-	} `json:"env,omitempty"`
+type Header struct {
+	Version       int               `json:"version"`
+	Width         int               `json:"width"`
+	Height        int               `json:"height"`
+	Timestamp     int64             `json:"timestamp,omitempty"`
+	Duration      float64           `json:"duration,omitempty"`
+	IdleTimeLimit float64           `json:"idle_time_limit,omitempty"`
+	Command       string            `json:"command,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Env           map[string]string `json:"env,omitempty"`
 }
 
 // Cast contains asciicast file data
 type Cast struct {
-	Header header
+	Header Header
 	Events []Event
 }
 
@@ -41,7 +39,7 @@ func New() *Cast {
 	const version = 2
 
 	cast := &Cast{
-		Header: header{
+		Header: Header{
 			Version:   version,
 			Timestamp: time.Now().Unix(),
 		},
@@ -54,9 +52,11 @@ func New() *Cast {
 }
 
 // CaptureEnv stores the environment variables 'shell' and 'term'.
-func (h *header) CaptureEnv() {
-	h.Env.Shell = os.Getenv("SHELL")
-	h.Env.Term = os.Getenv("TERM")
+func (h *Header) CaptureEnv() {
+	h.Env = map[string]string{
+		"TERM":  os.Getenv("TERM"),
+		"SHELL": os.Getenv("SHELL"),
+	}
 }
 
 // Marshal returns the JSON-like encoding of v.
@@ -185,4 +185,23 @@ func (c *Cast) fromJSON(data string) error {
 	}
 
 	return nil
+}
+
+func Parse(r io.Reader) (*Cast, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return Unmarshal(data)
+}
+
+func (c *Cast) WriteTo(w io.Writer) (int64, error) {
+	data, err := c.Marshal()
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := w.Write(data)
+	return int64(n), err
 }

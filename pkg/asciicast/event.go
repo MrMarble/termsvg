@@ -2,20 +2,21 @@ package asciicast
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
-type eventType string
+type EventType string
 
 // Event is a 3-tuple encoded as JSON array.
 type Event struct {
 	Time      float64   `json:"time"`
-	EventType eventType `json:"event-type"`
+	EventType EventType `json:"event-type"`
 	EventData string    `json:"event-data"`
 }
 
 const (
-	Input  eventType = "i" // Data read from stdin.
-	Output eventType = "o" // Data writed to stdout.
+	Input  EventType = "i" // Data read from stdin.
+	Output EventType = "o" // Data writed to stdout.
 )
 
 // UnmarshalJSON reads json list as Event fields.
@@ -25,9 +26,27 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	e.Time = v[0].(float64)
-	e.EventType = eventType(v[1].(string))
-	e.EventData = v[2].(string)
+	if len(v) != 3 {
+		return fmt.Errorf("event requires 3 elements, got %d", len(v))
+	}
+
+	time, ok := v[0].(float64)
+	if !ok {
+		return fmt.Errorf("event time must be a float")
+	}
+
+	eventType, ok := v[1].(string)
+	if !ok {
+		return fmt.Errorf("event type must be a string")
+	}
+	eventData, ok := v[2].(string)
+	if !ok {
+		return fmt.Errorf("event data must be a string")
+	}
+
+	e.Time = time
+	e.EventType = EventType(eventType)
+	e.EventData = eventData
 
 	return nil
 }

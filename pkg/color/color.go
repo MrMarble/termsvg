@@ -3,30 +3,55 @@ package color
 import (
 	"fmt"
 	"image/color"
-
-	"github.com/hinshun/vt10x"
 )
 
-//go:generate go run colorsgen.go
+// Color represents a terminal color.
+type Color struct {
+	// Type indicates how to interpret the color.
+	Type  ColorType
+	Index uint8      // For ANSI/Extended (0-255) colors
+	RGB   color.RGBA // For TrueColor colors
+}
 
-func GetColor(c vt10x.Color) string {
-	switch {
-	case c >= 1<<24:
-		return colors[int(vt10x.LightGrey)]
-	case c >= 1<<8:
-		rgb := intToRGB(uint32(c))
-		return fmt.Sprintf("#%02x%02x%02x", rgb.R, rgb.G, rgb.B)
+type ColorType uint8
+
+const (
+	Default ColorType = iota
+	ANSI
+	Extended
+	TrueColor
+)
+
+func FromANSI(index uint8) Color {
+	return Color{Type: ANSI, Index: index}
+}
+
+func FromExtended(index uint8) Color {
+	return Color{Type: Extended, Index: index}
+}
+
+func FromRGB(r, g, b uint8) Color {
+	return Color{Type: TrueColor, RGB: color.RGBA{R: r, G: g, B: b, A: 255}}
+}
+
+// ToRGBA converts the Color to an RGBA value using the palette.
+func (c Color) ToRGBA(palette Palette) color.RGBA {
+	switch c.Type {
+	case ANSI, Extended:
+		return palette.At(c.Index)
+	case TrueColor:
+		return c.RGB
 	default:
-		return colors[int(c)]
+		return color.RGBA{0, 0, 0, 0} // Transparent for Default
 	}
 }
 
-func intToRGB(c uint32) color.RGBA {
-	//nolint:gosec
-	return color.RGBA{
-		R: uint8(c >> 16),
-		G: uint8(c >> 8),
-		B: uint8(c),
-		A: 255,
-	}
+// ToHex returns the color as a hex string (e.g., "#RRGGBB").
+func (c Color) ToHex(palette Palette) string {
+	rgba := c.ToRGBA(palette)
+	return RGBAtoHex(rgba)
+}
+
+func RGBAtoHex(rgba color.RGBA) string {
+	return fmt.Sprintf("#%02X%02X%02X", rgba.R, rgba.G, rgba.B)
 }

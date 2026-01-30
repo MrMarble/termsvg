@@ -2,77 +2,115 @@ package export
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
-	"github.com/mrmarble/termsvg/internal/svg"
 	"github.com/mrmarble/termsvg/pkg/asciicast"
-	"github.com/rs/zerolog/log"
+	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/renderer"
+	"github.com/mrmarble/termsvg/pkg/renderer/gif"
+	"github.com/mrmarble/termsvg/pkg/renderer/svg"
 	"github.com/tdewolff/minify/v2"
 	msvg "github.com/tdewolff/minify/v2/svg"
 )
 
 type Cmd struct {
-	File            string `arg:"" type:"existingfile" help:"asciicast file to export"`
-	Output          string `optional:"" short:"o" type:"path" help:"where to save the file. Defaults to <input_file>.svg"`
-	Mini            bool   `name:"minify" optional:"" short:"m" help:"minify output file. May be slower"`
-	NoWindow        bool   `name:"nowindow" optional:"" short:"n" help:"don't render terminal window in svg"`
-	BackgroundColor string `optional:"" short:"b" help:"background color in hexadecimal format (e.g. #FFFFFF)"`
-	TextColor       string `optional:"" short:"t" help:"text color in hexadecimal format (e.g. #000000)"`
+	File     string        `arg:"" type:"existingfile" help:"Asciicast file to export"`
+	Output   string        `short:"o" type:"path" help:"Output file path (default: <input>.<format>)"`
+	Format   string        `short:"f" default:"svg" enum:"svg,gif" help:"Output format (svg, gif)"`
+	Minify   bool          `short:"m" help:"Minify output (SVG only)"`
+	NoWindow bool          `short:"n" help:"Don't render terminal window chrome"`
+	Speed    float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
+	MaxIdle  time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
+	Cols     int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
+	Rows     int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
 }
 
 func (cmd *Cmd) Run() error {
+	format := strings.ToLower(cmd.Format)
+
 	output := cmd.Output
 	if output == "" {
-		output = cmd.File + ".svg"
+		output = cmd.File + "." + format
 	}
 
-	err := export(cmd.File, output, cmd.Mini, cmd.BackgroundColor, cmd.TextColor, cmd.NoWindow)
+	// Load cast file
+	f, err := os.Open(filepath.Clean(cmd.File))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	cast, err := asciicast.Parse(f)
 	if err != nil {
 		return err
 	}
 
-	log.Info().Str("output", output).Msg("svg file saved.")
+	// Override dimensions if specified
+	if cmd.Cols > 0 {
+		cast.Header.Width = cmd.Cols
+	}
+	if cmd.Rows > 0 {
+		cast.Header.Height = cmd.Rows
+	}
 
-	return nil
-}
+	// Process through IR
+	procConfig := ir.DefaultProcessorConfig()
+	procConfig.Speed = cmd.Speed
+	procConfig.IdleTimeLimit = cmd.MaxIdle
 
-func export(input, output string, mini bool, bgColor, textColor string, noWindow bool) error {
-	inputFile, err := os.ReadFile(filepath.Clean(input))
+	proc := ir.NewProcessor(procConfig)
+	rec, err := proc.Process(cast)
 	if err != nil {
 		return err
 	}
 
-	cast, err := asciicast.Unmarshal(inputFile)
-	if err != nil {
-		return err
-	}
+	// Create renderer based on format
+	renderConfig := renderer.DefaultConfig()
+	renderConfig.ShowWindow = !cmd.NoWindow
 
-	out := new(bytes.Buffer)
-	var data []byte
-
-	svg.Export(*cast, out, bgColor, textColor, noWindow)
-	if mini {
-		m := minify.New()
-		m.AddFunc("image/svg+xml", msvg.Minify)
-		b, err := m.Bytes("image/svg+xml", out.Bytes())
+	var rdr renderer.Renderer
+	switch format {
+	case "gif":
+		gifRenderer, err := gif.New(renderConfig)
 		if err != nil {
+			return fmt.Errorf("failed to create GIF renderer: %w", err)
+		}
+		rdr = gifRenderer
+	case "svg":
+		rdr = svg.New(renderConfig)
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
+
+	// Create output file
+	outFile, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	// Render (with optional minification for SVG)
+	if cmd.Minify && format == "svg" {
+		var buf bytes.Buffer
+		if err := rdr.Render(context.Background(), rec, &buf); err != nil {
 			return err
 		}
-		data = b
+		m := minify.New()
+		m.AddFunc("image/svg+xml", msvg.Minify)
+		if err := m.Minify("image/svg+xml", outFile, &buf); err != nil {
+			return err
+		}
 	} else {
-		data = out.Bytes()
-	}
-	outputFile, err := os.Create(output)
-	if err != nil {
-		return err
-	}
-	_, err = outputFile.Write(data)
-	if err != nil {
-		//nolint:gosec,errcheck
-		outputFile.Close()
-		return err
+		if err := rdr.Render(context.Background(), rec, outFile); err != nil {
+			return err
+		}
 	}
 
-	return outputFile.Close()
+	fmt.Printf("Exported: %s\n", output)
+	return nil
 }
