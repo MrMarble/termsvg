@@ -14,12 +14,33 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"golang.org/x/image/font"
-	"golang.org/x/image/math/fixed"
-
 	"github.com/mrmarble/termsvg/pkg/ir"
 	"github.com/mrmarble/termsvg/pkg/renderer"
+	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 )
+
+// Renderer implements the renderer.Renderer interface for GIF output.
+type Renderer struct {
+	config   renderer.Config
+	fontFace font.Face
+}
+
+// canvas holds rendering state for a single GIF generation
+type canvas struct {
+	rec          *ir.Recording
+	config       renderer.Config
+	fontFace     font.Face
+	baseImage    *image.RGBA     // Pre-rendered window chrome + terminal background
+	basePaletted *image.Paletted // Pre-converted paletted version of base image
+}
+
+// renderedFrame holds the result of rendering a single frame
+type renderedFrame struct {
+	index    int
+	paletted *image.Paletted
+	delay    int
+}
 
 // Layout constants for GIF rendering (matching SVG renderer for consistency)
 const (
@@ -28,12 +49,6 @@ const (
 	Padding    = 20 // padding around content
 	HeaderSize = 2  // multiplier for header area (window buttons)
 )
-
-// Renderer implements the renderer.Renderer interface for GIF output.
-type Renderer struct {
-	config   renderer.Config
-	fontFace font.Face
-}
 
 // New creates a new GIF renderer with the given configuration.
 func New(config renderer.Config) (*Renderer, error) {
@@ -73,15 +88,6 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	return c.render(ctx, w)
 }
 
-// canvas holds rendering state for a single GIF generation
-type canvas struct {
-	rec          *ir.Recording
-	config       renderer.Config
-	fontFace     font.Face
-	baseImage    *image.RGBA     // Pre-rendered window chrome + terminal background
-	basePaletted *image.Paletted // Pre-converted paletted version of base image
-}
-
 func (c *canvas) contentWidth() int {
 	return c.rec.Width * ColWidth
 }
@@ -106,13 +112,6 @@ func (c *canvas) contentOffsetY() int {
 		return Padding * HeaderSize
 	}
 	return Padding
-}
-
-// renderedFrame holds the result of rendering a single frame
-type renderedFrame struct {
-	index    int
-	paletted *image.Paletted
-	delay    int
 }
 
 func (c *canvas) render(ctx context.Context, w io.Writer) error {
@@ -141,6 +140,8 @@ func (c *canvas) render(ctx context.Context, w io.Writer) error {
 
 // renderFramesParallel renders frames in parallel using a worker pool.
 // It performs IR-level deduplication to skip rendering identical frames.
+//
+//nolint:funlen // parallel rendering logic is clearer in one function
 func (c *canvas) renderFramesParallel(ctx context.Context, palette color.Palette, _, _ int) []*renderedFrame {
 	frames := c.rec.Frames
 	results := make([]*renderedFrame, len(frames))
@@ -381,44 +382,6 @@ func computeDelta(prev, curr *image.Paletted, transparentIdx uint8) *image.Palet
 	return delta
 }
 
-// drawFrameContent draws only the dynamic content (text runs and cursor)
-// The static window chrome and terminal background are already in the base image
-func (c *canvas) drawFrameContent(img *image.RGBA, frame ir.Frame) {
-	c.drawFrameContentWithFace(img, frame, c.fontFace)
-}
-
-// drawFrameContentWithFace draws frame content using the specified font face
-// This allows for thread-safe parallel rendering with per-goroutine font faces
-func (c *canvas) drawFrameContentWithFace(img *image.RGBA, frame ir.Frame, face font.Face) {
-	// Draw all text runs
-	for _, row := range frame.Rows {
-		for _, run := range row.Runs {
-			c.drawTextRunWithFace(img, run, row.Y, face)
-		}
-	}
-
-	// Draw cursor if visible
-	if frame.Cursor.Visible {
-		c.drawCursor(img, frame.Cursor)
-	}
-}
-
-// drawFrameContentToImage draws frame content to a content-area-sized image
-// with the given offset adjustments. This is used for partial rendering.
-func (c *canvas) drawFrameContentToImage(img *image.RGBA, frame ir.Frame, face font.Face, offsetX, offsetY int) {
-	// Draw all text runs
-	for _, row := range frame.Rows {
-		for _, run := range row.Runs {
-			c.drawTextRunToImage(img, run, row.Y, face, offsetX, offsetY)
-		}
-	}
-
-	// Draw cursor if visible
-	if frame.Cursor.Visible {
-		c.drawCursorToImage(img, frame.Cursor, offsetX, offsetY)
-	}
-}
-
 // drawFrameContentToPaletted draws frame content directly to a paletted image.
 // This avoids the RGBA->Paletted conversion step.
 func (c *canvas) drawFrameContentToPaletted(img *image.Paletted, frame ir.Frame, face font.Face, offsetX, offsetY int) {
@@ -435,7 +398,9 @@ func (c *canvas) drawFrameContentToPaletted(img *image.Paletted, frame ir.Frame,
 	}
 }
 
-func (c *canvas) drawTextRunToPaletted(img *image.Paletted, run ir.TextRun, rowY int, face font.Face, offsetX, offsetY int) {
+func (c *canvas) drawTextRunToPaletted(
+	img *image.Paletted, run ir.TextRun, rowY int, face font.Face, offsetX, offsetY int,
+) {
 	if run.Text == "" {
 		return
 	}
@@ -506,77 +471,6 @@ func (c *canvas) drawCursorToPaletted(img *image.Paletted, cursor ir.Cursor, off
 		draw.Src)
 }
 
-func (c *canvas) drawTextRunToImage(img *image.RGBA, run ir.TextRun, rowY int, face font.Face, offsetX, offsetY int) {
-	if run.Text == "" {
-		return
-	}
-
-	x := offsetX + run.StartCol*ColWidth
-	y := offsetY + rowY*RowHeight
-
-	// Get colors
-	var bgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.BG) {
-		bgColor = c.config.Theme.Background
-	} else {
-		bgColor = c.rec.Colors.Resolved(run.Attrs.BG)
-	}
-
-	var fgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.FG) {
-		fgColor = c.rec.Colors.DefaultForeground()
-	} else {
-		fgColor = c.rec.Colors.Resolved(run.Attrs.FG)
-	}
-
-	// Apply dim effect
-	if run.Attrs.Dim {
-		fgColor.A = 128
-	}
-
-	// Calculate text width in columns (handle multi-byte characters)
-	textWidth := utf8.RuneCountInString(run.Text) * ColWidth
-
-	// Draw background rectangle for the run
-	draw.Draw(img,
-		image.Rect(x, y, x+textWidth, y+RowHeight),
-		&image.Uniform{bgColor},
-		image.Point{},
-		draw.Src)
-
-	// Draw text
-	drawer := &font.Drawer{
-		Dst:  img,
-		Src:  &image.Uniform{fgColor},
-		Face: face,
-		Dot:  fixed.P(x, y+RowHeight-5), // baseline offset
-	}
-	drawer.DrawString(run.Text)
-
-	// Draw underline if needed
-	if run.Attrs.Underline {
-		underlineY := y + RowHeight - 2
-		for px := x; px < x+textWidth; px++ {
-			img.Set(px, underlineY, fgColor)
-		}
-	}
-}
-
-func (c *canvas) drawCursorToImage(img *image.RGBA, cursor ir.Cursor, offsetX, offsetY int) {
-	x := offsetX + cursor.Col*ColWidth
-	y := offsetY + cursor.Row*RowHeight
-
-	// Get cursor color (same as foreground)
-	cursorColor := c.rec.Colors.DefaultForeground()
-
-	// Draw cursor as a block
-	draw.Draw(img,
-		image.Rect(x, y, x+ColWidth, y+RowHeight),
-		&image.Uniform{cursorColor},
-		image.Point{},
-		draw.Src)
-}
-
 func (c *canvas) drawBackground(img *image.RGBA) {
 	bgColor := c.config.Theme.WindowBackground
 	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
@@ -598,87 +492,6 @@ func (c *canvas) drawWindow(img *image.RGBA) {
 		x := Padding + i*buttonSpacing
 		drawCircle(img, x, buttonY, buttonRadius, btnColor)
 	}
-}
-
-func (c *canvas) drawTextRun(img *image.RGBA, run ir.TextRun, rowY int) {
-	c.drawTextRunWithFace(img, run, rowY, c.fontFace)
-}
-
-func (c *canvas) drawTextRunWithFace(img *image.RGBA, run ir.TextRun, rowY int, face font.Face) {
-	if run.Text == "" {
-		return
-	}
-
-	contentX := Padding
-	contentY := c.contentOffsetY()
-
-	x := contentX + run.StartCol*ColWidth
-	y := contentY + rowY*RowHeight
-
-	// Get colors
-	var bgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.BG) {
-		bgColor = c.config.Theme.WindowBackground
-	} else {
-		bgColor = c.rec.Colors.Resolved(run.Attrs.BG)
-	}
-
-	var fgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.FG) {
-		fgColor = c.rec.Colors.DefaultForeground()
-	} else {
-		fgColor = c.rec.Colors.Resolved(run.Attrs.FG)
-	}
-
-	// Apply dim effect
-	if run.Attrs.Dim {
-		fgColor.A = 128
-	}
-
-	// Calculate text width in columns (handle multi-byte characters)
-	textWidth := utf8.RuneCountInString(run.Text) * ColWidth
-
-	// Draw background rectangle for the run
-	draw.Draw(img,
-		image.Rect(x, y, x+textWidth, y+RowHeight),
-		&image.Uniform{bgColor},
-		image.Point{},
-		draw.Src)
-
-	// Draw text
-	drawer := &font.Drawer{
-		Dst:  img,
-		Src:  &image.Uniform{fgColor},
-		Face: face,
-		Dot:  fixed.P(x, y+RowHeight-5), // baseline offset
-	}
-	drawer.DrawString(run.Text)
-
-	// Draw underline if needed
-	if run.Attrs.Underline {
-		underlineY := y + RowHeight - 2
-		for px := x; px < x+textWidth; px++ {
-			img.Set(px, underlineY, fgColor)
-		}
-	}
-}
-
-func (c *canvas) drawCursor(img *image.RGBA, cursor ir.Cursor) {
-	contentX := Padding
-	contentY := c.contentOffsetY()
-
-	x := contentX + cursor.Col*ColWidth
-	y := contentY + cursor.Row*RowHeight
-
-	// Get cursor color (same as foreground)
-	cursorColor := c.rec.Colors.DefaultForeground()
-
-	// Draw cursor as a block
-	draw.Draw(img,
-		image.Rect(x, y, x+ColWidth, y+RowHeight),
-		&image.Uniform{cursorColor},
-		image.Point{},
-		draw.Src)
 }
 
 // buildPalette creates a color palette from the recording's colors
@@ -725,13 +538,12 @@ func (c *canvas) buildPalette() color.Palette {
 }
 
 // drawRoundedRect draws a rounded rectangle on the image
-func drawRoundedRect(img *image.RGBA, bounds image.Rectangle, radius int, c color.RGBA) {
+func drawRoundedRect(img *image.RGBA, bounds image.Rectangle, _ int, c color.RGBA) {
 	// Fill the main rectangle
 	draw.Draw(img, bounds, &image.Uniform{c}, image.Point{}, draw.Src)
 
-	// For simplicity, we draw a regular rectangle with slightly rounded appearance
+	// For simplicity, we draw a regular rectangle
 	// A full implementation would use proper corner rounding algorithms
-	// The visual difference is minimal at small radii
 }
 
 // drawCircle draws a filled circle on the image

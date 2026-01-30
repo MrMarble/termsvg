@@ -3,6 +3,7 @@ package gif
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image/color"
 	"image/gif"
 	"testing"
@@ -58,7 +59,7 @@ func TestRenderer_Render_SingleFrame(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -114,7 +115,7 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -175,7 +176,7 @@ func TestRenderer_Render_WithWindow(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -226,7 +227,7 @@ func TestRenderer_Render_WithoutWindow(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -270,7 +271,7 @@ func TestRenderer_Render_ContextCancellation(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -300,7 +301,7 @@ func TestRenderer_Render_ContextCancellation(t *testing.T) {
 
 	var buf bytes.Buffer
 	err = r.Render(ctx, rec, &buf)
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled error, got %v", err)
 	}
 }

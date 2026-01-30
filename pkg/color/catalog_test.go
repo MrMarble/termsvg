@@ -5,15 +5,15 @@ import (
 	"testing"
 )
 
-func TestColorCatalog_Register(t *testing.T) {
-	catalog := NewColorCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
+func TestCatalog_Register(t *testing.T) {
+	catalog := NewCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
 	palette := Standard()
 
-	// Default colors should return DefaultColorID
+	// Default colors should return DefaultID
 	defaultColor := Color{Type: Default}
 	id := catalog.Register(defaultColor, palette)
-	if id != DefaultColorID {
-		t.Errorf("Default color should return DefaultColorID, got %d", id)
+	if id != DefaultID {
+		t.Errorf("Default color should return DefaultID, got %d", id)
 	}
 
 	// First non-default color should get ID 1
@@ -42,8 +42,8 @@ func TestColorCatalog_Register(t *testing.T) {
 	}
 }
 
-func TestColorCatalog_Resolved(t *testing.T) {
-	catalog := NewColorCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
+func TestCatalog_Resolved(t *testing.T) {
+	catalog := NewCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
 	palette := Standard()
 
 	// Register a color
@@ -57,15 +57,15 @@ func TestColorCatalog_Resolved(t *testing.T) {
 		t.Errorf("Resolved color mismatch: got %v, want %v", resolved, expected)
 	}
 
-	// DefaultColorID should return zero RGBA
-	defaultResolved := catalog.Resolved(DefaultColorID)
+	// DefaultID should return zero RGBA
+	defaultResolved := catalog.Resolved(DefaultID)
 	if defaultResolved != (color.RGBA{}) {
 		t.Errorf("Default should resolve to zero RGBA, got %v", defaultResolved)
 	}
 }
 
-func TestColorCatalog_GenerateClassNames(t *testing.T) {
-	catalog := NewColorCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
+func TestCatalog_GenerateClassNames(t *testing.T) {
+	catalog := NewCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
 	palette := Standard()
 
 	// Register multiple colors (16 unique ANSI colors)
@@ -81,7 +81,7 @@ func TestColorCatalog_GenerateClassNames(t *testing.T) {
 	}
 
 	// Check sequence
-	expectedNames := map[ColorID]string{
+	expectedNames := map[ID]string{
 		1:  "a",
 		2:  "b",
 		16: "p",
@@ -94,10 +94,10 @@ func TestColorCatalog_GenerateClassNames(t *testing.T) {
 	}
 }
 
-func TestColorCatalog_DefaultColors(t *testing.T) {
+func TestCatalog_DefaultColors(t *testing.T) {
 	fg := color.RGBA{200, 200, 200, 255}
 	bg := color.RGBA{30, 30, 30, 255}
-	catalog := NewColorCatalog(fg, bg)
+	catalog := NewCatalog(fg, bg)
 
 	if catalog.DefaultForeground() != fg {
 		t.Errorf("DefaultForeground mismatch: got %v, want %v", catalog.DefaultForeground(), fg)
@@ -107,8 +107,8 @@ func TestColorCatalog_DefaultColors(t *testing.T) {
 	}
 }
 
-func TestColorCatalog_IsDefault(t *testing.T) {
-	catalog := NewColorCatalog(color.RGBA{}, color.RGBA{})
+func TestCatalog_IsDefault(t *testing.T) {
+	catalog := NewCatalog(color.RGBA{}, color.RGBA{})
 	palette := Standard()
 
 	red := FromANSI(1)
@@ -117,8 +117,8 @@ func TestColorCatalog_IsDefault(t *testing.T) {
 	if catalog.IsDefault(id) {
 		t.Error("Non-default color should not be default")
 	}
-	if !catalog.IsDefault(DefaultColorID) {
-		t.Error("DefaultColorID should be default")
+	if !catalog.IsDefault(DefaultID) {
+		t.Error("DefaultID should be default")
 	}
 }
 

@@ -76,9 +76,10 @@ func (cmd *Cmd) save(events []asciicast.Event) error {
 	return nil
 }
 
+//nolint:gocognit,funlen // PTY handling requires sequential state management
 func (cmd *Cmd) run() ([]asciicast.Event, error) {
 	// Create command to run
-	c := exec.Command("sh", "-c", cmd.Command)
+	c := exec.Command("sh", "-c", cmd.Command) //nolint:gosec // command is from user CLI input
 
 	// Start the command with a PTY
 	ptmx, err := pty.Start(c)
@@ -118,7 +119,7 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 					continue
 				}
 				// Write byte to PTY
-				ptmx.Write(buf[i : i+1])
+				_, _ = ptmx.Write(buf[i : i+1])
 			}
 		}
 	}()
@@ -134,10 +135,9 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 
 	for {
 		n, err := ptmx.Read(p)
-
 		if err != nil {
 			if err == io.EOF && n > 0 {
-				os.Stdout.Write(p[:n])
+				_, _ = os.Stdout.Write(p[:n])
 				if !paused.Load() && startTriggered {
 					events = append(events, asciicast.Event{
 						Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
@@ -150,7 +150,7 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 		}
 
 		// Echo to stdout
-		os.Stdout.Write(p[:n])
+		_, _ = os.Stdout.Write(p[:n])
 
 		// Handle pause state
 		if paused.Load() {
@@ -189,7 +189,7 @@ func handlePtySize(ptmx *os.File) chan os.Signal {
 
 	go func() {
 		for range ch {
-			pty.InheritSize(os.Stdin, ptmx)
+			_ = pty.InheritSize(os.Stdin, ptmx)
 		}
 	}()
 

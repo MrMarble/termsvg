@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -37,7 +38,7 @@ func TestRender_EmptyRecording(t *testing.T) {
 		Width:  80,
 		Height: 24,
 		Frames: []ir.Frame{},
-		Colors: termcolor.NewColorCatalog(
+		Colors: termcolor.NewCatalog(
 			color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		),
@@ -195,7 +196,7 @@ func TestRender_TextAttributes(t *testing.T) {
 		Width:    80,
 		Height:   24,
 		Duration: time.Second,
-		Colors: termcolor.NewColorCatalog(
+		Colors: termcolor.NewCatalog(
 			color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		),
@@ -257,7 +258,7 @@ func TestRender_BackgroundFilters(t *testing.T) {
 		Width:    80,
 		Height:   24,
 		Duration: time.Second,
-		Colors: termcolor.NewColorCatalog(
+		Colors: termcolor.NewCatalog(
 			color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		),
@@ -308,7 +309,7 @@ func TestRender_HTMLEscaping(t *testing.T) {
 		Width:    80,
 		Height:   24,
 		Duration: time.Second,
-		Colors: termcolor.NewColorCatalog(
+		Colors: termcolor.NewCatalog(
 			color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		),
@@ -385,7 +386,7 @@ func TestRender_ContextCancellation(t *testing.T) {
 	var buf bytes.Buffer
 	err := r.Render(ctx, rec, &buf)
 
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled error, got %v", err)
 	}
 }
@@ -395,7 +396,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	rec := &ir.Recording{
 		Width:  80,
 		Height: 24,
-		Colors: termcolor.NewColorCatalog(
+		Colors: termcolor.NewCatalog(
 			color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		),
@@ -433,7 +434,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 
 // createTestRecording creates a simple recording for testing
 func createTestRecording() *ir.Recording {
-	colors := termcolor.NewColorCatalog(
+	colors := termcolor.NewCatalog(
 		color.RGBA{R: 255, G: 255, B: 255, A: 255},
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
@@ -481,6 +482,7 @@ func createTestRecording() *ir.Recording {
 
 // Integration tests using example files
 
+//nolint:funlen // integration test requires multiple setup and verification steps
 func TestIntegration_256Colors(t *testing.T) {
 	// Find the examples directory (relative to this test file)
 	examplesDir := filepath.Join("..", "..", "..", "examples")
@@ -492,7 +494,7 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	// Load the cast file
-	f, err := os.Open(castPath)
+	f, err := os.Open(castPath) //nolint:gosec // test file path
 	if err != nil {
 		t.Fatalf("Failed to open cast file: %v", err)
 	}
@@ -563,7 +565,9 @@ func TestIntegration_256Colors(t *testing.T) {
 	t.Logf("Generated SVG: %d bytes, %d frames, %d unique colors",
 		len(svg), rec.Stats.TotalFrames, rec.Stats.UniqueColors)
 
-	f, err = os.OpenFile(filepath.Join(examplesDir, "256colors.svg"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	outPath := filepath.Join(examplesDir, "256colors.svg")
+	//nolint:gosec // test output file needs to be readable
+	f, err = os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create output SVG file: %v", err)
 	}

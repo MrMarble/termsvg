@@ -30,6 +30,7 @@ type Cmd struct {
 	Rows     int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
 }
 
+//nolint:funlen // sequential steps are clearer in one function
 func (cmd *Cmd) Run() error {
 	format := strings.ToLower(cmd.Format)
 
@@ -88,7 +89,7 @@ func (cmd *Cmd) Run() error {
 	}
 
 	// Create output file
-	outFile, err := os.Create(output)
+	outFile, err := os.Create(output) //nolint:gosec // output path is from user CLI input
 	if err != nil {
 		return err
 	}

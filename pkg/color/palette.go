@@ -36,7 +36,7 @@ func Standard() Palette {
 		if i == 0 {
 			return 0
 		}
-		return uint8(55 + i*40)
+		return uint8(55 + i*40) //nolint:gosec // i is in range [1,5], result fits in uint8
 	}
 	idx := 16
 	for r := range 6 {
@@ -54,7 +54,7 @@ func Standard() Palette {
 	}
 	// 232-255: Grayscale Ramp
 	for i := range 24 {
-		gray := uint8(8 + i*10)
+		gray := uint8(8 + i*10) //nolint:gosec // i is in range [0,23], result fits in uint8
 		palette[idx] = color.RGBA{R: gray, G: gray, B: gray, A: 255}
 		idx++
 	}

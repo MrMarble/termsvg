@@ -20,7 +20,7 @@ type Recording struct {
 
 	// Processed data
 	Frames []Frame
-	Colors *color.ColorCatalog
+	Colors *color.Catalog
 
 	// Statistics for renderer optimization
 	Stats Stats
@@ -90,8 +90,8 @@ type TextRun struct {
 type CellAttrs struct {
 	// FG and BG are color catalog IDs (not raw colors).
 	// Using IDs enables efficient CSS class generation and color deduplication.
-	FG color.ColorID
-	BG color.ColorID
+	FG color.ID
+	BG color.ID
 
 	// Text styling flags
 	Bold      bool

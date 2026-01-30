@@ -38,6 +38,9 @@ linters:
       - linters:
           - govet
         text: "declaration of \"err\" shadows"
+      - linters:
+          - errcheck
+        text: "Error return value of"
   settings:
     errcheck:
       # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.

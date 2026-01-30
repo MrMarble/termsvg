@@ -17,6 +17,11 @@ type ProcessorConfig struct {
 	Compress      bool          // Merge events with same timestamp
 }
 
+// Processor transforms an asciicast into IR.
+type Processor struct {
+	config ProcessorConfig
+}
+
 // DefaultProcessorConfig returns sensible defaults.
 func DefaultProcessorConfig() ProcessorConfig {
 	return ProcessorConfig{
@@ -25,11 +30,6 @@ func DefaultProcessorConfig() ProcessorConfig {
 		Speed:         1.0,
 		Compress:      true,
 	}
-}
-
-// Processor transforms an asciicast into IR.
-type Processor struct {
-	config ProcessorConfig
 }
 
 // NewProcessor creates a new IR processor.
@@ -46,7 +46,7 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 	term := terminal.New(cast.Header.Width, cast.Header.Height)
 
 	// 3. Initialize color catalog with theme defaults
-	catalog := color.NewColorCatalog(p.config.Theme.Foreground, p.config.Theme.Background)
+	catalog := color.NewCatalog(p.config.Theme.Foreground, p.config.Theme.Background)
 
 	// 4. Process each event into a frame
 	frames := make([]Frame, 0, len(events))
@@ -55,7 +55,7 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 	var prevTime time.Duration
 	for i, event := range events {
 		// Write to terminal emulator
-		term.Write([]byte(event.EventData))
+		_, _ = term.Write([]byte(event.EventData))
 
 		// Capture frame
 		frameTime := floatSecondsToDuration(event.Time)
@@ -89,7 +89,7 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 // captureFrame extracts the current terminal state into a Frame.
 func (p *Processor) captureFrame(
 	term *terminal.Emulator,
-	catalog *color.ColorCatalog,
+	catalog *color.Catalog,
 	index int,
 	absTime, delay time.Duration,
 	stats *Stats,
@@ -120,7 +120,7 @@ func (p *Processor) captureFrame(
 // captureRow extracts a single row, grouping cells into TextRuns.
 func (p *Processor) captureRow(
 	term *terminal.Emulator,
-	catalog *color.ColorCatalog,
+	catalog *color.Catalog,
 	y int,
 	stats *Stats,
 ) Row {
@@ -164,7 +164,7 @@ func (p *Processor) captureRow(
 // cellToAttrs converts a terminal cell to IR attributes.
 func (p *Processor) cellToAttrs(
 	cell terminal.Cell,
-	catalog *color.ColorCatalog,
+	catalog *color.Catalog,
 	stats *Stats,
 ) CellAttrs {
 	// Register colors and get IDs

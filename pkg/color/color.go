@@ -5,18 +5,18 @@ import (
 	"image/color"
 )
 
+// Type indicates how to interpret the color.
+type Type uint8
+
 // Color represents a terminal color.
 type Color struct {
-	// Type indicates how to interpret the color.
-	Type  ColorType
+	Type  Type
 	Index uint8      // For ANSI/Extended (0-255) colors
 	RGB   color.RGBA // For TrueColor colors
 }
 
-type ColorType uint8
-
 const (
-	Default ColorType = iota
+	Default Type = iota
 	ANSI
 	Extended
 	TrueColor

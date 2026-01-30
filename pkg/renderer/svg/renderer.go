@@ -14,6 +14,19 @@ import (
 	"github.com/mrmarble/termsvg/pkg/renderer"
 )
 
+// Renderer implements the renderer.Renderer interface for SVG output.
+type Renderer struct {
+	config renderer.Config
+}
+
+// canvas holds rendering state
+type canvas struct {
+	w          io.Writer
+	rec        *ir.Recording
+	config     renderer.Config
+	classNames map[color.ID]string
+}
+
 // Layout constants for SVG rendering
 const (
 	RowHeight  = 25 // pixels per row
@@ -21,11 +34,6 @@ const (
 	Padding    = 20 // padding around content
 	HeaderSize = 2  // multiplier for header area (window buttons)
 )
-
-// Renderer implements the renderer.Renderer interface for SVG output.
-type Renderer struct {
-	config renderer.Config
-}
 
 // New creates a new SVG renderer with the given configuration.
 func New(config renderer.Config) *Renderer {
@@ -56,14 +64,6 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	}
 
 	return c.render(ctx)
-}
-
-// canvas holds rendering state
-type canvas struct {
-	w          io.Writer
-	rec        *ir.Recording
-	config     renderer.Config
-	classNames map[color.ColorID]string
 }
 
 func (c *canvas) contentWidth() int {
@@ -224,7 +224,7 @@ func (c *canvas) generateKeyframes() string {
 
 func (c *canvas) writeBGFilters() {
 	// Collect unique background colors used in frames
-	bgColors := make(map[color.ColorID]bool)
+	bgColors := make(map[color.ID]bool)
 	for _, frame := range c.rec.Frames {
 		for _, row := range frame.Rows {
 			for _, run := range row.Runs {
@@ -243,8 +243,9 @@ func (c *canvas) writeBGFilters() {
 	for id := range bgColors {
 		rgba := c.rec.Colors.Resolved(id)
 		hex := color.RGBAtoHex(rgba)
-		fmt.Fprintf(c.w, `<filter id="bg_%d" x="0" y="0" width="1" height="1"><feFlood flood-color="%s"/><feComposite in="SourceGraphic" operator="over"/></filter>`,
-			id, hex)
+		fmt.Fprintf(c.w, `<filter id="bg_%d" x="0" y="0" width="1" height="1">`, id)
+		fmt.Fprintf(c.w, `<feFlood flood-color="%s"/><feComposite in="SourceGraphic" operator="over"/>`, hex)
+		fmt.Fprint(c.w, `</filter>`)
 	}
 	fmt.Fprint(c.w, "</defs>")
 }

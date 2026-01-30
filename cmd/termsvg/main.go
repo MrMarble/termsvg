@@ -9,14 +9,14 @@ import (
 	"github.com/mrmarble/termsvg/cmd/termsvg/record"
 )
 
+type VersionFlag string
+
 // Version info (populated by goreleaser)
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
-
-type VersionFlag string
 
 func (v VersionFlag) Decode(_ *kong.DecodeContext) error { return nil }
 func (v VersionFlag) IsBool() bool                       { return true }

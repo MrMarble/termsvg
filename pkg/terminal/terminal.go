@@ -84,13 +84,13 @@ func convertColor(c vt10x.Color) color.Color {
 	case c == vt10x.DefaultFG || c == vt10x.DefaultBG:
 		return color.Color{Type: color.Default}
 	case c < 16:
-		return color.FromANSI(uint8(c))
+		return color.FromANSI(uint8(c & 0xFF)) //nolint:gosec // c is already < 16, safe to convert
 	case c < 256:
-		return color.FromExtended(uint8(c))
+		return color.FromExtended(uint8(c & 0xFF)) //nolint:gosec // c is already < 256, safe to convert
 	default:
-		r := uint8((c >> 16) & 0xFF)
-		g := uint8((c >> 8) & 0xFF)
-		b := uint8(c & 0xFF)
+		r := uint8((c >> 16) & 0xFF) //nolint:gosec // masking ensures value fits in uint8
+		g := uint8((c >> 8) & 0xFF)  //nolint:gosec // masking ensures value fits in uint8
+		b := uint8(c & 0xFF)         //nolint:gosec // masking ensures value fits in uint8
 		return color.FromRGB(r, g, b)
 	}
 }

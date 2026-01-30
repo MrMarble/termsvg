@@ -4,24 +4,21 @@ import (
 	"image/color"
 )
 
-// ColorID is a unique identifier for a color in the catalog.
+// ID is a unique identifier for a color in the catalog.
 // Value 0 represents "default" (no explicit color set).
-type ColorID uint16
+type ID uint16
 
-// DefaultColorID represents the default/unset color.
-const DefaultColorID ColorID = 0
-
-// ColorCatalog maps unique colors to stable IDs for efficient referencing.
+// Catalog maps unique colors to stable IDs for efficient referencing.
 // It deduplicates colors and provides CSS class name generation.
-type ColorCatalog struct {
-	// colors maps ColorID to the resolved RGBA value
-	colors map[ColorID]color.RGBA
+type Catalog struct {
+	// colors maps ID to the resolved RGBA value
+	colors map[ID]color.RGBA
 
-	// lookup maps color key to ColorID for deduplication
-	lookup map[colorKey]ColorID
+	// lookup maps color key to ID for deduplication
+	lookup map[colorKey]ID
 
 	// nextID is the next available ID
-	nextID ColorID
+	nextID ID
 
 	// defaultFG and defaultBG are the theme defaults
 	defaultFG color.RGBA
@@ -33,12 +30,20 @@ type colorKey struct {
 	r, g, b uint8
 }
 
-// NewColorCatalog creates a color catalog with the given default colors.
-func NewColorCatalog(defaultFG, defaultBG color.RGBA) *ColorCatalog {
-	return &ColorCatalog{
-		colors:    make(map[ColorID]color.RGBA),
-		lookup:    make(map[colorKey]ColorID),
-		nextID:    1, // 0 is reserved for DefaultColorID
+// idGenerator produces CSS class names: a, b, ..., z, aa, ab, ...
+type idGenerator struct {
+	current []byte
+}
+
+// DefaultID represents the default/unset color.
+const DefaultID ID = 0
+
+// NewCatalog creates a color catalog with the given default colors.
+func NewCatalog(defaultFG, defaultBG color.RGBA) *Catalog {
+	return &Catalog{
+		colors:    make(map[ID]color.RGBA),
+		lookup:    make(map[colorKey]ID),
+		nextID:    1, // 0 is reserved for DefaultID
 		defaultFG: defaultFG,
 		defaultBG: defaultBG,
 	}
@@ -46,11 +51,11 @@ func NewColorCatalog(defaultFG, defaultBG color.RGBA) *ColorCatalog {
 
 // Register adds a color to the catalog and returns its ID.
 // If the color already exists, returns the existing ID.
-// Default colors return DefaultColorID.
-func (c *ColorCatalog) Register(col Color, palette Palette) ColorID {
+// Default colors return DefaultID.
+func (c *Catalog) Register(col Color, palette Palette) ID {
 	// Default colors get the special ID
 	if col.Type == Default {
-		return DefaultColorID
+		return DefaultID
 	}
 
 	// Resolve to RGBA
@@ -71,57 +76,52 @@ func (c *ColorCatalog) Register(col Color, palette Palette) ColorID {
 	return id
 }
 
-// Resolved returns the RGBA value for a ColorID.
-// For DefaultColorID, returns a zero RGBA (caller should use theme default).
-func (c *ColorCatalog) Resolved(id ColorID) color.RGBA {
-	if id == DefaultColorID {
+// Resolved returns the RGBA value for an ID.
+// For DefaultID, returns a zero RGBA (caller should use theme default).
+func (c *Catalog) Resolved(id ID) color.RGBA {
+	if id == DefaultID {
 		return color.RGBA{}
 	}
 	return c.colors[id]
 }
 
-// IsDefault checks if the ColorID represents a default color.
-func (c *ColorCatalog) IsDefault(id ColorID) bool {
-	return id == DefaultColorID
+// IsDefault checks if the ID represents a default color.
+func (c *Catalog) IsDefault(id ID) bool {
+	return id == DefaultID
 }
 
 // All returns all color entries for iteration (e.g., generating CSS classes).
-func (c *ColorCatalog) All() map[ColorID]color.RGBA {
+func (c *Catalog) All() map[ID]color.RGBA {
 	return c.colors
 }
 
 // Count returns the number of unique colors (excluding default).
-func (c *ColorCatalog) Count() int {
+func (c *Catalog) Count() int {
 	return len(c.colors)
 }
 
 // DefaultForeground returns the default foreground color.
-func (c *ColorCatalog) DefaultForeground() color.RGBA {
+func (c *Catalog) DefaultForeground() color.RGBA {
 	return c.defaultFG
 }
 
 // DefaultBackground returns the default background color.
-func (c *ColorCatalog) DefaultBackground() color.RGBA {
+func (c *Catalog) DefaultBackground() color.RGBA {
 	return c.defaultBG
 }
 
 // GenerateClassNames creates CSS class names for all colors.
-// Returns a map from ColorID to class name (a, b, ..., z, aa, ab...).
-func (c *ColorCatalog) GenerateClassNames() map[ColorID]string {
-	names := make(map[ColorID]string)
+// Returns a map from ID to class name (a, b, ..., z, aa, ab...).
+func (c *Catalog) GenerateClassNames() map[ID]string {
+	names := make(map[ID]string)
 	gen := newIDGenerator()
 
 	// Generate names in ID order for deterministic output
-	for id := ColorID(1); id < c.nextID; id++ {
+	for id := ID(1); id < c.nextID; id++ {
 		names[id] = gen.Next()
 	}
 
 	return names
-}
-
-// idGenerator produces CSS class names: a, b, ..., z, aa, ab, ...
-type idGenerator struct {
-	current []byte
 }
 
 func newIDGenerator() *idGenerator {
