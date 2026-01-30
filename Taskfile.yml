@@ -84,6 +84,7 @@ tasks:
     generates:
       - ./examples/*.svg
     cmds:
+      - ./termsvg export "examples/444816.cast" -m -n -o "examples/444816_borderless.svg"
       - for f in ./examples/*.cast; do ./termsvg export "$f" -m -o "${f%.cast}.svg"; done
       - ./scripts/update-filesize.sh
   goreleaser:
