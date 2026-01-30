@@ -17,7 +17,7 @@ for filepath in $SVG_FILES; do
     filename=$(basename $filepath)
 
     # Get git commit hash history for file
-    blobs=$(git rev-list --all examples/$filename)
+    blobs=$(git log --all --format=%H --diff-filter=d -- examples/$filename)
 
     formated_sizes=()
     raw_sizes=()
@@ -34,13 +34,14 @@ for filepath in $SVG_FILES; do
     done
 
     first=${raw_sizes[-1]}
-    current=${raw_sizes[0]}
+    current=$(stat --printf="%s" "$filepath")
+    current_formatted=$(numfmt --to=si --suffix=B --format=%.2f $current)
 
     # Calculate variation percent using bc to suport floating point
     variation=`echo "scale=4; (($first-$current)/(($first+$current)/2))*100" | bc`
 
     # Append row to table
-    TABLE+="| $filename | ${#formated_sizes[@]} | ${formated_sizes[-1]} | ${formated_sizes[0]} | $variation% |\n"
+    TABLE+="| $filename | ${#formated_sizes[@]} | ${formated_sizes[-1]} | $current_formatted | $variation% |\n"
 done
 
 lead='<!--SIZES_START-->'
