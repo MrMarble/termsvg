@@ -1,4 +1,4 @@
-package gif
+package raster
 
 import (
 	_ "embed"

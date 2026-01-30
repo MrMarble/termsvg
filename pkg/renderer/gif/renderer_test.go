@@ -11,6 +11,7 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/pkg/color"
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/renderer"
 )
 
@@ -212,7 +213,7 @@ func TestRenderer_Render_WithWindow(t *testing.T) {
 	// header = 20 * 2 = 40
 	// padding = 20
 	// total = 310
-	expectedHeight := 10*RowHeight + Padding*HeaderSize + Padding
+	expectedHeight := 10*raster.RowHeight + raster.Padding*raster.HeaderSize + raster.Padding
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}
@@ -259,7 +260,7 @@ func TestRenderer_Render_WithoutWindow(t *testing.T) {
 	}
 
 	// Without window: height = content + 2*padding
-	expectedHeight := 10*RowHeight + 2*Padding
+	expectedHeight := 10*raster.RowHeight + 2*raster.Padding
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}

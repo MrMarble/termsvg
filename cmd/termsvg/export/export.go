@@ -28,6 +28,7 @@ type Cmd struct {
 	MaxIdle  time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
 	Cols     int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
 	Rows     int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
+	Debug    bool          `short:"d" help:"Enable debug logging"`
 }
 
 //nolint:funlen // sequential steps are clearer in one function
@@ -74,6 +75,7 @@ func (cmd *Cmd) Run() error {
 	renderConfig := renderer.DefaultConfig()
 	renderConfig.ShowWindow = !cmd.NoWindow
 	renderConfig.Minify = cmd.Minify
+	renderConfig.Debug = cmd.Debug
 
 	var rdr renderer.Renderer
 	switch format {

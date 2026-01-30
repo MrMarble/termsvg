@@ -7,59 +7,43 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	"image/gif"
 	"io"
-	"runtime"
-	"sync"
-	"unicode/utf8"
+	"log"
+	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/renderer"
-	"golang.org/x/image/font"
-	"golang.org/x/image/math/fixed"
 )
 
 // Renderer implements the renderer.Renderer interface for GIF output.
 type Renderer struct {
-	config   renderer.Config
-	fontFace font.Face
+	config     renderer.Config
+	rasterizer *raster.Rasterizer
 }
-
-// canvas holds rendering state for a single GIF generation
-type canvas struct {
-	rec          *ir.Recording
-	config       renderer.Config
-	fontFace     font.Face
-	baseImage    *image.RGBA     // Pre-rendered window chrome + terminal background
-	basePaletted *image.Paletted // Pre-converted paletted version of base image
-}
-
-// renderedFrame holds the result of rendering a single frame
-type renderedFrame struct {
-	index    int
-	paletted *image.Paletted
-	delay    int
-}
-
-// Layout constants for GIF rendering (matching SVG renderer for consistency)
-const (
-	RowHeight  = 25 // pixels per row
-	ColWidth   = 12 // pixels per column
-	Padding    = 20 // padding around content
-	HeaderSize = 2  // multiplier for header area (window buttons)
-)
 
 // New creates a new GIF renderer with the given configuration.
 func New(config renderer.Config) (*Renderer, error) {
-	face, err := loadFontFace(float64(config.FontSize))
+	// Convert renderer.Config to raster.Config
+	rasterConfig := raster.Config{
+		Theme:      config.Theme,
+		ShowWindow: config.ShowWindow,
+		FontSize:   config.FontSize,
+		RowHeight:  raster.RowHeight,
+		ColWidth:   raster.ColWidth,
+		Padding:    raster.Padding,
+		HeaderSize: raster.HeaderSize,
+	}
+
+	rasterizer, err := raster.New(rasterConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load font: %w", err)
+		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
 	}
 
 	return &Renderer{
-		config:   config,
-		fontFace: face,
+		config:     config,
+		rasterizer: rasterizer,
 	}, nil
 }
 
@@ -79,53 +63,39 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 		return fmt.Errorf("recording has no frames")
 	}
 
-	c := &canvas{
-		rec:      rec,
-		config:   r.config,
-		fontFace: r.fontFace,
+	startTime := time.Now()
+	if r.config.Debug {
+		log.Printf("[GIF] Starting GIF generation for %d frames", len(rec.Frames))
 	}
 
-	return c.render(ctx, w)
-}
-
-func (c *canvas) contentWidth() int {
-	return c.rec.Width * ColWidth
-}
-
-func (c *canvas) contentHeight() int {
-	return c.rec.Height * RowHeight
-}
-
-func (c *canvas) paddedWidth() int {
-	return c.contentWidth() + 2*Padding
-}
-
-func (c *canvas) paddedHeight() int {
-	if c.config.ShowWindow {
-		return c.contentHeight() + Padding*HeaderSize + Padding
+	// Phase 1: Build the color palette for the GIF (needed before rendering)
+	paletteStart := time.Now()
+	palette := r.buildPalette(rec)
+	if r.config.Debug {
+		log.Printf("[GIF] Phase 1 - Palette building: %v (%d colors)", time.Since(paletteStart), len(palette))
 	}
-	return c.contentHeight() + 2*Padding
-}
 
-func (c *canvas) contentOffsetY() int {
-	if c.config.ShowWindow {
-		return Padding * HeaderSize
+	// Phase 2: Use the raster package to render all frames directly to paletted images
+	// This avoids the expensive RGBA -> Paletted conversion
+	rasterStart := time.Now()
+	palettedFrames, err := r.rasterizer.RasterizeWithPalette(rec, palette)
+	if err != nil {
+		return fmt.Errorf("failed to rasterize frames: %w", err)
 	}
-	return Padding
-}
+	rasterDuration := time.Since(rasterStart)
 
-func (c *canvas) render(ctx context.Context, w io.Writer) error {
-	width := c.paddedWidth()
-	height := c.paddedHeight()
+	// Count duplicates for debug output
+	duplicateCount := 0
+	for _, frame := range palettedFrames {
+		if frame.IsDuplicate {
+			duplicateCount++
+		}
+	}
 
-	// Build the color palette for the GIF
-	palette := c.buildPalette()
-
-	// Pre-render the static window chrome and terminal background
-	c.initBaseImage(width, height, palette)
-
-	// Phase 1: IR-level deduplication and parallel rendering
-	rendered := c.renderFramesParallel(ctx, palette, width, height)
+	if r.config.Debug {
+		log.Printf("[GIF] Phase 2 - IR rasterization: %v (%d frames, %d duplicates)",
+			rasterDuration, len(palettedFrames), duplicateCount)
+	}
 
 	// Check for cancellation after rendering
 	select {
@@ -134,218 +104,97 @@ func (c *canvas) render(ctx context.Context, w io.Writer) error {
 	default:
 	}
 
-	// Phase 2: Sequential assembly with delta encoding
-	return c.assembleGIF(rendered, w)
-}
-
-// renderFramesParallel renders frames in parallel using a worker pool.
-// It performs IR-level deduplication to skip rendering identical frames.
-//
-//nolint:funlen // parallel rendering logic is clearer in one function
-func (c *canvas) renderFramesParallel(ctx context.Context, palette color.Palette, _, _ int) []*renderedFrame {
-	frames := c.rec.Frames
-	results := make([]*renderedFrame, len(frames))
-	var wg sync.WaitGroup
-
-	// Use worker pool to limit concurrency
-	numWorkers := runtime.NumCPU()
-	sem := make(chan struct{}, numWorkers)
-
-	// Track which frames need rendering (IR-level deduplication)
-	needsRender := make([]bool, len(frames))
-	needsRender[0] = true // First frame always needs rendering
-
-	var prevFrame *ir.Frame
-	for i := range frames {
-		if i == 0 {
-			prevFrame = &frames[0]
-			continue
-		}
-		// IR-level comparison: skip rendering if frame content is identical
-		if !framesEqualIR(prevFrame, &frames[i]) {
-			needsRender[i] = true
-			prevFrame = &frames[i]
-		}
+	// Phase 3: Assemble the GIF from paletted frames
+	assembleStart := time.Now()
+	err = r.assembleGIF(palettedFrames, w)
+	if err != nil {
+		return err
+	}
+	if r.config.Debug {
+		log.Printf("[GIF] Phase 3 - GIF assembly: %v", time.Since(assembleStart))
+		log.Printf("[GIF] Total time: %v", time.Since(startTime))
 	}
 
-	// Calculate content area offset
-	contentX := Padding
-	contentY := c.contentOffsetY()
+	return nil
+}
 
-	for i := range frames {
-		// Calculate delay for this frame
-		delay := int(frames[i].Delay.Milliseconds() / 10)
+// assembleGIF creates the final GIF from rendered paletted frames using delta encoding
+func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
+	g := &gif.GIF{
+		LoopCount: r.config.LoopCount,
+	}
+
+	var prevPaletted *image.Paletted
+
+	// Timing accumulators for debug mode
+	var framesEqualTime, computeDeltaTime time.Duration
+	var framesEqualCalls, computeDeltaCalls int
+
+	for i, rf := range frames {
+		// Calculate delay for this frame (convert from time.Duration to 10ms units)
+		delay := int(rf.Delay.Milliseconds() / 10)
 		// Browsers clamp delays < 20ms to 100ms, so enforce minimum of 2 (20ms)
 		if delay < 2 && i < len(frames)-1 {
 			delay = 2
 		}
 
-		if !needsRender[i] {
-			// IR-level duplicate: store delay only, no paletted image
-			results[i] = &renderedFrame{
-				index:    i,
-				paletted: nil, // nil means use previous frame's image
-				delay:    delay,
-			}
-			continue
-		}
-
-		// Check for cancellation before spawning goroutine
-		select {
-		case <-ctx.Done():
-			return results
-		default:
-		}
-
-		wg.Add(1)
-		go func(idx int, frame ir.Frame, frameDelay int) {
-			defer wg.Done()
-			sem <- struct{}{}        // acquire
-			defer func() { <-sem }() // release
-
-			// Create a per-goroutine font face (font.Face is not thread-safe)
-			face, err := loadFontFace(float64(c.config.FontSize))
-			if err != nil {
-				return
-			}
-
-			// Start with a copy of the pre-converted paletted base image
-			paletted := image.NewPaletted(c.basePaletted.Bounds(), palette)
-			copy(paletted.Pix, c.basePaletted.Pix)
-
-			// Draw directly to the paletted image
-			c.drawFrameContentToPaletted(paletted, frame, face, contentX, contentY)
-
-			results[idx] = &renderedFrame{
-				index:    idx,
-				paletted: paletted,
-				delay:    frameDelay,
-			}
-		}(i, frames[i], delay)
-	}
-
-	wg.Wait()
-	return results
-}
-
-// assembleGIF creates the final GIF from rendered frames using delta encoding
-func (c *canvas) assembleGIF(rendered []*renderedFrame, w io.Writer) error {
-	g := &gif.GIF{
-		LoopCount: c.config.LoopCount,
-	}
-
-	var prevPaletted *image.Paletted
-
-	for _, rf := range rendered {
-		if rf == nil {
-			continue
-		}
-
 		// IR-level duplicate: just extend the previous frame's delay
-		if rf.paletted == nil {
+		if rf.IsDuplicate {
 			if len(g.Delay) > 0 {
-				g.Delay[len(g.Delay)-1] += rf.delay
+				g.Delay[len(g.Delay)-1] += delay
 			}
 			continue
 		}
 
 		// Pixel-level duplicate check (for frames that were rendered but are identical)
-		if prevPaletted != nil && framesEqual(prevPaletted, rf.paletted) {
-			g.Delay[len(g.Delay)-1] += rf.delay
-			continue
+		if prevPaletted != nil {
+			feStart := time.Now()
+			isEqual := framesEqual(prevPaletted, rf.Image)
+			if r.config.Debug {
+				framesEqualTime += time.Since(feStart)
+				framesEqualCalls++
+			}
+			if isEqual {
+				g.Delay[len(g.Delay)-1] += delay
+				continue
+			}
 		}
 
 		// For delta encoding: if we have a previous frame, only encode changed pixels
 		if prevPaletted != nil {
-			delta := computeDelta(prevPaletted, rf.paletted, 0) // 0 is transparent index
+			cdStart := time.Now()
+			delta := computeDelta(prevPaletted, rf.Image, 0) // 0 is transparent index
+			if r.config.Debug {
+				computeDeltaTime += time.Since(cdStart)
+				computeDeltaCalls++
+			}
 			g.Image = append(g.Image, delta)
 			g.Disposal = append(g.Disposal, gif.DisposalNone)
 		} else {
 			// First frame must be complete
-			g.Image = append(g.Image, rf.paletted)
+			g.Image = append(g.Image, rf.Image)
 			g.Disposal = append(g.Disposal, gif.DisposalNone)
 		}
 
-		g.Delay = append(g.Delay, rf.delay)
-		prevPaletted = rf.paletted
+		g.Delay = append(g.Delay, delay)
+		prevPaletted = rf.Image
 	}
 
-	return gif.EncodeAll(w, g)
-}
+	encodeStart := time.Now()
+	err := gif.EncodeAll(w, g)
+	encodeTime := time.Since(encodeStart)
 
-// framesEqualIR compares two IR frames for equality without rendering.
-// This is much faster than pixel comparison since it operates on the IR data.
-func framesEqualIR(a, b *ir.Frame) bool {
-	// Compare cursor state
-	if a.Cursor != b.Cursor {
-		return false
+	// Log detailed timing breakdown in debug mode
+	if r.config.Debug {
+		otherTime := time.Since(time.Now().Add(-encodeTime)) - framesEqualTime - computeDeltaTime - encodeTime
+		log.Printf("[GIF] Phase 3 - GIF assembly breakdown:")
+		log.Printf("[GIF]   - framesEqual: %v (%d calls)", framesEqualTime, framesEqualCalls)
+		log.Printf("[GIF]   - computeDelta: %v (%d calls)", computeDeltaTime, computeDeltaCalls)
+		log.Printf("[GIF]   - gif.EncodeAll: %v", encodeTime)
+		log.Printf("[GIF]   - other (loop overhead): %v", otherTime)
 	}
 
-	// Compare row count
-	if len(a.Rows) != len(b.Rows) {
-		return false
-	}
-
-	// Compare each row
-	for i := range a.Rows {
-		if !rowsEqualIR(&a.Rows[i], &b.Rows[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// rowsEqualIR compares two IR rows for equality
-func rowsEqualIR(a, b *ir.Row) bool {
-	if a.Y != b.Y {
-		return false
-	}
-
-	if len(a.Runs) != len(b.Runs) {
-		return false
-	}
-
-	for i := range a.Runs {
-		if !textRunsEqualIR(&a.Runs[i], &b.Runs[i]) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// textRunsEqualIR compares two IR text runs for equality
-func textRunsEqualIR(a, b *ir.TextRun) bool {
-	return a.Text == b.Text &&
-		a.StartCol == b.StartCol &&
-		a.Attrs == b.Attrs
-}
-
-// initBaseImage pre-renders the static window chrome and terminal background
-func (c *canvas) initBaseImage(width, height int, palette color.Palette) {
-	c.baseImage = image.NewRGBA(image.Rect(0, 0, width, height))
-
-	// Draw window chrome or plain background
-	if c.config.ShowWindow {
-		c.drawWindow(c.baseImage)
-	} else {
-		c.drawBackground(c.baseImage)
-	}
-
-	// Draw terminal content background (black area)
-	contentX := Padding
-	contentY := c.contentOffsetY()
-	termBg := c.config.Theme.Background
-	draw.Draw(c.baseImage,
-		image.Rect(contentX, contentY, contentX+c.contentWidth(), contentY+c.contentHeight()),
-		&image.Uniform{termBg},
-		image.Point{},
-		draw.Src)
-
-	// Pre-convert base image to paletted (used as template for each frame)
-	c.basePaletted = image.NewPaletted(c.baseImage.Bounds(), palette)
-	draw.Draw(c.basePaletted, c.baseImage.Bounds(), c.baseImage, image.Point{}, draw.Src)
+	return err
 }
 
 // framesEqual checks if two paletted images are identical
@@ -382,135 +231,23 @@ func computeDelta(prev, curr *image.Paletted, transparentIdx uint8) *image.Palet
 	return delta
 }
 
-// drawFrameContentToPaletted draws frame content directly to a paletted image.
-// This avoids the RGBA->Paletted conversion step.
-func (c *canvas) drawFrameContentToPaletted(img *image.Paletted, frame ir.Frame, face font.Face, offsetX, offsetY int) {
-	// Draw all text runs
-	for _, row := range frame.Rows {
-		for _, run := range row.Runs {
-			c.drawTextRunToPaletted(img, run, row.Y, face, offsetX, offsetY)
-		}
-	}
-
-	// Draw cursor if visible
-	if frame.Cursor.Visible {
-		c.drawCursorToPaletted(img, frame.Cursor, offsetX, offsetY)
-	}
-}
-
-func (c *canvas) drawTextRunToPaletted(
-	img *image.Paletted, run ir.TextRun, rowY int, face font.Face, offsetX, offsetY int,
-) {
-	if run.Text == "" {
-		return
-	}
-
-	x := offsetX + run.StartCol*ColWidth
-	y := offsetY + rowY*RowHeight
-
-	// Get colors
-	var bgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.BG) {
-		bgColor = c.config.Theme.Background
-	} else {
-		bgColor = c.rec.Colors.Resolved(run.Attrs.BG)
-	}
-
-	var fgColor color.RGBA
-	if c.rec.Colors.IsDefault(run.Attrs.FG) {
-		fgColor = c.rec.Colors.DefaultForeground()
-	} else {
-		fgColor = c.rec.Colors.Resolved(run.Attrs.FG)
-	}
-
-	// Apply dim effect
-	if run.Attrs.Dim {
-		fgColor.A = 128
-	}
-
-	// Calculate text width in columns (handle multi-byte characters)
-	textWidth := utf8.RuneCountInString(run.Text) * ColWidth
-
-	// Draw background rectangle for the run
-	draw.Draw(img,
-		image.Rect(x, y, x+textWidth, y+RowHeight),
-		&image.Uniform{bgColor},
-		image.Point{},
-		draw.Src)
-
-	// Draw text directly to paletted image
-	drawer := &font.Drawer{
-		Dst:  img,
-		Src:  &image.Uniform{fgColor},
-		Face: face,
-		Dot:  fixed.P(x, y+RowHeight-5), // baseline offset
-	}
-	drawer.DrawString(run.Text)
-
-	// Draw underline if needed
-	if run.Attrs.Underline {
-		underlineY := y + RowHeight - 2
-		for px := x; px < x+textWidth; px++ {
-			img.Set(px, underlineY, fgColor)
-		}
-	}
-}
-
-func (c *canvas) drawCursorToPaletted(img *image.Paletted, cursor ir.Cursor, offsetX, offsetY int) {
-	x := offsetX + cursor.Col*ColWidth
-	y := offsetY + cursor.Row*RowHeight
-
-	// Get cursor color (same as foreground)
-	cursorColor := c.rec.Colors.DefaultForeground()
-
-	// Draw cursor as a block
-	draw.Draw(img,
-		image.Rect(x, y, x+ColWidth, y+RowHeight),
-		&image.Uniform{cursorColor},
-		image.Point{},
-		draw.Src)
-}
-
-func (c *canvas) drawBackground(img *image.RGBA) {
-	bgColor := c.config.Theme.WindowBackground
-	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
-}
-
-func (c *canvas) drawWindow(img *image.RGBA) {
-	theme := c.config.Theme
-	bounds := img.Bounds()
-
-	// Window background with rounded corners
-	drawRoundedRect(img, bounds, 5, theme.WindowBackground)
-
-	// Window buttons (close, minimize, maximize)
-	buttonY := Padding
-	buttonSpacing := 20
-	buttonRadius := 6
-
-	for i, btnColor := range theme.WindowButtons {
-		x := Padding + i*buttonSpacing
-		drawCircle(img, x, buttonY, buttonRadius, btnColor)
-	}
-}
-
 // buildPalette creates a color palette from the recording's colors
-func (c *canvas) buildPalette() color.Palette {
+func (r *Renderer) buildPalette(rec *ir.Recording) color.Palette {
 	// Collect all unique colors
 	colorSet := make(map[color.RGBA]bool)
 
 	// Add theme colors
-	colorSet[c.config.Theme.Background] = true
-	colorSet[c.config.Theme.WindowBackground] = true
-	colorSet[c.config.Theme.Foreground] = true
-	for _, btnColor := range c.config.Theme.WindowButtons {
+	colorSet[r.config.Theme.Background] = true
+	colorSet[r.config.Theme.WindowBackground] = true
+	colorSet[r.config.Theme.Foreground] = true
+	for _, btnColor := range r.config.Theme.WindowButtons {
 		colorSet[btnColor] = true
 	}
 
 	// Add colors from the color catalog
-	colorSet[c.rec.Colors.DefaultForeground()] = true
-	colorSet[c.rec.Colors.DefaultBackground()] = true
-	for _, rgba := range c.rec.Colors.All() {
+	colorSet[rec.Colors.DefaultForeground()] = true
+	colorSet[rec.Colors.DefaultBackground()] = true
+	for _, rgba := range rec.Colors.All() {
 		colorSet[rgba] = true
 	}
 
@@ -535,24 +272,4 @@ func (c *canvas) buildPalette() color.Palette {
 	}
 
 	return palette
-}
-
-// drawRoundedRect draws a rounded rectangle on the image
-func drawRoundedRect(img *image.RGBA, bounds image.Rectangle, _ int, c color.RGBA) {
-	// Fill the main rectangle
-	draw.Draw(img, bounds, &image.Uniform{c}, image.Point{}, draw.Src)
-
-	// For simplicity, we draw a regular rectangle
-	// A full implementation would use proper corner rounding algorithms
-}
-
-// drawCircle draws a filled circle on the image
-func drawCircle(img *image.RGBA, cx, cy, radius int, c color.RGBA) {
-	for y := -radius; y <= radius; y++ {
-		for x := -radius; x <= radius; x++ {
-			if x*x+y*y <= radius*radius {
-				img.Set(cx+x, cy+y, c)
-			}
-		}
-	}
 }

@@ -23,6 +23,7 @@ type Config struct {
 	FontSize   int
 	LoopCount  int // 0 = infinite, -1 = no loop
 	Minify     bool
+	Debug      bool // Enable debug logging
 }
 
 func DefaultConfig() Config {
