@@ -168,9 +168,9 @@ func (c *canvas) writeStyles() {
 	// Cursor blink animation
 	sb.WriteString("@keyframes blink{0%,50%{opacity:1}50.01%,100%{opacity:0}}")
 
-	// Default text style
+	// Default text style (white-space:pre preserves spaces, survives minification)
 	fgHex := color.RGBAtoHex(c.rec.Colors.DefaultForeground())
-	fmt.Fprintf(&sb, "text{font-family:%s;font-size:%dpx;fill:%s}",
+	fmt.Fprintf(&sb, "text{font-family:%s;font-size:%dpx;fill:%s;white-space:pre}",
 		c.config.FontFamily, c.config.FontSize, fgHex)
 
 	// Cursor style
@@ -287,6 +287,18 @@ func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
 		return
 	}
 
+	// Skip whitespace-only runs with default background - nothing visible to render
+	if strings.TrimSpace(run.Text) == "" && c.rec.Colors.IsDefault(run.Attrs.BG) {
+		return
+	}
+
+	// Replace spaces with non-breaking spaces to survive minification
+	// Only needed when minifying, as the minifier strips regular spaces
+	text := run.Text
+	if c.config.Minify {
+		text = strings.ReplaceAll(text, " ", "\u00A0")
+	}
+
 	x := run.StartCol * ColWidth
 	y := (rowY*RowHeight + RowHeight) - 5 // baseline offset
 
@@ -320,5 +332,5 @@ func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
 	}
 
 	fmt.Fprintf(c.w, `<text x="%d" y="%d" xml:space="preserve"%s%s>%s</text>`,
-		x, y, classAttr, filterAttr, html.EscapeString(run.Text))
+		x, y, classAttr, filterAttr, html.EscapeString(text))
 }

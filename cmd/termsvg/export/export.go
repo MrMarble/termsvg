@@ -73,6 +73,7 @@ func (cmd *Cmd) Run() error {
 	// Create renderer based on format
 	renderConfig := renderer.DefaultConfig()
 	renderConfig.ShowWindow = !cmd.NoWindow
+	renderConfig.Minify = cmd.Minify
 
 	var rdr renderer.Renderer
 	switch format {
@@ -103,7 +104,13 @@ func (cmd *Cmd) Run() error {
 		}
 		m := minify.New()
 		m.AddFunc("image/svg+xml", msvg.Minify)
-		if err := m.Minify("image/svg+xml", outFile, &buf); err != nil {
+		var minified bytes.Buffer
+		if err := m.Minify("image/svg+xml", &minified, &buf); err != nil {
+			return err
+		}
+		// Replace non-breaking spaces back to regular spaces after minification
+		result := strings.ReplaceAll(minified.String(), "\u00A0", " ")
+		if _, err := outFile.WriteString(result); err != nil {
 			return err
 		}
 	} else {
