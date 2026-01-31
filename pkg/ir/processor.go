@@ -65,7 +65,10 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		prevTime = frameTime
 	}
 
-	// 5. Finalize statistics
+	// 5. Deduplicate consecutive identical frames
+	frames = deduplicateFrames(frames)
+
+	// 6. Finalize statistics
 	stats.TotalFrames = len(frames)
 	stats.UniqueColors = catalog.Count()
 
@@ -262,4 +265,91 @@ func attrsEqual(a, b CellAttrs) bool {
 
 func floatSecondsToDuration(seconds float64) time.Duration {
 	return time.Duration(seconds * float64(time.Second))
+}
+
+// deduplicateFrames removes consecutive identical frames and consolidates their delays.
+// This optimizes the recording by eliminating redundant frames.
+func deduplicateFrames(frames []Frame) []Frame {
+	if len(frames) <= 1 {
+		return frames
+	}
+
+	deduped := make([]Frame, 0, len(frames))
+	var prevFrame *Frame
+
+	for i, frame := range frames {
+		if i == 0 {
+			// First frame always kept
+			deduped = append(deduped, frame)
+			prevFrame = &deduped[len(deduped)-1]
+			continue
+		}
+
+		// Check if frame is identical to previous
+		if framesEqual(prevFrame, &frame) {
+			// Duplicate: add delay to previous frame
+			prevFrame.Delay += frame.Delay
+			// Update absolute time to match the duplicate
+			prevFrame.Time = frame.Time
+		} else {
+			// New unique frame: add it
+			deduped = append(deduped, frame)
+			prevFrame = &deduped[len(deduped)-1]
+		}
+	}
+
+	// Renumber frame indices to be sequential
+	for i := range deduped {
+		deduped[i].Index = i
+	}
+
+	return deduped
+}
+
+// framesEqual compares two frames for equality (content only, not timing).
+func framesEqual(a, b *Frame) bool {
+	// Compare cursor state
+	if a.Cursor != b.Cursor {
+		return false
+	}
+
+	// Compare row count
+	if len(a.Rows) != len(b.Rows) {
+		return false
+	}
+
+	// Compare each row
+	for i := range a.Rows {
+		if !rowsEqual(&a.Rows[i], &b.Rows[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// rowsEqual compares two rows for equality.
+func rowsEqual(a, b *Row) bool {
+	if a.Y != b.Y {
+		return false
+	}
+
+	if len(a.Runs) != len(b.Runs) {
+		return false
+	}
+
+	for i := range a.Runs {
+		if !textRunsEqual(&a.Runs[i], &b.Runs[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// textRunsEqual compares two text runs for equality.
+func textRunsEqual(a, b *TextRun) bool {
+	return a.Text == b.Text &&
+		a.StartCol == b.StartCol &&
+		a.Attrs == b.Attrs
 }

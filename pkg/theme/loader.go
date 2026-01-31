@@ -54,7 +54,7 @@ func LoadFromFile(path string) (Theme, error) {
 
 // loadThemeFile reads and parses a theme JSON file.
 func loadThemeFile(path string) (Theme, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // theme file path is user-provided
 	if err != nil {
 		return Theme{}, fmt.Errorf("failed to read theme file: %w", err)
 	}

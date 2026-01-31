@@ -106,6 +106,8 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 
 // encodeToWebM encodes RGBA frames to WebM format using FFmpeg.
 // Uses fixed 30 FPS with frame filtering to skip rapid events.
+//
+//nolint:gocognit,funlen // WebM encoding with FFmpeg requires complex frame handling
 func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error {
 	if len(frames) == 0 {
 		return fmt.Errorf("no frames to encode")
@@ -175,7 +177,7 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 		args = append(args, "-b:v", fmt.Sprintf("%dk", r.config.VideoBitrate))
 	}
 
-	cmd := exec.Command("ffmpeg", args...)
+	cmd := exec.Command("ffmpeg", args...) //nolint:gosec // args are constructed from validated config
 
 	// Get stdin pipe for writing frames
 	stdin, err := cmd.StdinPipe()
@@ -255,8 +257,8 @@ func (r *Renderer) filterFrames(frames []raster.RasterFrame) []raster.RasterFram
 	var accumulatedDelay time.Duration
 
 	for i, frame := range frames {
-		// Skip nil frames and IR-level duplicates
-		if frame.Image == nil || frame.IsDuplicate {
+		// Skip nil frames
+		if frame.Image == nil {
 			accumulatedDelay += frame.Delay
 			continue
 		}
@@ -271,10 +273,9 @@ func (r *Renderer) filterFrames(frames []raster.RasterFrame) []raster.RasterFram
 
 		// Create a new frame with accumulated delay
 		filteredFrame := raster.RasterFrame{
-			Image:       frame.Image,
-			Delay:       totalDelay,
-			Index:       frame.Index,
-			IsDuplicate: false,
+			Image: frame.Image,
+			Delay: totalDelay,
+			Index: frame.Index,
 		}
 		filtered = append(filtered, filteredFrame)
 		accumulatedDelay = 0

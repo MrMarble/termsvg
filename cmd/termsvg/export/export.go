@@ -35,7 +35,7 @@ type Cmd struct {
 	Theme    string        `short:"t" help:"Theme name (built-in) or path to theme JSON file"`
 }
 
-//nolint:funlen // sequential steps are clearer in one function
+//nolint:funlen,gocognit // sequential export steps are clearer in one function
 func (cmd *Cmd) Run() error {
 	format := strings.ToLower(cmd.Format)
 

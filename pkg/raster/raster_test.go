@@ -43,6 +43,7 @@ func TestRasterize_EmptyRecording(t *testing.T) {
 	}
 }
 
+//nolint:funlen // test setup requires multiple test cases
 func TestRasterize_SingleFrame(t *testing.T) {
 	config := DefaultConfig()
 	r, err := New(config)
@@ -103,10 +104,6 @@ func TestRasterize_SingleFrame(t *testing.T) {
 
 	if frames[0].Index != 0 {
 		t.Errorf("Index = %v, want 0", frames[0].Index)
-	}
-
-	if frames[0].IsDuplicate {
-		t.Error("first frame should not be marked as duplicate")
 	}
 
 	// Verify image dimensions
@@ -276,7 +273,8 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 	}
 }
 
-func TestRasterize_IRDeduplication(t *testing.T) {
+//nolint:funlen // test requires comprehensive frame rendering scenario
+func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 	config := DefaultConfig()
 	r, err := New(config)
 	if err != nil {
@@ -289,7 +287,8 @@ func TestRasterize_IRDeduplication(t *testing.T) {
 		color.RGBA{R: 0, G: 0, B: 0, A: 255},
 	)
 
-	// Create frames where frames 1 and 3 are identical to their predecessors
+	// Create 4 unique frames - rasterizer no longer handles deduplication
+	// (that's done at the IR processing stage)
 	rec := &ir.Recording{
 		Width:    40,
 		Height:   10,
@@ -308,7 +307,7 @@ func TestRasterize_IRDeduplication(t *testing.T) {
 				Delay: 100 * time.Millisecond,
 				Index: 1,
 				Rows: []ir.Row{
-					{Y: 0, Runs: []ir.TextRun{{Text: "A", StartCol: 0}}}, // Same as frame 0
+					{Y: 0, Runs: []ir.TextRun{{Text: "A", StartCol: 0}}},
 				},
 			},
 			{
@@ -316,7 +315,7 @@ func TestRasterize_IRDeduplication(t *testing.T) {
 				Delay: 100 * time.Millisecond,
 				Index: 2,
 				Rows: []ir.Row{
-					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}}, // Different
+					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}},
 				},
 			},
 			{
@@ -324,7 +323,7 @@ func TestRasterize_IRDeduplication(t *testing.T) {
 				Delay: 100 * time.Millisecond,
 				Index: 3,
 				Rows: []ir.Row{
-					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}}, // Same as frame 2
+					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}},
 				},
 			},
 		},
@@ -336,43 +335,23 @@ func TestRasterize_IRDeduplication(t *testing.T) {
 		t.Fatalf("Rasterize() error = %v", err)
 	}
 
+	// All 4 frames should be rendered (no deduplication at raster level)
 	if len(frames) != 4 {
 		t.Errorf("expected 4 frames, got %d", len(frames))
 	}
 
-	// Frame 0: not duplicate
-	if frames[0].IsDuplicate {
-		t.Error("frame 0 should not be a duplicate")
-	}
-	if frames[0].Image == nil {
-		t.Error("frame 0 image should not be nil")
-	}
-
-	// Frame 1: duplicate of frame 0
-	if !frames[1].IsDuplicate {
-		t.Error("frame 1 should be marked as duplicate")
-	}
-	if frames[1].Image != nil {
-		t.Error("frame 1 image should be nil (duplicate)")
-	}
-
-	// Frame 2: not duplicate
-	if frames[2].IsDuplicate {
-		t.Error("frame 2 should not be a duplicate")
-	}
-	if frames[2].Image == nil {
-		t.Error("frame 2 image should not be nil")
-	}
-
-	// Frame 3: duplicate of frame 2
-	if !frames[3].IsDuplicate {
-		t.Error("frame 3 should be marked as duplicate")
-	}
-	if frames[3].Image != nil {
-		t.Error("frame 3 image should be nil (duplicate)")
+	// All frames should have images (no duplicates marked at raster level)
+	for i, frame := range frames {
+		if frame.Image == nil {
+			t.Errorf("frame %d image should not be nil", i)
+		}
+		if frame.Index != i {
+			t.Errorf("frame %d index = %d, want %d", i, frame.Index, i)
+		}
 	}
 }
 
+//nolint:funlen // test requires multiple styling scenarios
 func TestRasterize_WithStyling(t *testing.T) {
 	config := DefaultConfig()
 	r, err := New(config)
@@ -581,36 +560,5 @@ func TestDimColor(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("dimColor(%v) = %v, want %v", tt.input, result, tt.expected)
 		}
-	}
-}
-
-func TestFramesEqualIR(t *testing.T) {
-	frame1 := &ir.Frame{
-		Cursor: ir.Cursor{Col: 0, Row: 0, Visible: true},
-		Rows: []ir.Row{
-			{Y: 0, Runs: []ir.TextRun{{Text: "Hello", StartCol: 0, Attrs: ir.CellAttrs{}}}},
-		},
-	}
-
-	frame2 := &ir.Frame{
-		Cursor: ir.Cursor{Col: 0, Row: 0, Visible: true},
-		Rows: []ir.Row{
-			{Y: 0, Runs: []ir.TextRun{{Text: "Hello", StartCol: 0, Attrs: ir.CellAttrs{}}}},
-		},
-	}
-
-	frame3 := &ir.Frame{
-		Cursor: ir.Cursor{Col: 1, Row: 0, Visible: true}, // Different cursor
-		Rows: []ir.Row{
-			{Y: 0, Runs: []ir.TextRun{{Text: "Hello", StartCol: 0, Attrs: ir.CellAttrs{}}}},
-		},
-	}
-
-	if !framesEqualIR(frame1, frame2) {
-		t.Error("framesEqualIR should return true for identical frames")
-	}
-
-	if framesEqualIR(frame1, frame3) {
-		t.Error("framesEqualIR should return false for different frames")
 	}
 }

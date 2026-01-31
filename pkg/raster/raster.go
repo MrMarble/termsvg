@@ -9,21 +9,16 @@ import (
 	"image/color"
 	"time"
 
-	"golang.org/x/image/font"
-
 	"github.com/mrmarble/termsvg/pkg/ir"
 	"github.com/mrmarble/termsvg/pkg/theme"
-)
-
-// Layout constants for rendering (matching SVG renderer for consistency)
-const (
-	RowHeight  = 25 // pixels per row
-	ColWidth   = 12 // pixels per column
-	Padding    = 20 // padding around content
-	HeaderSize = 2  // multiplier for header area (window buttons)
+	"golang.org/x/image/font"
 )
 
 // RasterFrame represents a single rendered frame with timing metadata.
+//
+// RasterFrame represents a single rendered frame with timing metadata.
+//
+//nolint:revive // RasterFrame naming is intentional to distinguish from IR frames
 type RasterFrame struct {
 	// Image is the rendered RGBA image for this frame
 	Image *image.RGBA
@@ -31,12 +26,8 @@ type RasterFrame struct {
 	// Delay is the time to display this frame
 	Delay time.Duration
 
-	// Index is the original frame number from the recording
+	// Index is the frame number (0-indexed, sequential after deduplication)
 	Index int
-
-	// IsDuplicate indicates if this frame is identical to the previous frame
-	// The Image field may be nil for duplicates (caller should use previous frame's image)
-	IsDuplicate bool
 }
 
 // Config holds configuration options for the rasterizer.
@@ -57,6 +48,32 @@ type Config struct {
 	HeaderSize int // multiplier for header area (default: 2)
 }
 
+// Rasterizer transforms IR recordings into RGBA images.
+type Rasterizer struct {
+	config   Config
+	fontFace font.Face
+}
+
+// PalettedFrame represents a single rendered frame as a paletted image with timing metadata.
+type PalettedFrame struct {
+	// Image is the rendered paletted image for this frame
+	Image *image.Paletted
+
+	// Delay is the time to display this frame
+	Delay time.Duration
+
+	// Index is the frame number (0-indexed, sequential after deduplication)
+	Index int
+}
+
+// Layout constants for rendering (matching SVG renderer for consistency)
+const (
+	RowHeight  = 25 // pixels per row
+	ColWidth   = 12 // pixels per column
+	Padding    = 20 // padding around content
+	HeaderSize = 2  // multiplier for header area (window buttons)
+)
+
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
@@ -68,12 +85,6 @@ func DefaultConfig() Config {
 		Padding:    Padding,
 		HeaderSize: HeaderSize,
 	}
-}
-
-// Rasterizer transforms IR recordings into RGBA images.
-type Rasterizer struct {
-	config   Config
-	fontFace font.Face
 }
 
 // New creates a new Rasterizer with the given configuration.
@@ -91,10 +102,8 @@ func New(config Config) (*Rasterizer, error) {
 
 // Close releases resources held by the rasterizer.
 func (r *Rasterizer) Close() error {
-	if r.fontFace != nil {
-		// font.Face doesn't have a Close method, but we could add
-		// resource cleanup here if needed in the future
-	}
+	// font.Face doesn't have a Close method
+	// Resource cleanup can be added here if needed in the future
 	return nil
 }
 
@@ -112,22 +121,6 @@ func (r *Rasterizer) Rasterize(rec *ir.Recording) ([]RasterFrame, error) {
 	}
 
 	return renderer.render()
-}
-
-// PalettedFrame represents a single rendered frame as a paletted image with timing metadata.
-type PalettedFrame struct {
-	// Image is the rendered paletted image for this frame
-	Image *image.Paletted
-
-	// Delay is the time to display this frame
-	Delay time.Duration
-
-	// Index is the original frame number from the recording
-	Index int
-
-	// IsDuplicate indicates if this frame is identical to the previous frame
-	// The Image field may be nil for duplicates (caller should use previous frame's image)
-	IsDuplicate bool
 }
 
 // RasterizeWithPalette transforms a terminal recording into a series of paletted images.

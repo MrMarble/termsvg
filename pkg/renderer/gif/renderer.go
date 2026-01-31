@@ -84,17 +84,9 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	}
 	rasterDuration := time.Since(rasterStart)
 
-	// Count duplicates for debug output
-	duplicateCount := 0
-	for _, frame := range palettedFrames {
-		if frame.IsDuplicate {
-			duplicateCount++
-		}
-	}
-
 	if r.config.Debug {
-		log.Printf("[GIF] Phase 2 - IR rasterization: %v (%d frames, %d duplicates)",
-			rasterDuration, len(palettedFrames), duplicateCount)
+		log.Printf("[GIF] Phase 2 - IR rasterization: %v (%d frames)",
+			rasterDuration, len(palettedFrames))
 	}
 
 	// Check for cancellation after rendering
@@ -119,6 +111,8 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 }
 
 // assembleGIF creates the final GIF from rendered paletted frames using delta encoding
+//
+//nolint:funlen // GIF assembly with delta encoding requires multiple steps
 func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
 	g := &gif.GIF{
 		LoopCount: r.config.LoopCount,
@@ -136,14 +130,6 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 		// Browsers clamp delays < 20ms to 100ms, so enforce minimum of 2 (20ms)
 		if delay < 2 && i < len(frames)-1 {
 			delay = 2
-		}
-
-		// IR-level duplicate: just extend the previous frame's delay
-		if rf.IsDuplicate {
-			if len(g.Delay) > 0 {
-				g.Delay[len(g.Delay)-1] += delay
-			}
-			continue
 		}
 
 		// Pixel-level duplicate check (for frames that were rendered but are identical)

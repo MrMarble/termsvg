@@ -6,26 +6,21 @@ import (
 	"image/draw"
 	"unicode/utf8"
 
-	"golang.org/x/image/font"
-	"golang.org/x/image/math/fixed"
-
 	termcolor "github.com/mrmarble/termsvg/pkg/color"
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 )
 
-// drawTextRun draws a text run to an RGBA image at the specified row.
-// It handles background color, foreground text, and text styling.
-func (r *Rasterizer) drawTextRun(img *image.RGBA, run ir.TextRun, rowY int, catalog *termcolor.Catalog) {
-	r.drawTextRunWithFace(img, run, rowY, r.fontFace, catalog)
+// textRunColors extracts the foreground and background colors for a text run.
+type textRunColors struct {
+	fg, bg    color.RGBA
+	textWidth int
+	x, y      int
 }
 
-// drawTextRunWithFace draws a text run using the specified font face.
-// This allows for thread-safe parallel rendering with per-goroutine font faces.
-func (r *Rasterizer) drawTextRunWithFace(img *image.RGBA, run ir.TextRun, rowY int, face font.Face, catalog *termcolor.Catalog) {
-	if run.Text == "" {
-		return
-	}
-
+// computeTextRunColors calculates the positioning and colors for a text run.
+func (r *Rasterizer) computeTextRunColors(run ir.TextRun, rowY int, catalog *termcolor.Catalog) textRunColors {
 	contentX := r.config.Padding
 	contentY := r.contentOffsetY()
 
@@ -56,27 +51,49 @@ func (r *Rasterizer) drawTextRunWithFace(img *image.RGBA, run ir.TextRun, rowY i
 	// Calculate text width in columns (handle multi-byte characters)
 	textWidth := utf8.RuneCountInString(run.Text) * r.config.ColWidth
 
+	return textRunColors{
+		fg:        fgColor,
+		bg:        bgColor,
+		textWidth: textWidth,
+		x:         x,
+		y:         y,
+	}
+}
+
+// drawTextRunWithFace draws a text run using the specified font face.
+// This allows for thread-safe parallel rendering with per-goroutine font faces.
+//
+//nolint:dupl,lll // drawTextRunWithFace and drawTextRunToPaletted handle different image types
+func (r *Rasterizer) drawTextRunWithFace(
+	img *image.RGBA, run ir.TextRun, rowY int, face font.Face, catalog *termcolor.Catalog,
+) {
+	if run.Text == "" {
+		return
+	}
+
+	colors := r.computeTextRunColors(run, rowY, catalog)
+
 	// Draw background rectangle for the run
 	draw.Draw(img,
-		image.Rect(x, y, x+textWidth, y+r.config.RowHeight),
-		&image.Uniform{bgColor},
+		image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
+		&image.Uniform{colors.bg},
 		image.Point{},
 		draw.Src)
 
 	// Draw text
 	drawer := &font.Drawer{
 		Dst:  img,
-		Src:  &image.Uniform{fgColor},
+		Src:  &image.Uniform{colors.fg},
 		Face: face,
-		Dot:  fixed.P(x, y+r.config.RowHeight-5), // baseline offset
+		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-5), // baseline offset
 	}
 	drawer.DrawString(run.Text)
 
 	// Draw underline if needed
 	if run.Attrs.Underline {
-		underlineY := y + r.config.RowHeight - 2
-		for px := x; px < x+textWidth; px++ {
-			img.Set(px, underlineY, fgColor)
+		underlineY := colors.y + r.config.RowHeight - 2
+		for px := colors.x; px < colors.x+colors.textWidth; px++ {
+			img.Set(px, underlineY, colors.fg)
 		}
 	}
 }
@@ -206,62 +223,38 @@ func dimColor(c color.RGBA) color.RGBA {
 
 // drawTextRunToPaletted draws a text run directly to a paletted image.
 // This avoids the RGBA to Paletted conversion step for GIF rendering.
-func (r *Rasterizer) drawTextRunToPaletted(img *image.Paletted, run ir.TextRun, rowY int, face font.Face, catalog *termcolor.Catalog) {
+//
+//nolint:dupl // drawTextRunToPaletted is similar to drawTextRunWithFace but uses Paletted images
+func (r *Rasterizer) drawTextRunToPaletted(
+	img *image.Paletted, run ir.TextRun, rowY int, face font.Face, catalog *termcolor.Catalog,
+) {
 	if run.Text == "" {
 		return
 	}
 
-	contentX := r.config.Padding
-	contentY := r.contentOffsetY()
-
-	x := contentX + run.StartCol*r.config.ColWidth
-	y := contentY + rowY*r.config.RowHeight
-
-	// Get background color - use catalog default background for unset cells
-	var bgColor color.RGBA
-	if catalog.IsDefault(run.Attrs.BG) {
-		bgColor = catalog.DefaultBackground()
-	} else {
-		bgColor = catalog.Resolved(run.Attrs.BG)
-	}
-
-	// Get foreground color - use terminal foreground for default
-	var fgColor color.RGBA
-	if catalog.IsDefault(run.Attrs.FG) {
-		fgColor = catalog.DefaultForeground()
-	} else {
-		fgColor = catalog.Resolved(run.Attrs.FG)
-	}
-
-	// Apply dim effect by reducing color intensity
-	if run.Attrs.Dim {
-		fgColor = dimColor(fgColor)
-	}
-
-	// Calculate text width in columns (handle multi-byte characters)
-	textWidth := utf8.RuneCountInString(run.Text) * r.config.ColWidth
+	colors := r.computeTextRunColors(run, rowY, catalog)
 
 	// Draw background rectangle for the run
 	draw.Draw(img,
-		image.Rect(x, y, x+textWidth, y+r.config.RowHeight),
-		&image.Uniform{bgColor},
+		image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
+		&image.Uniform{colors.bg},
 		image.Point{},
 		draw.Src)
 
 	// Draw text directly to paletted image
 	drawer := &font.Drawer{
 		Dst:  img,
-		Src:  &image.Uniform{fgColor},
+		Src:  &image.Uniform{colors.fg},
 		Face: face,
-		Dot:  fixed.P(x, y+r.config.RowHeight-5), // baseline offset
+		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-5), // baseline offset
 	}
 	drawer.DrawString(run.Text)
 
 	// Draw underline if needed
 	if run.Attrs.Underline {
-		underlineY := y + r.config.RowHeight - 2
-		for px := x; px < x+textWidth; px++ {
-			img.Set(px, underlineY, fgColor)
+		underlineY := colors.y + r.config.RowHeight - 2
+		for px := colors.x; px < colors.x+colors.textWidth; px++ {
+			img.Set(px, underlineY, colors.fg)
 		}
 	}
 }

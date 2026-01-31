@@ -4,12 +4,10 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"runtime"
-	"sync"
-
-	"golang.org/x/image/font"
+	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"golang.org/x/image/font"
 )
 
 // palettedFrameRenderer handles the parallel rendering of frames to paletted images.
@@ -20,6 +18,11 @@ type palettedFrameRenderer struct {
 }
 
 // render performs parallel frame rendering with IR-level deduplication.
+//
+// render performs parallel frame rendering.
+// Note: IR-level deduplication is handled during IR generation, not here.
+//
+//nolint:dupl // render methods for RGBA and Paletted are similar but use different image types
 func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	frames := fr.rec.Frames
 	results := make([]PalettedFrame, len(frames))
@@ -33,69 +36,50 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	// Pre-render the static base image (window chrome + terminal background) as paletted
 	baseImg := fr.createPalettedBaseImage(width, height, contentWidth, contentHeight)
 
-	// Determine which frames need rendering (IR-level deduplication)
-	needsRender := fr.computeRenderMask(frames)
-
-	// Use worker pool to limit concurrency
-	numWorkers := runtime.NumCPU()
-	sem := make(chan struct{}, numWorkers)
-	var wg sync.WaitGroup
-
+	// Render all frames (IR is already deduplicated)
 	for i := range frames {
-		// Calculate delay for this frame
-		delay := frames[i].Delay
-
-		if !needsRender[i] {
-			// IR-level duplicate: mark as duplicate, no image needed
-			results[i] = PalettedFrame{
-				Image:       nil,
-				Delay:       delay,
-				Index:       i,
-				IsDuplicate: true,
-			}
-			continue
-		}
-
-		wg.Add(1)
-		go func(idx int, frame ir.Frame, frameDelay int64) {
-			defer wg.Done()
-			sem <- struct{}{}        // acquire
-			defer func() { <-sem }() // release
-
-			// Create a per-goroutine font face (font.Face is not thread-safe)
-			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
-			if err != nil {
-				// In case of error, mark as duplicate to avoid crashing
-				results[idx] = PalettedFrame{
-					Image:       nil,
-					Delay:       delay,
-					Index:       idx,
-					IsDuplicate: true,
-				}
-				return
-			}
-
-			// Create a copy of the base paletted image for this frame
-			img := fr.copyPalettedBaseImage(baseImg)
-
-			// Draw the frame content directly to paletted
-			fr.drawFrameContentToPaletted(img, frame, face)
-
-			results[idx] = PalettedFrame{
-				Image:       img,
-				Delay:       delay,
-				Index:       idx,
-				IsDuplicate: false,
-			}
-		}(i, frames[i], int64(delay))
+		results[i] = fr.renderSingleFrame(i, frames[i], frames[i].Delay, baseImg)
 	}
 
-	wg.Wait()
 	return results, nil
 }
 
-// createPalettedBaseImage creates the static base image with window chrome and terminal background.
-func (fr *palettedFrameRenderer) createPalettedBaseImage(width, height, contentWidth, contentHeight int) *image.Paletted {
+// renderSingleFrame renders a single frame to a paletted image.
+func (fr *palettedFrameRenderer) renderSingleFrame(
+	idx int,
+	frame ir.Frame,
+	delay time.Duration,
+	baseImg *image.Paletted,
+) PalettedFrame {
+	// Create a per-goroutine font face (font.Face is not thread-safe)
+	face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
+	if err != nil {
+		// In case of error, return empty frame
+		return PalettedFrame{
+			Image: nil,
+			Delay: delay,
+			Index: idx,
+		}
+	}
+
+	// Create a copy of the base paletted image for this frame
+	img := fr.copyPalettedBaseImage(baseImg)
+
+	// Draw the frame content directly to paletted
+	fr.drawFrameContentToPaletted(img, frame, face)
+
+	return PalettedFrame{
+		Image: img,
+		Delay: delay,
+		Index: idx,
+	}
+}
+
+// createPalettedBaseImage creates the static base image with window chrome
+// and terminal background.
+func (fr *palettedFrameRenderer) createPalettedBaseImage(
+	width, height, contentWidth, contentHeight int,
+) *image.Paletted {
 	// First create RGBA base image
 	rgbaImg := image.NewRGBA(image.Rect(0, 0, width, height))
 
@@ -137,26 +121,4 @@ func (fr *palettedFrameRenderer) drawFrameContentToPaletted(img *image.Paletted,
 	if frame.Cursor.Visible {
 		fr.rasterizer.drawCursorToPaletted(img, frame.Cursor, fr.rec.Colors)
 	}
-}
-
-// computeRenderMask determines which frames need actual rendering.
-// It performs IR-level deduplication by comparing frame content.
-func (fr *palettedFrameRenderer) computeRenderMask(frames []ir.Frame) []bool {
-	needsRender := make([]bool, len(frames))
-	needsRender[0] = true // First frame always needs rendering
-
-	var prevFrame *ir.Frame
-	for i := range frames {
-		if i == 0 {
-			prevFrame = &frames[0]
-			continue
-		}
-		// IR-level comparison: skip rendering if frame content is identical
-		if !framesEqualIR(prevFrame, &frames[i]) {
-			needsRender[i] = true
-			prevFrame = &frames[i]
-		}
-	}
-
-	return needsRender
 }
