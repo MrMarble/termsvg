@@ -92,12 +92,14 @@ func (r *Rasterizer) drawTextRunWithFace(
 
 	colors := r.computeTextRunColors(run, rowY, catalog)
 
-	// Draw background rectangle for the run
-	draw.Draw(img,
-		image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
-		&image.Uniform{colors.bg},
-		image.Point{},
-		draw.Src)
+	// Draw background rectangle only if it's not the default color
+	if !catalog.IsDefault(run.Attrs.BG) {
+		draw.Draw(img,
+			image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
+			&image.Uniform{colors.bg},
+			image.Point{},
+			draw.Src)
+	}
 
 	// Draw text
 	drawer := &font.Drawer{
@@ -160,12 +162,13 @@ func (r *Rasterizer) drawBackground(img *image.RGBA) {
 }
 
 // drawTerminalBackground draws the terminal content area background.
-// Uses the theme's Background color for the terminal content.
+// Uses the theme's WindowBackground color to match the window chrome,
+// creating a seamless appearance while maintaining full opacity for GIF performance.
 func (r *Rasterizer) drawTerminalBackground(img *image.RGBA, width, height int) {
 	contentX := r.config.Padding
 	contentY := r.contentOffsetY()
-	// Use theme Background for terminal content area
-	termBg := r.config.Theme.Background
+	// Use WindowBackground to match the window chrome color
+	termBg := r.config.Theme.WindowBackground
 
 	draw.Draw(img,
 		image.Rect(contentX, contentY, contentX+width, contentY+height),
@@ -251,12 +254,14 @@ func (r *Rasterizer) drawTextRunToPaletted(
 
 	colors := r.computeTextRunColors(run, rowY, catalog)
 
-	// Draw background rectangle for the run
-	draw.Draw(img,
-		image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
-		&image.Uniform{colors.bg},
-		image.Point{},
-		draw.Src)
+	// Draw background rectangle only if it's not the default color
+	if !catalog.IsDefault(run.Attrs.BG) {
+		draw.Draw(img,
+			image.Rect(colors.x, colors.y, colors.x+colors.textWidth, colors.y+r.config.RowHeight),
+			&image.Uniform{colors.bg},
+			image.Point{},
+			draw.Src)
+	}
 
 	// Draw text directly to paletted image
 	drawer := &font.Drawer{

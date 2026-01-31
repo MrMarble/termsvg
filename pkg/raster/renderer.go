@@ -60,6 +60,8 @@ func (fr *frameRenderer) renderSingleFrame(
 }
 
 // createBaseImage creates the static base image with window chrome and terminal background.
+// Uses WindowBackground color for the terminal area to match window chrome,
+// ensuring full opacity for optimal GIF delta encoding performance.
 func (fr *frameRenderer) createBaseImage(width, height, contentWidth, contentHeight int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
@@ -70,7 +72,9 @@ func (fr *frameRenderer) createBaseImage(width, height, contentWidth, contentHei
 		fr.rasterizer.drawBackground(img)
 	}
 
-	// Draw terminal content background
+	// Draw terminal content background using WindowBackground color
+	// This ensures full opacity for GIF delta encoding while maintaining
+	// visual consistency with the window chrome
 	fr.rasterizer.drawTerminalBackground(img, contentWidth, contentHeight)
 
 	return img

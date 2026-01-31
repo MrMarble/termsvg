@@ -38,6 +38,9 @@ type Config struct {
 	// ShowWindow enables window chrome rendering (macOS-style buttons)
 	ShowWindow bool
 
+	// ShowCursor enables cursor rendering
+	ShowCursor bool
+
 	// FontSize is the font size in points
 	FontSize int
 
@@ -79,6 +82,7 @@ func DefaultConfig() Config {
 	return Config{
 		Theme:      theme.Default(),
 		ShowWindow: true,
+		ShowCursor: true,
 		FontSize:   20,
 		RowHeight:  RowHeight,
 		ColWidth:   ColWidth,

@@ -64,11 +64,10 @@ func (fr *palettedFrameRenderer) renderSingleFrame(
 	}
 }
 
-// createPalettedBaseImage creates the static base image with window chrome
-// and terminal background.
-func (fr *palettedFrameRenderer) createPalettedBaseImage(
-	width, height, contentWidth, contentHeight int,
-) *image.Paletted {
+// createPalettedBaseImage creates the static base image with window chrome and terminal background.
+// Uses WindowBackground color for the terminal area to match window chrome,
+// ensuring full opacity for optimal GIF delta encoding performance.
+func (fr *palettedFrameRenderer) createPalettedBaseImage(width, height, contentWidth, contentHeight int) *image.Paletted {
 	// First create RGBA base image
 	rgbaImg := image.NewRGBA(image.Rect(0, 0, width, height))
 
@@ -79,7 +78,9 @@ func (fr *palettedFrameRenderer) createPalettedBaseImage(
 		fr.rasterizer.drawBackground(rgbaImg)
 	}
 
-	// Draw terminal content background
+	// Draw terminal content background using WindowBackground color
+	// This ensures full opacity for GIF delta encoding while maintaining
+	// visual consistency with the window chrome
 	fr.rasterizer.drawTerminalBackground(rgbaImg, contentWidth, contentHeight)
 
 	// Convert to paletted once (this is done only once per recording, not per frame)
@@ -106,8 +107,8 @@ func (fr *palettedFrameRenderer) drawFrameContentToPaletted(img *image.Paletted,
 		}
 	}
 
-	// Draw cursor if visible
-	if frame.Cursor.Visible {
+	// Draw cursor if visible and cursor rendering is enabled
+	if fr.rasterizer.config.ShowCursor && frame.Cursor.Visible {
 		fr.rasterizer.drawCursorToPaletted(img, frame.Cursor, fr.rec.Colors)
 	}
 }
