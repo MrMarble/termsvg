@@ -21,6 +21,7 @@ type Renderer interface {
 type Config struct {
 	Theme      theme.Theme
 	ShowWindow bool
+	ShowCursor bool // Enable cursor rendering (default: true)
 	FontFamily string
 	FontSize   int
 	LoopCount  int // 0 = infinite, -1 = no loop
@@ -37,6 +38,7 @@ func DefaultConfig() Config {
 	return Config{
 		Theme:      theme.Default(),
 		ShowWindow: true,
+		ShowCursor: true,
 		FontFamily: "Monaco,Consolas,'Courier New',monospace",
 		FontSize:   20,
 		LoopCount:  0,
@@ -50,6 +52,7 @@ func NewRasterizer(config Config) (*raster.Rasterizer, error) {
 	rasterConfig := raster.Config{
 		Theme:      config.Theme,
 		ShowWindow: config.ShowWindow,
+		ShowCursor: config.ShowCursor,
 		FontSize:   config.FontSize,
 		RowHeight:  raster.RowHeight,
 		ColWidth:   raster.ColWidth,

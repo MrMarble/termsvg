@@ -27,6 +27,7 @@ type Cmd struct {
 	Format   string        `short:"f" default:"svg" enum:"svg,gif,webm" help:"Output format (svg, gif, webm)"`
 	Minify   bool          `short:"m" help:"Minify output (SVG only)"`
 	NoWindow bool          `short:"n" help:"Don't render terminal window chrome"`
+	NoCursor bool          `short:"C" help:"Don't render cursor"`
 	Speed    float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
 	MaxIdle  time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
 	Cols     int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
@@ -111,6 +112,7 @@ func (cmd *Cmd) Run() error {
 	// Create renderer based on format
 	renderConfig := renderer.DefaultConfig()
 	renderConfig.ShowWindow = !cmd.NoWindow
+	renderConfig.ShowCursor = !cmd.NoCursor
 	renderConfig.Minify = cmd.Minify
 	renderConfig.Debug = cmd.Debug
 	renderConfig.Theme = selectedTheme

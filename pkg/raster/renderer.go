@@ -93,8 +93,8 @@ func (fr *frameRenderer) drawFrameContent(img *image.RGBA, frame ir.Frame, face 
 		}
 	}
 
-	// Draw cursor if visible
-	if frame.Cursor.Visible {
+	// Draw cursor if visible and cursor rendering is enabled
+	if fr.rasterizer.config.ShowCursor && frame.Cursor.Visible {
 		fr.rasterizer.drawCursor(img, frame.Cursor, fr.rec.Colors)
 	}
 }

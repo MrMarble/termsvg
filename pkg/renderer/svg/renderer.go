@@ -275,8 +275,8 @@ func (c *canvas) writeFrame(frame ir.Frame) {
 		}
 	}
 
-	// Render cursor if visible
-	if frame.Cursor.Visible {
+	// Render cursor if visible and cursor rendering is enabled
+	if c.config.ShowCursor && frame.Cursor.Visible {
 		c.writeCursor(frame.Cursor)
 	}
 }
