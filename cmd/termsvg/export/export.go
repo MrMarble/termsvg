@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/mrmarble/termsvg/pkg/renderer/gif"
 	"github.com/mrmarble/termsvg/pkg/renderer/svg"
 	"github.com/mrmarble/termsvg/pkg/renderer/webm"
+	"github.com/mrmarble/termsvg/pkg/theme"
 	"github.com/tdewolff/minify/v2"
 	msvg "github.com/tdewolff/minify/v2/svg"
 )
@@ -30,6 +32,7 @@ type Cmd struct {
 	Cols     int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
 	Rows     int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
 	Debug    bool          `short:"d" help:"Enable debug logging"`
+	Theme    string        `short:"t" help:"Theme name (built-in) or path to theme JSON file"`
 }
 
 //nolint:funlen // sequential steps are clearer in one function
@@ -61,10 +64,43 @@ func (cmd *Cmd) Run() error {
 		cast.Header.Height = cmd.Rows
 	}
 
+	// Determine theme to use
+	selectedTheme := theme.Default()
+	themeSource := "default"
+
+	if cmd.Theme != "" {
+		// CLI flag takes priority
+		t, err := theme.Load(cmd.Theme)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load theme %q: %v\n", cmd.Theme, err)
+			fmt.Fprintf(os.Stderr, "Falling back to default theme\n")
+		} else {
+			selectedTheme = t
+			themeSource = "CLI flag"
+		}
+	} else if cast.Header.Theme.Fg != "" {
+		// Use theme from asciicast header
+		t, err := theme.FromAsciinema("asciicast", cast.Header.Theme.Fg,
+			cast.Header.Theme.Bg, cast.Header.Theme.Palette)
+		if err != nil {
+			if cmd.Debug {
+				log.Printf("[Export] Invalid theme in asciicast header: %v", err)
+			}
+		} else {
+			selectedTheme = t
+			themeSource = "asciicast header"
+		}
+	}
+
+	if cmd.Debug {
+		log.Printf("[Export] Using theme from %s: %s", themeSource, selectedTheme.Name)
+	}
+
 	// Process through IR
 	procConfig := ir.DefaultProcessorConfig()
 	procConfig.Speed = cmd.Speed
 	procConfig.IdleTimeLimit = cmd.MaxIdle
+	procConfig.Theme = selectedTheme
 
 	proc := ir.NewProcessor(procConfig)
 	rec, err := proc.Process(cast)
@@ -77,6 +113,7 @@ func (cmd *Cmd) Run() error {
 	renderConfig.ShowWindow = !cmd.NoWindow
 	renderConfig.Minify = cmd.Minify
 	renderConfig.Debug = cmd.Debug
+	renderConfig.Theme = selectedTheme
 
 	var rdr renderer.Renderer
 	switch format {

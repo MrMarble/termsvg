@@ -14,6 +14,13 @@ import (
 	"time"
 )
 
+// ThemeInfo represents the theme configuration in asciicast v2 format.
+type ThemeInfo struct {
+	Fg      string `json:"fg,omitempty"`      // Foreground color (e.g., "#d0d0d0")
+	Bg      string `json:"bg,omitempty"`      // Background color (e.g., "#212121")
+	Palette string `json:"palette,omitempty"` // 16 colon-separated ANSI colors
+}
+
 // Header is JSON-encoded object containing recording meta-data.
 // fields with 'omitempty' are optional by asciicast v2 format
 type Header struct {
@@ -26,6 +33,7 @@ type Header struct {
 	Command       string            `json:"command,omitempty"`
 	Title         string            `json:"title,omitempty"`
 	Env           map[string]string `json:"env,omitempty"`
+	Theme         ThemeInfo         `json:"theme,omitempty"`
 }
 
 // Cast contains asciicast file data

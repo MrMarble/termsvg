@@ -32,10 +32,10 @@ func (r *Rasterizer) drawTextRunWithFace(img *image.RGBA, run ir.TextRun, rowY i
 	x := contentX + run.StartCol*r.config.ColWidth
 	y := contentY + rowY*r.config.RowHeight
 
-	// Get background color - use window background for default to blend with window chrome
+	// Get background color - use catalog default background for unset cells
 	var bgColor color.RGBA
 	if catalog.IsDefault(run.Attrs.BG) {
-		bgColor = r.config.Theme.WindowBackground
+		bgColor = catalog.DefaultBackground()
 	} else {
 		bgColor = catalog.Resolved(run.Attrs.BG)
 	}
@@ -121,17 +121,17 @@ func (r *Rasterizer) drawWindow(img *image.RGBA) {
 
 // drawBackground draws a plain background without window chrome.
 func (r *Rasterizer) drawBackground(img *image.RGBA) {
-	bgColor := r.config.Theme.WindowBackground
+	bgColor := r.config.Theme.Background
 	draw.Draw(img, img.Bounds(), &image.Uniform{bgColor}, image.Point{}, draw.Src)
 }
 
 // drawTerminalBackground draws the terminal content area background.
-// Uses WindowBackground to blend with the window chrome for a seamless look.
+// Uses the theme's Background color for the terminal content.
 func (r *Rasterizer) drawTerminalBackground(img *image.RGBA, width, height int) {
 	contentX := r.config.Padding
 	contentY := r.contentOffsetY()
-	// Use WindowBackground instead of Background for seamless window appearance
-	termBg := r.config.Theme.WindowBackground
+	// Use theme Background for terminal content area
+	termBg := r.config.Theme.Background
 
 	draw.Draw(img,
 		image.Rect(contentX, contentY, contentX+width, contentY+height),
@@ -217,10 +217,10 @@ func (r *Rasterizer) drawTextRunToPaletted(img *image.Paletted, run ir.TextRun, 
 	x := contentX + run.StartCol*r.config.ColWidth
 	y := contentY + rowY*r.config.RowHeight
 
-	// Get background color - use window background for default to blend with window chrome
+	// Get background color - use catalog default background for unset cells
 	var bgColor color.RGBA
 	if catalog.IsDefault(run.Attrs.BG) {
-		bgColor = r.config.Theme.WindowBackground
+		bgColor = catalog.DefaultBackground()
 	} else {
 		bgColor = catalog.Resolved(run.Attrs.BG)
 	}
