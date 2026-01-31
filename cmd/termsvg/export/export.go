@@ -14,6 +14,7 @@ import (
 	"github.com/mrmarble/termsvg/pkg/renderer"
 	"github.com/mrmarble/termsvg/pkg/renderer/gif"
 	"github.com/mrmarble/termsvg/pkg/renderer/svg"
+	"github.com/mrmarble/termsvg/pkg/renderer/webm"
 	"github.com/tdewolff/minify/v2"
 	msvg "github.com/tdewolff/minify/v2/svg"
 )
@@ -21,7 +22,7 @@ import (
 type Cmd struct {
 	File     string        `arg:"" type:"existingfile" help:"Asciicast file to export"`
 	Output   string        `short:"o" type:"path" help:"Output file path (default: <input>.<format>)"`
-	Format   string        `short:"f" default:"svg" enum:"svg,gif" help:"Output format (svg, gif)"`
+	Format   string        `short:"f" default:"svg" enum:"svg,gif,webm" help:"Output format (svg, gif, webm)"`
 	Minify   bool          `short:"m" help:"Minify output (SVG only)"`
 	NoWindow bool          `short:"n" help:"Don't render terminal window chrome"`
 	Speed    float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
@@ -87,6 +88,12 @@ func (cmd *Cmd) Run() error {
 		rdr = gifRenderer
 	case "svg":
 		rdr = svg.New(renderConfig)
+	case "webm":
+		webmRenderer, err := webm.New(renderConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create WebM renderer: %w", err)
+		}
+		rdr = webmRenderer
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}

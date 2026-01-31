@@ -24,6 +24,10 @@ type Config struct {
 	LoopCount  int // 0 = infinite, -1 = no loop
 	Minify     bool
 	Debug      bool // Enable debug logging
+
+	// Video encoding options (for WebM/MP4 formats)
+	VideoBitrate int // Video bitrate in kbps (0 = use default)
+	FrameRate    int // Target frame rate in FPS (0 = auto-calculate)
 }
 
 func DefaultConfig() Config {
