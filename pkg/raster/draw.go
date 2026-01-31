@@ -19,6 +19,25 @@ type textRunColors struct {
 	x, y      int
 }
 
+// Rendering constants for text positioning and styling.
+const (
+	// baselineOffset is the distance from the bottom of a row to the text baseline.
+	// Text is drawn above the baseline, so we subtract this from row bottom.
+	baselineOffset = 5
+
+	// underlineOffset is the distance from the bottom of a row to the underline.
+	underlineOffset = 2
+
+	// windowCornerRadius is the radius for rounded window corners.
+	windowCornerRadius = 5
+
+	// windowButtonSpacing is the horizontal spacing between window buttons.
+	windowButtonSpacing = 20
+
+	// windowButtonRadius is the radius of window control buttons (close, minimize, maximize).
+	windowButtonRadius = 6
+)
+
 // computeTextRunColors calculates the positioning and colors for a text run.
 func (r *Rasterizer) computeTextRunColors(run ir.TextRun, rowY int, catalog *termcolor.Catalog) textRunColors {
 	contentX := r.config.Padding
@@ -63,7 +82,7 @@ func (r *Rasterizer) computeTextRunColors(run ir.TextRun, rowY int, catalog *ter
 // drawTextRunWithFace draws a text run using the specified font face.
 // This allows for thread-safe parallel rendering with per-goroutine font faces.
 //
-//nolint:dupl,lll // drawTextRunWithFace and drawTextRunToPaletted handle different image types
+//nolint:dupl // drawTextRunWithFace and drawTextRunToPaletted handle different image types
 func (r *Rasterizer) drawTextRunWithFace(
 	img *image.RGBA, run ir.TextRun, rowY int, face font.Face, catalog *termcolor.Catalog,
 ) {
@@ -85,13 +104,13 @@ func (r *Rasterizer) drawTextRunWithFace(
 		Dst:  img,
 		Src:  &image.Uniform{colors.fg},
 		Face: face,
-		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-5), // baseline offset
+		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-baselineOffset), // baseline offset
 	}
 	drawer.DrawString(run.Text)
 
 	// Draw underline if needed
 	if run.Attrs.Underline {
-		underlineY := colors.y + r.config.RowHeight - 2
+		underlineY := colors.y + r.config.RowHeight - underlineOffset
 		for px := colors.x; px < colors.x+colors.textWidth; px++ {
 			img.Set(px, underlineY, colors.fg)
 		}
@@ -123,16 +142,14 @@ func (r *Rasterizer) drawWindow(img *image.RGBA) {
 	bounds := img.Bounds()
 
 	// Window background with rounded corners
-	r.drawRoundedRect(img, bounds, 5, theme.WindowBackground)
+	r.drawRoundedRect(img, bounds, windowCornerRadius, theme.WindowBackground)
 
 	// Window buttons (close, minimize, maximize)
 	buttonY := r.config.Padding
-	buttonSpacing := 20
-	buttonRadius := 6
 
 	for i, btnColor := range theme.WindowButtons {
-		x := r.config.Padding + i*buttonSpacing
-		r.drawCircle(img, x, buttonY, buttonRadius, btnColor)
+		x := r.config.Padding + i*windowButtonSpacing
+		r.drawCircle(img, x, buttonY, windowButtonRadius, btnColor)
 	}
 }
 
@@ -246,13 +263,13 @@ func (r *Rasterizer) drawTextRunToPaletted(
 		Dst:  img,
 		Src:  &image.Uniform{colors.fg},
 		Face: face,
-		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-5), // baseline offset
+		Dot:  fixed.P(colors.x, colors.y+r.config.RowHeight-baselineOffset), // baseline offset
 	}
 	drawer.DrawString(run.Text)
 
 	// Draw underline if needed
 	if run.Attrs.Underline {
-		underlineY := colors.y + r.config.RowHeight - 2
+		underlineY := colors.y + r.config.RowHeight - underlineOffset
 		for px := colors.x; px < colors.x+colors.textWidth; px++ {
 			img.Set(px, underlineY, colors.fg)
 		}

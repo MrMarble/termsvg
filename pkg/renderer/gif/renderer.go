@@ -23,22 +23,21 @@ type Renderer struct {
 	rasterizer *raster.Rasterizer
 }
 
+// GIF timing constants.
+const (
+	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
+	gifTimeUnit = 10
+
+	// minGifDelay is the minimum delay value to avoid browser clamping.
+	// Browsers clamp delays < 20ms to 100ms, so we use 2 units = 20ms.
+	minGifDelay = 2
+)
+
 // New creates a new GIF renderer with the given configuration.
 func New(config renderer.Config) (*Renderer, error) {
-	// Convert renderer.Config to raster.Config
-	rasterConfig := raster.Config{
-		Theme:      config.Theme,
-		ShowWindow: config.ShowWindow,
-		FontSize:   config.FontSize,
-		RowHeight:  raster.RowHeight,
-		ColWidth:   raster.ColWidth,
-		Padding:    raster.Padding,
-		HeaderSize: raster.HeaderSize,
-	}
-
-	rasterizer, err := raster.New(rasterConfig)
+	rasterizer, err := renderer.NewRasterizer(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
+		return nil, err
 	}
 
 	return &Renderer{
@@ -110,9 +109,8 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	return nil
 }
 
-// assembleGIF creates the final GIF from rendered paletted frames using delta encoding
-//
-//nolint:funlen // GIF assembly with delta encoding requires multiple steps
+// assembleGIF creates the final GIF from rendered paletted frames using delta encoding.
+// GIF assembly requires multiple sequential steps for delta encoding.
 func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
 	g := &gif.GIF{
 		LoopCount: r.config.LoopCount,
@@ -125,11 +123,11 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	var framesEqualCalls, computeDeltaCalls int
 
 	for i, rf := range frames {
-		// Calculate delay for this frame (convert from time.Duration to 10ms units)
-		delay := int(rf.Delay.Milliseconds() / 10)
-		// Browsers clamp delays < 20ms to 100ms, so enforce minimum of 2 (20ms)
-		if delay < 2 && i < len(frames)-1 {
-			delay = 2
+		// Calculate delay for this frame (convert from time.Duration to GIF time units)
+		delay := int(rf.Delay.Milliseconds() / gifTimeUnit)
+		// Enforce minimum delay to avoid browser clamping
+		if delay < minGifDelay && i < len(frames)-1 {
+			delay = minGifDelay
 		}
 
 		// Pixel-level duplicate check (for frames that were rendered but are identical)

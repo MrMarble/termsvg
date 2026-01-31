@@ -41,8 +41,10 @@ func (c Color) ToRGBA(palette Palette) color.RGBA {
 		return palette.At(c.Index)
 	case TrueColor:
 		return c.RGB
+	case Default:
+		return color.RGBA{0, 0, 0, 0} // Transparent
 	default:
-		return color.RGBA{0, 0, 0, 0} // Transparent for Default
+		return color.RGBA{0, 0, 0, 0} // Transparent for unknown types
 	}
 }
 

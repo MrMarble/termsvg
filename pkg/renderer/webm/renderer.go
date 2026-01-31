@@ -28,20 +28,9 @@ func New(config renderer.Config) (*Renderer, error) {
 		return nil, fmt.Errorf("ffmpeg is not installed. Install it from: https://ffmpeg.org")
 	}
 
-	// Convert renderer.Config to raster.Config
-	rasterConfig := raster.Config{
-		Theme:      config.Theme,
-		ShowWindow: config.ShowWindow,
-		FontSize:   config.FontSize,
-		RowHeight:  raster.RowHeight,
-		ColWidth:   raster.ColWidth,
-		Padding:    raster.Padding,
-		HeaderSize: raster.HeaderSize,
-	}
-
-	rasterizer, err := raster.New(rasterConfig)
+	rasterizer, err := renderer.NewRasterizer(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
+		return nil, err
 	}
 
 	return &Renderer{

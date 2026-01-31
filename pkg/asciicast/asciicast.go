@@ -128,11 +128,11 @@ func (c *Cast) CapRelativeTime(limit float64) {
 // ToAbsoluteTime converts event time to the absolute difference from the start.
 // This is the default time format.
 func (c *Cast) ToAbsoluteTime() {
-	time := 0.
+	absTime := 0.
 
 	for i, frame := range c.Events {
-		time += frame.Time
-		c.Events[i].Time = time
+		absTime += frame.Time
+		c.Events[i].Time = absTime
 	}
 }
 

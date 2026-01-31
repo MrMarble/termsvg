@@ -185,6 +185,7 @@ func main() {
 
 	if err := tmpl.Execute(file, data); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing template: %v\n", err)
+		//nolint:gocritic // exitAfterDefer is acceptable here - program is terminating
 		os.Exit(1)
 	}
 

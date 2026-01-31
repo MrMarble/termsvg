@@ -12,21 +12,26 @@ linters:
     - bidichk
     - containedctx
     - contextcheck
-    - gocognit
     - decorder
-    - dupl
     - durationcheck
     - errchkjson
     - errname
     - errorlint
+    - exhaustive
     - funlen
     - goconst
+    - gocritic
+    - gocognit
     - gosec
     - lll
+    - makezero
     - misspell
+    - nolintlint
+    - prealloc
     - revive
+    - thelper
     - unconvert
-    - gosec
+    - wastedassign
   exclusions:
     rules:
       - linters:
@@ -54,3 +59,15 @@ linters:
     decorder:
       disable-dec-order-check: false
       disable-init-func-first-check: false
+    gocritic:
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
+    nolintlint:
+      require-explanation: false
+      require-specific: true

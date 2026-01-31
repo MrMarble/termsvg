@@ -129,31 +129,46 @@ func (p *Processor) captureRow(
 ) Row {
 	runs := make([]TextRun, 0, 8) // Pre-allocate for typical case
 
-	var currentRun *TextRun
+	type runBuilder struct {
+		chars  []rune
+		startX int
+		attrs  CellAttrs
+	}
+
+	var current *runBuilder
 
 	for x := 0; x < term.Width(); x++ {
 		cell := term.Cell(x, y)
 		attrs := p.cellToAttrs(cell, catalog, stats)
 
 		// Check if we can extend the current run
-		if currentRun != nil && attrsEqual(currentRun.Attrs, attrs) {
-			currentRun.Text += string(cell.Char)
+		if current != nil && attrsEqual(current.attrs, attrs) {
+			current.chars = append(current.chars, cell.Char)
 		} else {
-			// Start a new run
-			if currentRun != nil {
-				runs = append(runs, *currentRun)
+			// Finalize the previous run if exists
+			if current != nil {
+				runs = append(runs, TextRun{
+					Text:     string(current.chars),
+					StartCol: current.startX,
+					Attrs:    current.attrs,
+				})
 			}
-			currentRun = &TextRun{
-				Text:     string(cell.Char),
-				StartCol: x,
-				Attrs:    attrs,
+			// Start a new run
+			current = &runBuilder{
+				chars:  []rune{cell.Char},
+				startX: x,
+				attrs:  attrs,
 			}
 		}
 	}
 
 	// Don't forget the last run
-	if currentRun != nil {
-		runs = append(runs, *currentRun)
+	if current != nil {
+		runs = append(runs, TextRun{
+			Text:     string(current.chars),
+			StartCol: current.startX,
+			Attrs:    current.attrs,
+		})
 	}
 
 	// Track statistics

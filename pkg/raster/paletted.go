@@ -51,22 +51,11 @@ func (fr *palettedFrameRenderer) renderSingleFrame(
 	delay time.Duration,
 	baseImg *image.Paletted,
 ) PalettedFrame {
-	// Create a per-goroutine font face (font.Face is not thread-safe)
-	face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
-	if err != nil {
-		// In case of error, return empty frame
-		return PalettedFrame{
-			Image: nil,
-			Delay: delay,
-			Index: idx,
-		}
-	}
-
 	// Create a copy of the base paletted image for this frame
 	img := fr.copyPalettedBaseImage(baseImg)
 
-	// Draw the frame content directly to paletted
-	fr.drawFrameContentToPaletted(img, frame, face)
+	// Draw the frame content directly to paletted using the cached font face
+	fr.drawFrameContentToPaletted(img, frame, fr.rasterizer.fontFace)
 
 	return PalettedFrame{
 		Image: img,

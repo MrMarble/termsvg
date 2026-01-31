@@ -2,9 +2,11 @@ package renderer
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/theme"
 )
 
@@ -30,6 +32,7 @@ type Config struct {
 	FrameRate    int // Target frame rate in FPS (0 = auto-calculate)
 }
 
+// DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
 		Theme:      theme.Default(),
@@ -39,4 +42,25 @@ func DefaultConfig() Config {
 		LoopCount:  0,
 		Minify:     false,
 	}
+}
+
+// NewRasterizer creates a raster.Rasterizer from renderer configuration.
+// This helper reduces duplication between renderers that need rasterization.
+func NewRasterizer(config Config) (*raster.Rasterizer, error) {
+	rasterConfig := raster.Config{
+		Theme:      config.Theme,
+		ShowWindow: config.ShowWindow,
+		FontSize:   config.FontSize,
+		RowHeight:  raster.RowHeight,
+		ColWidth:   raster.ColWidth,
+		Padding:    raster.Padding,
+		HeaderSize: raster.HeaderSize,
+	}
+
+	rasterizer, err := raster.New(rasterConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
+	}
+
+	return rasterizer, nil
 }

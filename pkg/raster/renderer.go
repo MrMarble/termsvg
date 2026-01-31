@@ -46,22 +46,11 @@ func (fr *frameRenderer) renderSingleFrame(
 	delay time.Duration,
 	baseImg *image.RGBA,
 ) RasterFrame {
-	// Create a per-goroutine font face (font.Face is not thread-safe)
-	face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
-	if err != nil {
-		// In case of error, return empty frame
-		return RasterFrame{
-			Image: nil,
-			Delay: delay,
-			Index: idx,
-		}
-	}
-
 	// Create a copy of the base image for this frame
 	img := fr.copyBaseImage(baseImg)
 
-	// Draw the frame content
-	fr.drawFrameContent(img, frame, face)
+	// Draw the frame content using the cached font face
+	fr.drawFrameContent(img, frame, fr.rasterizer.fontFace)
 
 	return RasterFrame{
 		Image: img,

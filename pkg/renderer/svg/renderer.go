@@ -33,6 +33,15 @@ const (
 	ColWidth   = 12 // pixels per column
 	Padding    = 20 // padding around content
 	HeaderSize = 2  // multiplier for header area (window buttons)
+
+	// windowCornerRadius is the radius for rounded window corners.
+	windowCornerRadius = 5
+
+	// windowButtonSpacing is the horizontal spacing between window buttons.
+	windowButtonSpacing = 20
+
+	// windowButtonRadius is the radius of window control buttons.
+	windowButtonRadius = 6
 )
 
 // New creates a new SVG renderer with the given configuration.
@@ -146,15 +155,14 @@ func (c *canvas) writeWindow() {
 
 	// Window background with rounded corners
 	bgHex := color.RGBAtoHex(theme.WindowBackground)
-	fmt.Fprintf(c.w, `<rect rx="5" width="100%%" height="100%%" fill="%s"/>`, bgHex)
+	fmt.Fprintf(c.w, `<rect rx="%d" width="100%%" height="100%%" fill="%s"/>`, windowCornerRadius, bgHex)
 
 	// Window buttons (close, minimize, maximize)
 	buttonY := Padding
-	buttonSpacing := 20
 	for i, btnColor := range theme.WindowButtons {
 		btnHex := color.RGBAtoHex(btnColor)
-		x := Padding + i*buttonSpacing
-		fmt.Fprintf(c.w, `<circle cx="%d" cy="%d" r="6" fill="%s"/>`, x, buttonY, btnHex)
+		x := Padding + i*windowButtonSpacing
+		fmt.Fprintf(c.w, `<circle cx="%d" cy="%d" r="%d" fill="%s"/>`, x, buttonY, windowButtonRadius, btnHex)
 	}
 }
 
@@ -323,7 +331,7 @@ func (c *canvas) writeTextRun(run ir.TextRun, rowY int) {
 	// Build attributes
 	classAttr := ""
 	if len(classes) > 0 {
-		classAttr = fmt.Sprintf(` class="%s"`, strings.Join(classes, " "))
+		classAttr = fmt.Sprintf(" class=%q", strings.Join(classes, " "))
 	}
 
 	filterAttr := ""
