@@ -2,6 +2,8 @@ package raster
 
 import (
 	"image"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
@@ -15,7 +17,7 @@ type frameRenderer struct {
 	rec        *ir.Recording
 }
 
-// render performs parallel frame rendering.
+// render performs parallel frame rendering using a worker pool.
 // Note: IR-level deduplication is handled during IR generation, not here.
 //
 //nolint:dupl // render methods for RGBA and Paletted are similar but use different types
@@ -42,19 +44,47 @@ func (fr *frameRenderer) render() ([]RasterFrame, error) {
 		}
 	}
 
-	// Render all frames (IR is already deduplicated)
-	for i := range frames {
-		results[i] = fr.renderSingleFrame(i, frames[i], frames[i].Delay, baseImg)
+	// Worker pool setup
+	numWorkers := runtime.NumCPU()
+	jobs := make(chan int, totalFrames)
+	var wg sync.WaitGroup
 
-		// Send progress update
-		if fr.rasterizer.config.ProgressCh != nil {
-			fr.rasterizer.config.ProgressCh <- progress.Update{
-				Phase:   "Rasterizing",
-				Current: i + 1,
-				Total:   totalFrames,
+	// Start workers - each worker creates its own font face
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Create own font face for this worker
+			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
+			if err != nil {
+				// If font loading fails, use the shared one as fallback
+				face = fr.rasterizer.fontFace
 			}
-		}
+
+			for idx := range jobs {
+				results[idx] = fr.renderSingleFrame(idx, frames[idx], frames[idx].Delay, baseImg, face)
+
+				// Send progress update
+				if fr.rasterizer.config.ProgressCh != nil {
+					fr.rasterizer.config.ProgressCh <- progress.Update{
+						Phase:   "Rasterizing",
+						Current: idx + 1,
+						Total:   totalFrames,
+					}
+				}
+			}
+		}()
 	}
+
+	// Send jobs (frame indices)
+	for i := range frames {
+		jobs <- i
+	}
+	close(jobs)
+
+	// Wait for all workers to complete
+	wg.Wait()
 
 	return results, nil
 }
@@ -65,12 +95,13 @@ func (fr *frameRenderer) renderSingleFrame(
 	frame ir.Frame,
 	delay time.Duration,
 	baseImg *image.RGBA,
+	face font.Face,
 ) RasterFrame {
 	// Create a copy of the base image for this frame
 	img := fr.copyBaseImage(baseImg)
 
-	// Draw the frame content using the cached font face
-	fr.drawFrameContent(img, frame, fr.rasterizer.fontFace)
+	// Draw the frame content using the worker's font face
+	fr.drawFrameContent(img, frame, face)
 
 	return RasterFrame{
 		Image: img,
