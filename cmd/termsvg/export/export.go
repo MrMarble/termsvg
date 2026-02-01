@@ -12,6 +12,7 @@ import (
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/renderer"
 	"github.com/mrmarble/termsvg/pkg/renderer/gif"
 	"github.com/mrmarble/termsvg/pkg/renderer/svg"
@@ -97,15 +98,22 @@ func (cmd *Cmd) Run() error {
 		log.Printf("[Export] Using theme from %s: %s", themeSource, selectedTheme.Name)
 	}
 
+	// Create progress reporter
+	reporter, progressCh := progress.New()
+	reporter.Start()
+
 	// Process through IR
 	procConfig := ir.DefaultProcessorConfig()
 	procConfig.Speed = cmd.Speed
 	procConfig.IdleTimeLimit = cmd.MaxIdle
 	procConfig.Theme = selectedTheme
+	procConfig.ProgressCh = progressCh
 
 	proc := ir.NewProcessor(procConfig)
 	rec, err := proc.Process(cast)
 	if err != nil {
+		close(progressCh)
+		reporter.Wait()
 		return err
 	}
 
@@ -116,6 +124,7 @@ func (cmd *Cmd) Run() error {
 	renderConfig.Minify = cmd.Minify
 	renderConfig.Debug = cmd.Debug
 	renderConfig.Theme = selectedTheme
+	renderConfig.ProgressCh = progressCh
 
 	var rdr renderer.Renderer
 	switch format {
@@ -148,25 +157,37 @@ func (cmd *Cmd) Run() error {
 	if cmd.Minify && format == "svg" {
 		var buf bytes.Buffer
 		if err := rdr.Render(context.Background(), rec, &buf); err != nil {
+			close(progressCh)
+			reporter.Wait()
 			return err
 		}
 		m := minify.New()
 		m.AddFunc("image/svg+xml", msvg.Minify)
 		var minified bytes.Buffer
 		if err := m.Minify("image/svg+xml", &minified, &buf); err != nil {
+			close(progressCh)
+			reporter.Wait()
 			return err
 		}
 		// Replace non-breaking spaces back to regular spaces after minification
 		result := strings.ReplaceAll(minified.String(), "\u00A0", " ")
 		if _, err := outFile.WriteString(result); err != nil {
+			close(progressCh)
+			reporter.Wait()
 			return err
 		}
 	} else {
 		if err := rdr.Render(context.Background(), rec, outFile); err != nil {
+			close(progressCh)
+			reporter.Wait()
 			return err
 		}
 	}
 
-	fmt.Printf("Exported: %s\n", output)
+	// Close progress channel and wait for reporter to finish
+	close(progressCh)
+	reporter.Wait()
+
+	fmt.Printf("\nExported: %s\n", output)
 	return nil
 }

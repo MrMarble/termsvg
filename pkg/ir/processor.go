@@ -5,6 +5,7 @@ import (
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
 	"github.com/mrmarble/termsvg/pkg/color"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/terminal"
 	"github.com/mrmarble/termsvg/pkg/theme"
 )
@@ -12,9 +13,10 @@ import (
 // ProcessorConfig holds options for IR generation.
 type ProcessorConfig struct {
 	Theme         theme.Theme
-	IdleTimeLimit time.Duration // Cap idle time (0 = no cap)
-	Speed         float64       // Playback speed multiplier (1.0 = normal)
-	Compress      bool          // Merge events with same timestamp
+	IdleTimeLimit time.Duration          // Cap idle time (0 = no cap)
+	Speed         float64                // Playback speed multiplier (1.0 = normal)
+	Compress      bool                   // Merge events with same timestamp
+	ProgressCh    chan<- progress.Update // Channel for progress updates (optional)
 }
 
 // Processor transforms an asciicast into IR.
@@ -41,6 +43,16 @@ func NewProcessor(config ProcessorConfig) *Processor {
 func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 	// 1. Pre-process the cast (compress, adjust timing)
 	events := p.preprocessEvents(cast)
+	totalEvents := len(events)
+
+	// Send initial progress
+	if p.config.ProgressCh != nil {
+		p.config.ProgressCh <- progress.Update{
+			Phase:   "IR Processing",
+			Current: 0,
+			Total:   totalEvents,
+		}
+	}
 
 	// 2. Initialize terminal emulator
 	term := terminal.New(cast.Header.Width, cast.Header.Height)
@@ -61,6 +73,15 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		frameTime := floatSecondsToDuration(event.Time)
 		frame := p.captureFrame(term, catalog, i, frameTime, frameTime-prevTime, &stats)
 		frames = append(frames, frame)
+
+		// Send progress update every 10 events or on last event
+		if p.config.ProgressCh != nil && (i%10 == 0 || i == totalEvents-1) {
+			p.config.ProgressCh <- progress.Update{
+				Phase:   "IR Processing",
+				Current: i + 1,
+				Total:   totalEvents,
+			}
+		}
 
 		prevTime = frameTime
 	}

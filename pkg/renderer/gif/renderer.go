@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/renderer"
 )
@@ -117,6 +118,16 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	}
 
 	var prevPaletted *image.Paletted
+	totalFrames := len(frames)
+
+	// Send initial progress
+	if r.config.ProgressCh != nil {
+		r.config.ProgressCh <- progress.Update{
+			Phase:   "Encoding",
+			Current: 0,
+			Total:   totalFrames,
+		}
+	}
 
 	// Timing accumulators for debug mode
 	var framesEqualTime, computeDeltaTime time.Duration
@@ -162,6 +173,15 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 
 		g.Delay = append(g.Delay, delay)
 		prevPaletted = rf.Image
+
+		// Send progress update
+		if r.config.ProgressCh != nil {
+			r.config.ProgressCh <- progress.Update{
+				Phase:   "Encoding",
+				Current: i + 1,
+				Total:   totalFrames,
+			}
+		}
 	}
 
 	encodeStart := time.Now()

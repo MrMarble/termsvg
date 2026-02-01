@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/theme"
 )
@@ -31,6 +32,9 @@ type Config struct {
 	// Video encoding options (for WebM/MP4 formats)
 	VideoBitrate int // Video bitrate in kbps (0 = use default)
 	FrameRate    int // Target frame rate in FPS (0 = auto-calculate)
+
+	// ProgressCh is an optional channel for progress updates
+	ProgressCh chan<- progress.Update
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -58,6 +62,7 @@ func NewRasterizer(config Config) (*raster.Rasterizer, error) {
 		ColWidth:   raster.ColWidth,
 		Padding:    raster.Padding,
 		HeaderSize: raster.HeaderSize,
+		ProgressCh: config.ProgressCh,
 	}
 
 	rasterizer, err := raster.New(rasterConfig)

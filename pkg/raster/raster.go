@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/theme"
 	"golang.org/x/image/font"
 )
@@ -49,6 +50,9 @@ type Config struct {
 	ColWidth   int // pixels per column (default: 12)
 	Padding    int // padding around content (default: 20)
 	HeaderSize int // multiplier for header area (default: 2)
+
+	// ProgressCh is an optional channel for progress updates
+	ProgressCh chan<- progress.Update
 }
 
 // Rasterizer transforms IR recordings into RGBA images.

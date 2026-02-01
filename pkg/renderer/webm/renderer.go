@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"github.com/mrmarble/termsvg/pkg/raster"
 	"github.com/mrmarble/termsvg/pkg/renderer"
 )
@@ -191,6 +192,17 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 		defer stdin.Close()
 
 		const frameDuration = time.Second / 30 // ~33.33ms per frame at 30 FPS
+		encodedFrames := 0
+		totalFrames := len(filteredFrames)
+
+		// Send initial progress
+		if r.config.ProgressCh != nil {
+			r.config.ProgressCh <- progress.Update{
+				Phase:   "Encoding",
+				Current: 0,
+				Total:   totalFrames,
+			}
+		}
 
 		for _, frame := range filteredFrames {
 			if frame.Image == nil {
@@ -209,6 +221,16 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 				_, err := stdin.Write(frame.Image.Pix)
 				if err != nil {
 					return
+				}
+			}
+
+			// Send progress update
+			encodedFrames++
+			if r.config.ProgressCh != nil {
+				r.config.ProgressCh <- progress.Update{
+					Phase:   "Encoding",
+					Current: encodedFrames,
+					Total:   totalFrames,
 				}
 			}
 		}

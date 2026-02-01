@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/ir"
+	"github.com/mrmarble/termsvg/pkg/progress"
 	"golang.org/x/image/font"
 )
 
@@ -26,6 +27,7 @@ type palettedFrameRenderer struct {
 func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	frames := fr.rec.Frames
 	results := make([]PalettedFrame, len(frames))
+	totalFrames := len(frames)
 
 	// Calculate image dimensions
 	width := fr.rasterizer.paddedWidth(fr.rec.Width)
@@ -36,9 +38,27 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	// Pre-render the static base image (window chrome + terminal background) as paletted
 	baseImg := fr.createPalettedBaseImage(width, height, contentWidth, contentHeight)
 
+	// Send initial progress
+	if fr.rasterizer.config.ProgressCh != nil {
+		fr.rasterizer.config.ProgressCh <- progress.Update{
+			Phase:   "Rasterizing",
+			Current: 0,
+			Total:   totalFrames,
+		}
+	}
+
 	// Render all frames (IR is already deduplicated)
 	for i := range frames {
 		results[i] = fr.renderSingleFrame(i, frames[i], frames[i].Delay, baseImg)
+
+		// Send progress update
+		if fr.rasterizer.config.ProgressCh != nil {
+			fr.rasterizer.config.ProgressCh <- progress.Update{
+				Phase:   "Rasterizing",
+				Current: i + 1,
+				Total:   totalFrames,
+			}
+		}
 	}
 
 	return results, nil
