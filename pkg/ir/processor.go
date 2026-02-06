@@ -25,8 +25,8 @@ type Processor struct {
 }
 
 // DefaultProcessorConfig returns sensible defaults.
-func DefaultProcessorConfig() ProcessorConfig {
-	return ProcessorConfig{
+func DefaultProcessorConfig() *ProcessorConfig {
+	return &ProcessorConfig{
 		Theme:         theme.Default(),
 		IdleTimeLimit: 0,
 		Speed:         1.0,
@@ -35,8 +35,8 @@ func DefaultProcessorConfig() ProcessorConfig {
 }
 
 // NewProcessor creates a new IR processor.
-func NewProcessor(config ProcessorConfig) *Processor {
-	return &Processor{config: config}
+func NewProcessor(config *ProcessorConfig) *Processor {
+	return &Processor{config: *config}
 }
 
 // Process transforms a Cast into a Recording (the IR).
@@ -207,8 +207,8 @@ func (p *Processor) cellToAttrs(
 	stats *Stats,
 ) CellAttrs {
 	// Register colors and get IDs
-	fgID := catalog.Register(cell.Foreground, p.config.Theme.Palette)
-	bgID := catalog.Register(cell.Background, p.config.Theme.Palette)
+	fgID := catalog.Register(cell.Foreground, &p.config.Theme.Palette)
+	bgID := catalog.Register(cell.Background, &p.config.Theme.Palette)
 
 	// Track attribute usage
 	if cell.Bold {

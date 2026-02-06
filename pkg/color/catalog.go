@@ -52,7 +52,7 @@ func NewCatalog(defaultFG, defaultBG color.RGBA) *Catalog {
 // Register adds a color to the catalog and returns its ID.
 // If the color already exists, returns the existing ID.
 // Default colors return DefaultID.
-func (c *Catalog) Register(col Color, palette Palette) ID {
+func (c *Catalog) Register(col Color, palette *Palette) ID {
 	// Default colors get the special ID
 	if col.Type == Default {
 		return DefaultID

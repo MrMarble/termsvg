@@ -45,8 +45,8 @@ const (
 )
 
 // New creates a new SVG renderer with the given configuration.
-func New(config renderer.Config) *Renderer {
-	return &Renderer{config: config}
+func New(config *renderer.Config) *Renderer {
+	return &Renderer{config: *config}
 }
 
 // Format returns the output format name.

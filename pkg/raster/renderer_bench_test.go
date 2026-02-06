@@ -58,7 +58,7 @@ func BenchmarkRasterize_10Frames(b *testing.B) {
 		ShowCursor: true,
 		FontSize:   14,
 	}
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		b.Fatalf("failed to create rasterizer: %v", err)
 	}
@@ -78,7 +78,7 @@ func BenchmarkRasterize_50Frames(b *testing.B) {
 		ShowCursor: true,
 		FontSize:   14,
 	}
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		b.Fatalf("failed to create rasterizer: %v", err)
 	}
@@ -98,7 +98,7 @@ func BenchmarkRasterize_100Frames(b *testing.B) {
 		ShowCursor: true,
 		FontSize:   14,
 	}
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		b.Fatalf("failed to create rasterizer: %v", err)
 	}
@@ -118,7 +118,7 @@ func BenchmarkRasterize_200Frames(b *testing.B) {
 		ShowCursor: true,
 		FontSize:   14,
 	}
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		b.Fatalf("failed to create rasterizer: %v", err)
 	}
@@ -138,7 +138,7 @@ func BenchmarkRasterize_WithWindow(b *testing.B) {
 		ShowCursor: true,
 		FontSize:   14,
 	}
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		b.Fatalf("failed to create rasterizer: %v", err)
 	}

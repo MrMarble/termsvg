@@ -125,7 +125,7 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 	}()
 
 	// Read from PTY and record events
-	var events []asciicast.Event
+	events := make([]asciicast.Event, 0, 1024)
 	p := make([]byte, readSize)
 	baseTime := time.Now().UnixMicro()
 

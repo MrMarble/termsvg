@@ -96,14 +96,14 @@ func DefaultConfig() Config {
 }
 
 // New creates a new Rasterizer with the given configuration.
-func New(config Config) (*Rasterizer, error) {
+func New(config *Config) (*Rasterizer, error) {
 	face, err := loadFontFace(float64(config.FontSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load font: %w", err)
 	}
 
 	return &Rasterizer{
-		config:   config,
+		config:   *config,
 		fontFace: face,
 	}, nil
 }

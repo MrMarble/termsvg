@@ -35,7 +35,7 @@ func FromRGB(r, g, b uint8) Color {
 }
 
 // ToRGBA converts the Color to an RGBA value using the palette.
-func (c Color) ToRGBA(palette Palette) color.RGBA {
+func (c Color) ToRGBA(palette *Palette) color.RGBA {
 	switch c.Type {
 	case ANSI, Extended:
 		return palette.At(c.Index)
@@ -49,7 +49,7 @@ func (c Color) ToRGBA(palette Palette) color.RGBA {
 }
 
 // ToHex returns the color as a hex string (e.g., "#RRGGBB").
-func (c Color) ToHex(palette Palette) string {
+func (c Color) ToHex(palette *Palette) string {
 	rgba := c.ToRGBA(palette)
 	return RGBAtoHex(rgba)
 }

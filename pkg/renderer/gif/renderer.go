@@ -24,6 +24,14 @@ type Renderer struct {
 	rasterizer *raster.Rasterizer
 }
 
+// gifTimings holds timing measurements for GIF encoding.
+type gifTimings struct {
+	framesEqualTime   time.Duration
+	computeDeltaTime  time.Duration
+	framesEqualCalls  int
+	computeDeltaCalls int
+}
+
 // GIF timing constants.
 const (
 	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
@@ -35,14 +43,14 @@ const (
 )
 
 // New creates a new GIF renderer with the given configuration.
-func New(config renderer.Config) (*Renderer, error) {
+func New(config *renderer.Config) (*Renderer, error) {
 	rasterizer, err := renderer.NewRasterizer(config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Renderer{
-		config:     config,
+		config:     *config,
 		rasterizer: rasterizer,
 	}, nil
 }
@@ -110,8 +118,20 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	return nil
 }
 
+func (r *Renderer) sendProgress(current, total int) {
+	if r.config.ProgressCh != nil {
+		r.config.ProgressCh <- progress.Update{
+			Phase:   "Encoding",
+			Current: current,
+			Total:   total,
+		}
+	}
+}
+
 // assembleGIF creates the final GIF from rendered paletted frames using delta encoding.
 // GIF assembly requires multiple sequential steps for delta encoding.
+//
+
 func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
 	g := &gif.GIF{
 		LoopCount: r.config.LoopCount,
@@ -120,80 +140,72 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	var prevPaletted *image.Paletted
 	totalFrames := len(frames)
 
-	// Send initial progress
-	if r.config.ProgressCh != nil {
-		r.config.ProgressCh <- progress.Update{
-			Phase:   "Encoding",
-			Current: 0,
-			Total:   totalFrames,
-		}
-	}
+	r.sendProgress(0, totalFrames)
 
-	// Timing accumulators for debug mode
-	var framesEqualTime, computeDeltaTime time.Duration
-	var framesEqualCalls, computeDeltaCalls int
+	timings := &gifTimings{}
 
 	for i, rf := range frames {
-		// Calculate delay for this frame (convert from time.Duration to GIF time units)
-		delay := int(rf.Delay.Milliseconds() / gifTimeUnit)
-		// Enforce minimum delay to avoid browser clamping
-		if delay < minGifDelay && i < len(frames)-1 {
-			delay = minGifDelay
+		delay := r.calculateDelay(rf.Delay, i, len(frames))
+
+		if r.processFrame(g, prevPaletted, rf.Image, delay, timings) {
+			continue
 		}
 
-		// Pixel-level duplicate check (for frames that were rendered but are identical)
-		if prevPaletted != nil {
-			feStart := time.Now()
-			isEqual := framesEqual(prevPaletted, rf.Image)
-			if r.config.Debug {
-				framesEqualTime += time.Since(feStart)
-				framesEqualCalls++
-			}
-			if isEqual {
-				g.Delay[len(g.Delay)-1] += delay
-				continue
-			}
-		}
-
-		// For delta encoding: if we have a previous frame, only encode changed pixels
-		if prevPaletted != nil {
-			cdStart := time.Now()
-			delta := computeDelta(prevPaletted, rf.Image, 0) // 0 is transparent index
-			if r.config.Debug {
-				computeDeltaTime += time.Since(cdStart)
-				computeDeltaCalls++
-			}
-			g.Image = append(g.Image, delta)
-			g.Disposal = append(g.Disposal, gif.DisposalNone)
-		} else {
-			// First frame must be complete
-			g.Image = append(g.Image, rf.Image)
-			g.Disposal = append(g.Disposal, gif.DisposalNone)
-		}
-
-		g.Delay = append(g.Delay, delay)
 		prevPaletted = rf.Image
-
-		// Send progress update
-		if r.config.ProgressCh != nil {
-			r.config.ProgressCh <- progress.Update{
-				Phase:   "Encoding",
-				Current: i + 1,
-				Total:   totalFrames,
-			}
-		}
+		r.sendProgress(i+1, totalFrames)
 	}
 
+	return r.encodeAndLog(g, w, timings)
+}
+
+func (r *Renderer) calculateDelay(delay time.Duration, frameIdx, totalFrames int) int {
+	d := int(delay.Milliseconds() / gifTimeUnit)
+	if d < minGifDelay && frameIdx < totalFrames-1 {
+		return minGifDelay
+	}
+	return d
+}
+
+func (r *Renderer) processFrame(g *gif.GIF, prev, curr *image.Paletted, delay int, t *gifTimings) bool {
+	if prev != nil {
+		feStart := time.Now()
+		isEqual := framesEqual(prev, curr)
+		if r.config.Debug {
+			t.framesEqualTime += time.Since(feStart)
+			t.framesEqualCalls++
+		}
+		if isEqual {
+			g.Delay[len(g.Delay)-1] += delay
+			return true
+		}
+
+		cdStart := time.Now()
+		delta := computeDelta(prev, curr, 0)
+		if r.config.Debug {
+			t.computeDeltaTime += time.Since(cdStart)
+			t.computeDeltaCalls++
+		}
+		g.Image = append(g.Image, delta)
+		g.Disposal = append(g.Disposal, gif.DisposalNone)
+	} else {
+		g.Image = append(g.Image, curr)
+		g.Disposal = append(g.Disposal, gif.DisposalNone)
+	}
+
+	g.Delay = append(g.Delay, delay)
+	return false
+}
+
+func (r *Renderer) encodeAndLog(g *gif.GIF, w io.Writer, t *gifTimings) error {
 	encodeStart := time.Now()
 	err := gif.EncodeAll(w, g)
 	encodeTime := time.Since(encodeStart)
 
-	// Log detailed timing breakdown in debug mode
 	if r.config.Debug {
-		otherTime := time.Since(time.Now().Add(-encodeTime)) - framesEqualTime - computeDeltaTime - encodeTime
+		otherTime := time.Since(time.Now().Add(-encodeTime)) - t.framesEqualTime - t.computeDeltaTime - encodeTime
 		log.Printf("[GIF] Phase 3 - GIF assembly breakdown:")
-		log.Printf("[GIF]   - framesEqual: %v (%d calls)", framesEqualTime, framesEqualCalls)
-		log.Printf("[GIF]   - computeDelta: %v (%d calls)", computeDeltaTime, computeDeltaCalls)
+		log.Printf("[GIF]   - framesEqual: %v (%d calls)", t.framesEqualTime, t.framesEqualCalls)
+		log.Printf("[GIF]   - computeDelta: %v (%d calls)", t.computeDeltaTime, t.computeDeltaCalls)
 		log.Printf("[GIF]   - gif.EncodeAll: %v", encodeTime)
 		log.Printf("[GIF]   - other (loop overhead): %v", otherTime)
 	}

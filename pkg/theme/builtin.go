@@ -11,27 +11,26 @@ import (
 
 // builtinThemes is a registry of all built-in themes.
 var builtinThemes = map[string]Theme{
-	"dracula": Dracula,
-	"frappe": Frappe,
-	"gruvbox-dark": GruvboxDark,
-	"gruvbox-light": GruvboxLight,
-	"latte": Latte,
-	"macchiato": Macchiato,
-	"mocha": Mocha,
-	"monokai": Monokai,
-	"nord": Nord,
-	"solarized-dark": SolarizedDark,
+	"dracula":         Dracula,
+	"frappe":          Frappe,
+	"gruvbox-dark":    GruvboxDark,
+	"gruvbox-light":   GruvboxLight,
+	"latte":           Latte,
+	"macchiato":       Macchiato,
+	"mocha":           Mocha,
+	"monokai":         Monokai,
+	"nord":            Nord,
+	"solarized-dark":  SolarizedDark,
 	"solarized-light": SolarizedLight,
 }
 
-
 // Dracula is the "dracula" theme.
 var Dracula = Theme{
-	Name:       "dracula",
-	Foreground: color.RGBA{ R: 248, G: 248, B: 242, A: 255 },
-	Background: color.RGBA{ R: 40, G: 42, B: 54, A: 255 },
-	Palette:    DraculaPalette,
-	WindowBackground: color.RGBA{ R: 40, G: 42, B: 54, A: 255 },
+	Name:             "dracula",
+	Foreground:       color.RGBA{R: 248, G: 248, B: 242, A: 255},
+	Background:       color.RGBA{R: 40, G: 42, B: 54, A: 255},
+	Palette:          DraculaPalette,
+	WindowBackground: color.RGBA{R: 40, G: 42, B: 54, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -64,11 +63,11 @@ var DraculaPalette = func() termcolor.Palette {
 
 // Frappe is the "frappe" theme.
 var Frappe = Theme{
-	Name:       "frappe",
-	Foreground: color.RGBA{ R: 198, G: 208, B: 245, A: 255 },
-	Background: color.RGBA{ R: 48, G: 52, B: 70, A: 255 },
-	Palette:    FrappePalette,
-	WindowBackground: color.RGBA{ R: 48, G: 52, B: 70, A: 255 },
+	Name:             "frappe",
+	Foreground:       color.RGBA{R: 198, G: 208, B: 245, A: 255},
+	Background:       color.RGBA{R: 48, G: 52, B: 70, A: 255},
+	Palette:          FrappePalette,
+	WindowBackground: color.RGBA{R: 48, G: 52, B: 70, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -101,11 +100,11 @@ var FrappePalette = func() termcolor.Palette {
 
 // GruvboxDark is the "gruvbox-dark" theme.
 var GruvboxDark = Theme{
-	Name:       "gruvbox-dark",
-	Foreground: color.RGBA{ R: 235, G: 219, B: 178, A: 255 },
-	Background: color.RGBA{ R: 40, G: 40, B: 40, A: 255 },
-	Palette:    GruvboxDarkPalette,
-	WindowBackground: color.RGBA{ R: 40, G: 40, B: 40, A: 255 },
+	Name:             "gruvbox-dark",
+	Foreground:       color.RGBA{R: 235, G: 219, B: 178, A: 255},
+	Background:       color.RGBA{R: 40, G: 40, B: 40, A: 255},
+	Palette:          GruvboxDarkPalette,
+	WindowBackground: color.RGBA{R: 40, G: 40, B: 40, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -138,11 +137,11 @@ var GruvboxDarkPalette = func() termcolor.Palette {
 
 // GruvboxLight is the "gruvbox-light" theme.
 var GruvboxLight = Theme{
-	Name:       "gruvbox-light",
-	Foreground: color.RGBA{ R: 60, G: 56, B: 54, A: 255 },
-	Background: color.RGBA{ R: 251, G: 241, B: 199, A: 255 },
-	Palette:    GruvboxLightPalette,
-	WindowBackground: color.RGBA{ R: 251, G: 241, B: 199, A: 255 },
+	Name:             "gruvbox-light",
+	Foreground:       color.RGBA{R: 60, G: 56, B: 54, A: 255},
+	Background:       color.RGBA{R: 251, G: 241, B: 199, A: 255},
+	Palette:          GruvboxLightPalette,
+	WindowBackground: color.RGBA{R: 251, G: 241, B: 199, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -175,11 +174,11 @@ var GruvboxLightPalette = func() termcolor.Palette {
 
 // Latte is the "latte" theme.
 var Latte = Theme{
-	Name:       "latte",
-	Foreground: color.RGBA{ R: 76, G: 79, B: 105, A: 255 },
-	Background: color.RGBA{ R: 239, G: 241, B: 245, A: 255 },
-	Palette:    LattePalette,
-	WindowBackground: color.RGBA{ R: 239, G: 241, B: 245, A: 255 },
+	Name:             "latte",
+	Foreground:       color.RGBA{R: 76, G: 79, B: 105, A: 255},
+	Background:       color.RGBA{R: 239, G: 241, B: 245, A: 255},
+	Palette:          LattePalette,
+	WindowBackground: color.RGBA{R: 239, G: 241, B: 245, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -212,11 +211,11 @@ var LattePalette = func() termcolor.Palette {
 
 // Macchiato is the "macchiato" theme.
 var Macchiato = Theme{
-	Name:       "macchiato",
-	Foreground: color.RGBA{ R: 202, G: 211, B: 245, A: 255 },
-	Background: color.RGBA{ R: 36, G: 39, B: 58, A: 255 },
-	Palette:    MacchiatoPalette,
-	WindowBackground: color.RGBA{ R: 36, G: 39, B: 58, A: 255 },
+	Name:             "macchiato",
+	Foreground:       color.RGBA{R: 202, G: 211, B: 245, A: 255},
+	Background:       color.RGBA{R: 36, G: 39, B: 58, A: 255},
+	Palette:          MacchiatoPalette,
+	WindowBackground: color.RGBA{R: 36, G: 39, B: 58, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -249,11 +248,11 @@ var MacchiatoPalette = func() termcolor.Palette {
 
 // Mocha is the "mocha" theme.
 var Mocha = Theme{
-	Name:       "mocha",
-	Foreground: color.RGBA{ R: 205, G: 214, B: 244, A: 255 },
-	Background: color.RGBA{ R: 30, G: 30, B: 46, A: 255 },
-	Palette:    MochaPalette,
-	WindowBackground: color.RGBA{ R: 30, G: 30, B: 46, A: 255 },
+	Name:             "mocha",
+	Foreground:       color.RGBA{R: 205, G: 214, B: 244, A: 255},
+	Background:       color.RGBA{R: 30, G: 30, B: 46, A: 255},
+	Palette:          MochaPalette,
+	WindowBackground: color.RGBA{R: 30, G: 30, B: 46, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -286,11 +285,11 @@ var MochaPalette = func() termcolor.Palette {
 
 // Monokai is the "monokai" theme.
 var Monokai = Theme{
-	Name:       "monokai",
-	Foreground: color.RGBA{ R: 248, G: 248, B: 242, A: 255 },
-	Background: color.RGBA{ R: 39, G: 40, B: 34, A: 255 },
-	Palette:    MonokaiPalette,
-	WindowBackground: color.RGBA{ R: 39, G: 40, B: 34, A: 255 },
+	Name:             "monokai",
+	Foreground:       color.RGBA{R: 248, G: 248, B: 242, A: 255},
+	Background:       color.RGBA{R: 39, G: 40, B: 34, A: 255},
+	Palette:          MonokaiPalette,
+	WindowBackground: color.RGBA{R: 39, G: 40, B: 34, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -323,11 +322,11 @@ var MonokaiPalette = func() termcolor.Palette {
 
 // Nord is the "nord" theme.
 var Nord = Theme{
-	Name:       "nord",
-	Foreground: color.RGBA{ R: 236, G: 239, B: 244, A: 255 },
-	Background: color.RGBA{ R: 46, G: 52, B: 64, A: 255 },
-	Palette:    NordPalette,
-	WindowBackground: color.RGBA{ R: 46, G: 52, B: 64, A: 255 },
+	Name:             "nord",
+	Foreground:       color.RGBA{R: 236, G: 239, B: 244, A: 255},
+	Background:       color.RGBA{R: 46, G: 52, B: 64, A: 255},
+	Palette:          NordPalette,
+	WindowBackground: color.RGBA{R: 46, G: 52, B: 64, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -360,11 +359,11 @@ var NordPalette = func() termcolor.Palette {
 
 // SolarizedDark is the "solarized-dark" theme.
 var SolarizedDark = Theme{
-	Name:       "solarized-dark",
-	Foreground: color.RGBA{ R: 131, G: 148, B: 150, A: 255 },
-	Background: color.RGBA{ R: 0, G: 43, B: 54, A: 255 },
-	Palette:    SolarizedDarkPalette,
-	WindowBackground: color.RGBA{ R: 0, G: 43, B: 54, A: 255 },
+	Name:             "solarized-dark",
+	Foreground:       color.RGBA{R: 131, G: 148, B: 150, A: 255},
+	Background:       color.RGBA{R: 0, G: 43, B: 54, A: 255},
+	Palette:          SolarizedDarkPalette,
+	WindowBackground: color.RGBA{R: 0, G: 43, B: 54, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -397,11 +396,11 @@ var SolarizedDarkPalette = func() termcolor.Palette {
 
 // SolarizedLight is the "solarized-light" theme.
 var SolarizedLight = Theme{
-	Name:       "solarized-light",
-	Foreground: color.RGBA{ R: 101, G: 123, B: 131, A: 255 },
-	Background: color.RGBA{ R: 253, G: 246, B: 227, A: 255 },
-	Palette:    SolarizedLightPalette,
-	WindowBackground: color.RGBA{ R: 253, G: 246, B: 227, A: 255 },
+	Name:             "solarized-light",
+	Foreground:       color.RGBA{R: 101, G: 123, B: 131, A: 255},
+	Background:       color.RGBA{R: 253, G: 246, B: 227, A: 255},
+	Palette:          SolarizedLightPalette,
+	WindowBackground: color.RGBA{R: 253, G: 246, B: 227, A: 255},
 	WindowButtons: [3]color.RGBA{
 		{R: 255, G: 95, B: 86, A: 255},  // Close
 		{R: 255, G: 189, B: 46, A: 255}, // Minimize
@@ -431,4 +430,3 @@ var SolarizedLightPalette = func() termcolor.Palette {
 	p[15] = color.RGBA{R: 253, G: 246, B: 227, A: 255}
 	return p
 }()
-

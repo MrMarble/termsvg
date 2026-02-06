@@ -23,7 +23,7 @@ type Renderer struct {
 }
 
 // New creates a new WebM renderer with the given configuration.
-func New(config renderer.Config) (*Renderer, error) {
+func New(config *renderer.Config) (*Renderer, error) {
 	// Check if FFmpeg is installed
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		return nil, fmt.Errorf("ffmpeg is not installed. Install it from: https://ffmpeg.org")
@@ -35,7 +35,7 @@ func New(config renderer.Config) (*Renderer, error) {
 	}
 
 	return &Renderer{
-		config:     config,
+		config:     *config,
 		rasterizer: rasterizer,
 	}, nil
 }
@@ -264,7 +264,7 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 func (r *Renderer) filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
 	const minDelay = 33 * time.Millisecond // Minimum display time at 30 FPS
 
-	var filtered []raster.RasterFrame
+	filtered := make([]raster.RasterFrame, 0, len(frames))
 	var accumulatedDelay time.Duration
 
 	for i, frame := range frames {

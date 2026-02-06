@@ -21,10 +21,11 @@ type Theme struct {
 
 // Default returns the default theme.
 func Default() Theme {
+	palette := termcolor.Standard()
 	return Theme{
 		Name:             "default",
-		Palette:          termcolor.Standard(),
-		Foreground:       termcolor.FromANSI(7).ToRGBA(termcolor.Standard()),
+		Palette:          palette,
+		Foreground:       termcolor.FromANSI(7).ToRGBA(&palette),
 		Background:       color.RGBA{R: 0, G: 0, B: 0, A: 255},
 		WindowBackground: color.RGBA{R: 40, G: 45, B: 53, A: 255}, // #282d35
 		WindowButtons: [3]color.RGBA{

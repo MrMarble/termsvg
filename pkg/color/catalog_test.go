@@ -11,27 +11,27 @@ func TestCatalog_Register(t *testing.T) {
 
 	// Default colors should return DefaultID
 	defaultColor := Color{Type: Default}
-	id := catalog.Register(defaultColor, palette)
+	id := catalog.Register(defaultColor, &palette)
 	if id != DefaultID {
 		t.Errorf("Default color should return DefaultID, got %d", id)
 	}
 
 	// First non-default color should get ID 1
 	red := FromANSI(1)
-	id1 := catalog.Register(red, palette)
+	id1 := catalog.Register(red, &palette)
 	if id1 != 1 {
 		t.Errorf("First color should get ID 1, got %d", id1)
 	}
 
 	// Same color should return same ID (deduplication)
-	id1Again := catalog.Register(red, palette)
+	id1Again := catalog.Register(red, &palette)
 	if id1Again != id1 {
 		t.Errorf("Same color should return same ID, got %d vs %d", id1Again, id1)
 	}
 
 	// Different color should get different ID
 	blue := FromANSI(4)
-	id2 := catalog.Register(blue, palette)
+	id2 := catalog.Register(blue, &palette)
 	if id2 == id1 {
 		t.Errorf("Different color should get different ID, both got %d", id2)
 	}
@@ -48,11 +48,11 @@ func TestCatalog_Resolved(t *testing.T) {
 
 	// Register a color
 	red := FromANSI(1)
-	id := catalog.Register(red, palette)
+	id := catalog.Register(red, &palette)
 
 	// Resolve should return the RGBA
 	resolved := catalog.Resolved(id)
-	expected := red.ToRGBA(palette)
+	expected := red.ToRGBA(&palette)
 	if resolved != expected {
 		t.Errorf("Resolved color mismatch: got %v, want %v", resolved, expected)
 	}
@@ -70,7 +70,7 @@ func TestCatalog_GenerateClassNames(t *testing.T) {
 
 	// Register multiple colors (16 unique ANSI colors)
 	for i := uint8(0); i < 16; i++ {
-		catalog.Register(FromANSI(i), palette)
+		catalog.Register(FromANSI(i), &palette)
 	}
 
 	names := catalog.GenerateClassNames()
@@ -112,7 +112,7 @@ func TestCatalog_IsDefault(t *testing.T) {
 	palette := Standard()
 
 	red := FromANSI(1)
-	id := catalog.Register(red, palette)
+	id := catalog.Register(red, &palette)
 
 	if catalog.IsDefault(id) {
 		t.Error("Non-default color should not be default")

@@ -38,8 +38,8 @@ type Config struct {
 }
 
 // DefaultConfig returns a Config with sensible defaults.
-func DefaultConfig() Config {
-	return Config{
+func DefaultConfig() *Config {
+	return &Config{
 		Theme:      theme.Default(),
 		ShowWindow: true,
 		ShowCursor: true,
@@ -52,7 +52,7 @@ func DefaultConfig() Config {
 
 // NewRasterizer creates a raster.Rasterizer from renderer configuration.
 // This helper reduces duplication between renderers that need rasterization.
-func NewRasterizer(config Config) (*raster.Rasterizer, error) {
+func NewRasterizer(config *Config) (*raster.Rasterizer, error) {
 	rasterConfig := raster.Config{
 		Theme:      config.Theme,
 		ShowWindow: config.ShowWindow,
@@ -65,7 +65,7 @@ func NewRasterizer(config Config) (*raster.Rasterizer, error) {
 		ProgressCh: config.ProgressCh,
 	}
 
-	rasterizer, err := raster.New(rasterConfig)
+	rasterizer, err := raster.New(&rasterConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
 	}

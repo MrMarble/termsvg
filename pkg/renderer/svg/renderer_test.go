@@ -154,7 +154,8 @@ func TestRender_ColorClasses(t *testing.T) {
 	rec := createTestRecording()
 
 	// Register a specific color
-	redID := rec.Colors.Register(termcolor.FromRGB(255, 0, 0), termcolor.Standard())
+	palette := termcolor.Standard()
+	redID := rec.Colors.Register(termcolor.FromRGB(255, 0, 0), &palette)
 
 	// Add a frame with that color
 	rec.Frames = append(rec.Frames, ir.Frame{
@@ -266,7 +267,8 @@ func TestRender_BackgroundFilters(t *testing.T) {
 	}
 
 	// Register a background color
-	bgID := rec.Colors.Register(termcolor.FromRGB(0, 0, 255), termcolor.Standard())
+	bgPalette := termcolor.Standard()
+	bgID := rec.Colors.Register(termcolor.FromRGB(0, 0, 255), &bgPalette)
 
 	rec.Frames = []ir.Frame{
 		{
@@ -404,7 +406,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 
 	c := &canvas{
 		rec:    rec,
-		config: config,
+		config: *config,
 	}
 
 	// Content dimensions
@@ -417,7 +419,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 
 	// Padded dimensions with window
 	config.ShowWindow = true
-	c.config = config
+	c.config = *config
 	expectedPaddedHeight := c.contentHeight() + Padding*HeaderSize + Padding // header + bottom padding
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() with window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
@@ -425,7 +427,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 
 	// Padded dimensions without window
 	config.ShowWindow = false
-	c.config = config
+	c.config = *config
 	expectedPaddedHeight = c.contentHeight() + 2*Padding
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() without window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)

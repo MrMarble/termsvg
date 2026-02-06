@@ -11,7 +11,7 @@ import (
 
 func TestNew(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -27,7 +27,7 @@ func TestNew(t *testing.T) {
 
 func TestRasterize_EmptyRecording(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRasterize_EmptyRecording(t *testing.T) {
 //nolint:funlen // test setup requires multiple test cases
 func TestRasterize_SingleFrame(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -120,7 +120,7 @@ func TestRasterize_SingleFrame(t *testing.T) {
 
 func TestRasterize_MultipleFrames(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -187,7 +187,7 @@ func TestRasterize_WithWindow(t *testing.T) {
 	config := DefaultConfig()
 	config.ShowWindow = true
 
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -234,7 +234,7 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 	config := DefaultConfig()
 	config.ShowWindow = false
 
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -276,7 +276,7 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 //nolint:funlen // test requires comprehensive frame rendering scenario
 func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -354,7 +354,7 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 //nolint:funlen // test requires multiple styling scenarios
 func TestRasterize_WithStyling(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -423,7 +423,7 @@ func TestRasterize_WithStyling(t *testing.T) {
 
 func TestRasterize_WithCursor(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -468,7 +468,7 @@ func TestRasterize_WithCursor(t *testing.T) {
 
 func TestRasterize_MultipleRows(t *testing.T) {
 	config := DefaultConfig()
-	r, err := New(config)
+	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

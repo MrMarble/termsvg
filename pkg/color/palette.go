@@ -6,7 +6,7 @@ import "image/color"
 type Palette [256]color.RGBA
 
 // At returns the color at the given index.
-func (p Palette) At(index uint8) color.RGBA {
+func (p *Palette) At(index uint8) color.RGBA {
 	return p[index]
 }
 

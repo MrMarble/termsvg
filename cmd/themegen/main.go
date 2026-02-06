@@ -139,7 +139,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var themes []ThemeInfo
+	themes := make([]ThemeInfo, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -220,7 +220,7 @@ func parseThemeFile(path string) (ThemeInfo, error) {
 	bg := hexToRGBA(themeData.Bg)
 
 	// Build palette overrides (only first 16 colors)
-	var paletteOverrides []string
+	paletteOverrides := make([]string, 0, len(colors))
 	for i, c := range colors {
 		paletteOverrides = append(paletteOverrides, fmt.Sprintf("p[%d] = color.RGBA%s", i, colorToGo(c)))
 	}
