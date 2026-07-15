@@ -33,8 +33,8 @@ func LoadFromFile(path string) (Theme, error) {
 	// Try TERMSVG_THEME_PATH directories
 	themePath := os.Getenv("TERMSVG_THEME_PATH")
 	if themePath != "" {
-		dirs := strings.Split(themePath, string(os.PathListSeparator))
-		for _, dir := range dirs {
+		dirs := strings.SplitSeq(themePath, string(os.PathListSeparator))
+		for dir := range dirs {
 			fullPath := filepath.Join(dir, path)
 			if _, err := os.Stat(fullPath); err == nil {
 				return loadThemeFile(fullPath)

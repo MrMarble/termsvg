@@ -113,10 +113,7 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 		totalDuplicatedFrames := 0
 		for _, frame := range filteredFrames {
 			if frame.Image != nil {
-				count := int(frame.Delay / frameDuration)
-				if count < 1 {
-					count = 1
-				}
+				count := max(int(frame.Delay/frameDuration), 1)
 				totalDuplicatedFrames += count
 			}
 		}
@@ -211,13 +208,12 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 
 			// Calculate how many times to duplicate this frame based on its delay
 			// At 30 FPS, each frame is 33.33ms, so a 500ms delay = 15 frames
-			frameCount := int(frame.Delay / frameDuration)
-			if frameCount < 1 {
-				frameCount = 1 // Minimum 1 frame
-			}
+			frameCount := max(int(frame.Delay/frameDuration),
+				// Minimum 1 frame
+				1)
 
 			// Write the frame multiple times to match the delay
-			for i := 0; i < frameCount; i++ {
+			for range frameCount {
 				_, err := stdin.Write(frame.Image.Pix)
 				if err != nil {
 					return

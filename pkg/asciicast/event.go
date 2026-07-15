@@ -21,7 +21,7 @@ const (
 
 // UnmarshalJSON reads json list as Event fields.
 func (e *Event) UnmarshalJSON(data []byte) error {
-	var v []interface{}
+	var v []any
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON reads json list as Event fields.
 func (e *Event) MarshalJSON() ([]byte, error) {
-	data := [...]interface{}{e.Time, string(e.EventType), e.EventData}
+	data := [...]any{e.Time, string(e.EventType), e.EventData}
 
 	v, err := json.Marshal(data)
 	if err != nil {

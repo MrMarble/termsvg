@@ -46,6 +46,9 @@ linters:
       - linters:
           - errcheck
         text: "Error return value of"
+      - linters:
+          - goconst
+        text: "make it a constant"
   settings:
     errcheck:
       # report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`.

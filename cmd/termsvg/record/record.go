@@ -112,7 +112,7 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 				return
 			}
 
-			for i := 0; i < n; i++ {
+			for i := range n {
 				// Check for Ctrl+P (0x10) to toggle pause
 				if buf[i] == 0x10 {
 					paused.Store(!paused.Load())

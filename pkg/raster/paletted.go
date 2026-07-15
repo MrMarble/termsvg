@@ -53,11 +53,8 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	var wg sync.WaitGroup
 
 	// Start workers - each worker creates its own font face
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+	for range numWorkers {
+		wg.Go(func() {
 			// Create own font face for this worker
 			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
 			if err != nil {
@@ -77,7 +74,7 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	// Send jobs (frame indices)

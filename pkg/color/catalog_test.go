@@ -69,7 +69,7 @@ func TestCatalog_GenerateClassNames(t *testing.T) {
 	palette := Standard()
 
 	// Register multiple colors (16 unique ANSI colors)
-	for i := uint8(0); i < 16; i++ {
+	for i := range uint8(16) {
 		catalog.Register(FromANSI(i), &palette)
 	}
 
@@ -144,7 +144,7 @@ func TestIDGenerator_LongSequence(t *testing.T) {
 	gen := newIDGenerator()
 
 	// Generate 702 names (26 + 26*26) to test rollover to "aaa"
-	for i := 0; i < 702; i++ {
+	for range 702 {
 		gen.Next()
 	}
 

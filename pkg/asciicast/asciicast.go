@@ -33,7 +33,7 @@ type Header struct {
 	Command       string            `json:"command,omitempty"`
 	Title         string            `json:"title,omitempty"`
 	Env           map[string]string `json:"env,omitempty"`
-	Theme         ThemeInfo         `json:"theme,omitempty"`
+	Theme         ThemeInfo         `json:"theme"`
 }
 
 // Cast contains asciicast file data
