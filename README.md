@@ -138,10 +138,10 @@ All code is licensed under the GPL, v3 or later. See [LICENSE](LICENSE) file for
 
 ## ⭐ Stargazers
 
-<a href="https://star-history.com/#mrmarble/termsvg&Date">
+<a href="https://star-history.dera.page/#mrmarble/termsvg&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=mrmarble/termsvg&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=mrmarble/termsvg&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=mrmarble/termsvg&type=Date" />
+    <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=mrmarble/termsvg&type=Date" />
   </picture>
 </a>
