@@ -99,12 +99,15 @@ func writeOutputFile(
 	return errors.Join(writeOutput(ctx, rdr, rec, dst, minifySVG), dst.Close())
 }
 
-//nolint:funlen // sequential export steps are clearer in one function
+//nolint:gocognit,funlen // sequential export steps are clearer in one function
 func (cmd *Cmd) Run() error {
 	format := strings.ToLower(cmd.Format)
 	svgOptions, err := cmd.normalizedSVGOptions(format)
 	if err != nil {
 		return err
+	}
+	if svgOptions.Layout == svg.LayoutRegions || svgOptions.Layout == svg.LayoutAuto {
+		fmt.Fprintf(os.Stderr, "Warning: --svg-layout=%s can take a while on large recordings\n", svgOptions.Layout)
 	}
 
 	output := cmd.Output

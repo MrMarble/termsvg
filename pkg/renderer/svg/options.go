@@ -50,8 +50,9 @@ const (
 	// LayoutScroll converts strictly proven upward-scrolling bands to clipped
 	// vertical tapes and leaves every other band on the lossless snapshot path.
 	LayoutScroll LayoutMode = "scroll"
-	// LayoutAuto measures the concrete frame and band serializations and emits
-	// the smaller one. It is opt-in because it performs an extra render pass.
+	// LayoutAuto measures the concrete frames, bands and regions serializations
+	// and emits the one AutoObjective prefers. It is opt-in because it renders
+	// every candidate, and regions can take a while on large recordings.
 	LayoutAuto LayoutMode = "auto"
 
 	// AnimationCSS emits CSS keyframes.

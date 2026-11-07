@@ -128,6 +128,10 @@ Available options:
 - `--svg-frame-switch=translate|href` - Select translated strips or experimental SMIL `href` switching
 - `--svg-max-fps=<fps>` - Opt into lossy SVG timeline sampling, up to 1000 FPS; `0` preserves every state
 
+`--svg-layout=auto` renders `frames`, `bands` and `regions` and keeps the one
+`--svg-auto-objective` prefers. `regions`, and so `auto`, can take a while on
+large recordings.
+
 The SVG defaults remain `frames`, `css`, `translate`, `0`, `size`, `legacy`, and `snapshots`, so existing exports keep their
 lossless compatibility path. SVG-specific non-default options are rejected for
 GIF and WebM exports.
