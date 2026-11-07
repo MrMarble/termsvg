@@ -1,9 +1,6 @@
 package svg
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
 // LayoutMode selects how changing terminal content is arranged in the SVG.
 type LayoutMode string
@@ -76,6 +73,10 @@ const (
 	PrimitiveSnapshots  PrimitiveMode = "snapshots"
 	PrimitiveRectTracks PrimitiveMode = "rect-tracks"
 )
+
+// maxSVGFPS is the highest accepted MaxFPS. Finer sampling is invisible on
+// any display, and zero already keeps every state.
+const maxSVGFPS = 1000
 
 func (o *Options) usesLocalViewports() bool {
 	return o.Layout == LayoutBands || o.Layout == LayoutRegions || o.Layout == LayoutScroll
@@ -200,8 +201,8 @@ func (o *Options) Validate() error {
 	if o.MaxFPS < 0 {
 		return fmt.Errorf("max SVG FPS must not be negative: %d", o.MaxFPS)
 	}
-	if o.MaxFPS > int(time.Second) {
-		return fmt.Errorf("max SVG FPS is too large: %d", o.MaxFPS)
+	if o.MaxFPS > maxSVGFPS {
+		return fmt.Errorf("max SVG FPS must not exceed %d: %d", maxSVGFPS, o.MaxFPS)
 	}
 	return nil
 }

@@ -42,7 +42,7 @@ type Cmd struct {
 	SVGAutoObjective string        `default:"size" enum:"size,runtime" help:"SVG auto layout objective: size or structural runtime proxies"`
 	SVGStyle         string        `default:"legacy" enum:"legacy,auto" help:"SVG paint encoding: compatibility legacy or measured auto selection"`
 	SVGPrimitives    string        `default:"snapshots" enum:"snapshots,rect-tracks" help:"SVG primitives: snapshots or experimental retained background rectangles"`
-	SVGMaxFPS        int           `default:"0" help:"Maximum SVG timeline FPS; 0 preserves every state"`
+	SVGMaxFPS        int           `default:"0" help:"Maximum SVG timeline FPS, up to 1000; 0 preserves every state"`
 }
 
 func (cmd *Cmd) normalizedSVGOptions(format string) (svg.Options, error) {

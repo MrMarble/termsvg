@@ -3,7 +3,6 @@ package svg
 
 import (
 	"testing"
-	"time"
 
 	"github.com/mrmarble/termsvg/pkg/renderer"
 )
@@ -65,12 +64,7 @@ func TestRendererOptionsValidation(t *testing.T) {
 		{name: "style", options: Options{Layout: LayoutFrames, Animation: AnimationCSS, Style: "compact"}},
 		{name: "runtime requires auto", options: Options{Layout: LayoutFrames, Animation: AnimationCSS, AutoObjective: AutoObjectiveRuntime}},
 		{name: "negative FPS", options: Options{Layout: LayoutFrames, Animation: AnimationCSS, MaxFPS: -1}},
-		{
-			name: "zero duration bucket",
-			options: Options{
-				Layout: LayoutFrames, Animation: AnimationCSS, MaxFPS: int(time.Second) + 1,
-			},
-		},
+		{name: "FPS above limit", options: Options{Layout: LayoutFrames, Animation: AnimationCSS, MaxFPS: maxSVGFPS + 1}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -78,6 +72,10 @@ func TestRendererOptionsValidation(t *testing.T) {
 				t.Fatalf("Validate(%#v) succeeded", test.options)
 			}
 		})
+	}
+	limit := Options{Layout: LayoutFrames, Animation: AnimationCSS, MaxFPS: maxSVGFPS}
+	if err := limit.Validate(); err != nil {
+		t.Fatalf("Validate(%#v) error = %v", limit, err)
 	}
 }
 

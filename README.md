@@ -126,7 +126,7 @@ Available options:
 - `--svg-primitives=snapshots|rect-tracks` - Keep snapshots (default) or retain strictly identified, byte-profitable background rectangles; tracks require SMIL with `regions` or `scroll`
 - `--svg-animation=css|smil` - Select CSS keyframes or the experimental discrete SMIL backend
 - `--svg-frame-switch=translate|href` - Select translated strips or experimental SMIL `href` switching
-- `--svg-max-fps=<fps>` - Opt into lossy SVG timeline sampling; `0` preserves every state
+- `--svg-max-fps=<fps>` - Opt into lossy SVG timeline sampling, up to 1000 FPS; `0` preserves every state
 
 The SVG defaults remain `frames`, `css`, `translate`, `0`, `size`, `legacy`, and `snapshots`, so existing exports keep their
 lossless compatibility path. SVG-specific non-default options are rejected for
