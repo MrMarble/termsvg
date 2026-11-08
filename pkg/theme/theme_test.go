@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-const testPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
+const testPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
+	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
 
 func TestDefault(t *testing.T) {
 	th := Default()
@@ -33,7 +34,10 @@ func TestFromAsciinema(t *testing.T) {
 		{name: "bad fg", fg: "zzz", bg: "#000", palette: testPalette, wantErr: "foreground"},
 		{name: "bad bg", fg: "#fff", bg: "12", palette: testPalette, wantErr: "background"},
 		{name: "wrong palette size", fg: "#fff", bg: "#000", palette: "#000:#fff", wantErr: "16 colors"},
-		{name: "bad palette color", fg: "#fff", bg: "#000", palette: strings.Replace(testPalette, "#111111", "#11111g", 1), wantErr: "palette color 1"},
+		{
+			name: "bad palette color", fg: "#fff", bg: "#000",
+			palette: strings.Replace(testPalette, "#111111", "#11111g", 1), wantErr: "palette color 1",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

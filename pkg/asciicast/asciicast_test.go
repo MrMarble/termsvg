@@ -87,7 +87,11 @@ func TestUnmarshal(t *testing.T) {
 		wantDuration float64
 	}{
 		{name: "valid", in: sampleCast, wantEvents: 3, wantDuration: 3.5},
-		{name: "explicit duration kept", in: `{"version":2,"width":1,"height":1,"duration":9}` + "\n[1,\"o\",\"x\"]", wantEvents: 1, wantDuration: 9},
+		{
+			name:       "explicit duration kept",
+			in:         `{"version":2,"width":1,"height":1,"duration":9}` + "\n[1,\"o\",\"x\"]",
+			wantEvents: 1, wantDuration: 9,
+		},
 		{name: "empty input", in: "", wantErr: true},
 		{name: "header only", in: `{"version":2,"width":1,"height":1}`, wantErr: true},
 		{name: "invalid header json", in: "{nope\n[1,\"o\",\"x\"]", wantErr: true},

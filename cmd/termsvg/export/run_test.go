@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-const runTestPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
+const runTestPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
+	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
 
 const runTestCast = `{"version":2,"width":20,"height":5}
 [0.1,"o","hello"]
@@ -104,7 +105,8 @@ func TestCmd_Run_Themes(t *testing.T) {
 	dir := t.TempDir()
 	plain := writeRunFile(t, dir, "plain.cast", runTestCast)
 	withTheme := writeRunFile(t, dir, "themed.cast",
-		`{"version":2,"width":20,"height":5,"theme":{"fg":"#112233","bg":"#445566","palette":"`+runTestPalette+`"}}`+"\n[0.1,\"o\",\"x\"]\n")
+		`{"version":2,"width":20,"height":5,`+
+			`"theme":{"fg":"#112233","bg":"#445566","palette":"`+runTestPalette+`"}}`+"\n[0.1,\"o\",\"x\"]\n")
 	badTheme := writeRunFile(t, dir, "badtheme.cast",
 		`{"version":2,"width":20,"height":5,"theme":{"fg":"zz","bg":"#445566","palette":"x"}}`+"\n[0.1,\"o\",\"x\"]\n")
 	themeFile := writeRunFile(t, dir, "mine.json", `{"fg":"#aabbcc","bg":"#010203","palette":"`+runTestPalette+`"}`)
@@ -157,7 +159,9 @@ func TestCmd_Run_Errors(t *testing.T) {
 			c.SVGLayout = "bands"
 			return c
 		}},
-		{name: "missing input", build: func() *Cmd { return newCmd(filepath.Join(dir, "none.cast"), filepath.Join(dir, "o.svg"), "svg") }},
+		{name: "missing input", build: func() *Cmd {
+			return newCmd(filepath.Join(dir, "none.cast"), filepath.Join(dir, "o.svg"), "svg")
+		}},
 		{name: "unparsable input", build: func() *Cmd { return newCmd(bad, filepath.Join(dir, "o.svg"), "svg") }},
 		{name: "unwritable output", build: func() *Cmd { return newCmd(good, filepath.Join(dir, "no-dir", "o.svg"), "svg") }},
 		{name: "unsupported format", build: func() *Cmd { return newCmd(good, filepath.Join(dir, "o.xyz"), "xyz") }},

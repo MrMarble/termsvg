@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-const validPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
+const validPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
+	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
 
 func TestColorToGo(t *testing.T) {
 	tests := []struct {

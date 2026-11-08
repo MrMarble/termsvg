@@ -48,6 +48,17 @@ func parse(t *testing.T) *asciicast.Cast {
 	return c
 }
 
+// mustPlayback plays the test cast, failing the test on error, and returns stdout.
+func mustPlayback(t *testing.T, speed float64, maxIdle time.Duration) string {
+	t.Helper()
+	var err error
+	out := captureStdout(t, func() { err = playback(parse(t), speed, maxIdle) })
+	if err != nil {
+		t.Fatalf("playback() error = %v", err)
+	}
+	return out
+}
+
 func TestPlayback_PrintsAllEventsInOrder(t *testing.T) {
 	var err error
 	out := captureStdout(t, func() { err = playback(parse(t), 100, 0) })
@@ -61,7 +72,7 @@ func TestPlayback_PrintsAllEventsInOrder(t *testing.T) {
 
 func TestPlayback_SpeedShortensDuration(t *testing.T) {
 	start := time.Now()
-	captureStdout(t, func() { _ = playback(parse(t), 50, 0) })
+	mustPlayback(t, 50, 0)
 	if d := time.Since(start); d > 400*time.Millisecond {
 		t.Errorf("playback at 50x took %v, expected well under the 500ms real duration", d)
 	}
@@ -69,7 +80,7 @@ func TestPlayback_SpeedShortensDuration(t *testing.T) {
 
 func TestPlayback_MaxIdleCapsGaps(t *testing.T) {
 	start := time.Now()
-	out := captureStdout(t, func() { _ = playback(parse(t), 1, 20*time.Millisecond) })
+	out := mustPlayback(t, 1, 20*time.Millisecond)
 	d := time.Since(start)
 	if out != "abc" {
 		t.Errorf("output = %q", out)
@@ -81,7 +92,7 @@ func TestPlayback_MaxIdleCapsGaps(t *testing.T) {
 
 func TestPlayback_RespectsRealTiming(t *testing.T) {
 	start := time.Now()
-	captureStdout(t, func() { _ = playback(parse(t), 1, 0) })
+	mustPlayback(t, 1, 0)
 	if d := time.Since(start); d < 450*time.Millisecond {
 		t.Errorf("playback finished too early: %v", d)
 	}

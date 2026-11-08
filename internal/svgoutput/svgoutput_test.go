@@ -8,6 +8,20 @@ import (
 	"testing"
 )
 
+type failWriter struct{ n int }
+
+type shortWriter struct{}
+
+func (f *failWriter) Write(p []byte) (int, error) {
+	if f.n == 0 {
+		return 0, errors.New("write failed")
+	}
+	f.n--
+	return len(p), nil
+}
+
+func (shortWriter) Write([]byte) (int, error) { return 0, nil }
+
 func TestWrite_MinifiesAndRestoresSpaces(t *testing.T) {
 	var out bytes.Buffer
 	err := Write(&out, func(w io.Writer) error {
@@ -67,20 +81,6 @@ func TestNBSPWriter(t *testing.T) {
 		})
 	}
 }
-
-type failWriter struct{ n int }
-
-func (f *failWriter) Write(p []byte) (int, error) {
-	if f.n == 0 {
-		return 0, errors.New("write failed")
-	}
-	f.n--
-	return len(p), nil
-}
-
-type shortWriter struct{}
-
-func (shortWriter) Write([]byte) (int, error) { return 0, nil }
 
 func TestNBSPWriter_Errors(t *testing.T) {
 	t.Run("underlying error", func(t *testing.T) {

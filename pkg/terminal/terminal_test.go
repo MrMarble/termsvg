@@ -7,6 +7,8 @@ import (
 	"github.com/mrmarble/termsvg/pkg/color"
 )
 
+var defaultColor = color.Color{Type: color.Default}
+
 func write(t *testing.T, e *Emulator, s string) {
 	t.Helper()
 	if _, err := e.Write([]byte(s)); err != nil {
@@ -94,13 +96,13 @@ func TestEmulator_Cell_Colors(t *testing.T) {
 		wantFG color.Color
 		wantBG color.Color
 	}{
-		{name: "default", input: "X", wantFG: color.Color{Type: color.Default}, wantBG: color.Color{Type: color.Default}},
-		{name: "ansi fg", input: "\x1b[31mX", wantFG: color.FromANSI(1), wantBG: color.Color{Type: color.Default}},
-		{name: "ansi bg", input: "\x1b[42mX", wantFG: color.Color{Type: color.Default}, wantBG: color.FromANSI(2)},
-		{name: "bright fg", input: "\x1b[91mX", wantFG: color.FromANSI(9), wantBG: color.Color{Type: color.Default}},
-		{name: "extended fg", input: "\x1b[38;5;200mX", wantFG: color.FromExtended(200), wantBG: color.Color{Type: color.Default}},
-		{name: "truecolor fg", input: "\x1b[38;2;10;20;30mX", wantFG: color.FromRGB(10, 20, 30), wantBG: color.Color{Type: color.Default}},
-		{name: "truecolor bg", input: "\x1b[48;2;1;2;3mX", wantFG: color.Color{Type: color.Default}, wantBG: color.FromRGB(1, 2, 3)},
+		{name: "default", input: "X", wantFG: defaultColor, wantBG: defaultColor},
+		{name: "ansi fg", input: "\x1b[31mX", wantFG: color.FromANSI(1), wantBG: defaultColor},
+		{name: "ansi bg", input: "\x1b[42mX", wantFG: defaultColor, wantBG: color.FromANSI(2)},
+		{name: "bright fg", input: "\x1b[91mX", wantFG: color.FromANSI(9), wantBG: defaultColor},
+		{name: "extended fg", input: "\x1b[38;5;200mX", wantFG: color.FromExtended(200), wantBG: defaultColor},
+		{name: "truecolor fg", input: "\x1b[38;2;10;20;30mX", wantFG: color.FromRGB(10, 20, 30), wantBG: defaultColor},
+		{name: "truecolor bg", input: "\x1b[48;2;1;2;3mX", wantFG: defaultColor, wantBG: color.FromRGB(1, 2, 3)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

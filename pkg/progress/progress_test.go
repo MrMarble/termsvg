@@ -27,7 +27,7 @@ func TestReporter_ProcessesPhasesAndFinishes(t *testing.T) {
 	}
 }
 
-func TestReporter_NoUpdates(t *testing.T) {
+func TestReporter_NoUpdates(_ *testing.T) {
 	r, ch := New()
 	r.Start()
 	close(ch)
