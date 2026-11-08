@@ -96,18 +96,19 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 	}()
 
 	// Set stdin to raw mode
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	stdin := os.Stdin
+	oldState, err := term.MakeRaw(int(stdin.Fd()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set raw mode: %w", err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	defer term.Restore(int(stdin.Fd()), oldState)
 
 	// Copy stdin to the PTY with pause support
 	var paused atomic.Bool
 	go func() {
 		buf := make([]byte, readSize)
 		for {
-			n, err := os.Stdin.Read(buf)
+			n, err := stdin.Read(buf)
 			if err != nil {
 				return
 			}
