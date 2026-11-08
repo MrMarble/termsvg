@@ -2,6 +2,7 @@ package export
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -86,6 +87,11 @@ func TestCmd_Run_OtherFormats(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.format, func(t *testing.T) {
+			if tt.format == "webm" {
+				if _, err := exec.LookPath("ffmpeg"); err != nil {
+					t.Skip("ffmpeg not installed")
+				}
+			}
 			out := filepath.Join(t.TempDir(), "out."+tt.format)
 			if err := newCmd(in, out, tt.format).Run(); err != nil {
 				t.Fatalf("Run() error = %v", err)
