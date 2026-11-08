@@ -110,6 +110,7 @@ func TestAutoStylePreservesPreparedSemantics(t *testing.T) {
 }
 
 func TestSemanticPlaybackParityDeterministicRandomRecordings(t *testing.T) {
+	t.Parallel()
 	rng := rand.New(rand.NewSource(0x5445524d535647)) //nolint:gosec // deterministic test coverage
 	for i := range 64 {
 		rec := randomParityRecording(rng)

@@ -7,6 +7,7 @@ package asciicast
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"os"
@@ -97,6 +98,10 @@ func Unmarshal(data []byte) (*Cast, error) {
 		return nil, err
 	}
 
+	if len(cast.Events) == 0 {
+		return nil, errors.New("asciicast: recording has no events")
+	}
+
 	// Duration field isn't required as v2 documentation but is needed for exporting purposes.
 	if cast.Header.Duration == 0 {
 		cast.Header.Duration = cast.Events[len(cast.Events)-1].Time
@@ -169,7 +174,7 @@ func (c *Cast) Compress() {
 // This function parses the file line by line to circumvent that.
 func (c *Cast) fromJSON(data string) error {
 	lines := strings.Split(data, "\n")
-	if lines[0][0] == '{' {
+	if strings.HasPrefix(lines[0], "{") {
 		err := json.Unmarshal([]byte(lines[0]), &c.Header)
 		if err != nil {
 			return err

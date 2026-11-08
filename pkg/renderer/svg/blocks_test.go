@@ -141,6 +141,7 @@ func TestBlockSharingAnchorsAtMostFrequentPosition(t *testing.T) {
 }
 
 func TestBlockSharingPreservesSemanticsAcrossLayouts(t *testing.T) {
+	t.Parallel()
 	for name, rec := range map[string]*ir.Recording{"box": boxRecording(6), "pair": pairRecording()} {
 		for _, variant := range parityOptions {
 			t.Run(name+"/"+variant.name, func(t *testing.T) { assertSemanticParity(t, rec, variant.options...) })
@@ -154,6 +155,7 @@ func TestBlockSharingPreservesSemanticsAcrossLayouts(t *testing.T) {
 }
 
 func TestBlockSharingMetricsMatchSerializedStructure(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range []struct {
 		name         string
 		rec          *ir.Recording
