@@ -70,10 +70,11 @@ func TestParseThemeFile(t *testing.T) {
 			t.Errorf("error = %v", err)
 		}
 	})
+	badPalette := strings.Replace(validPalette, "#111111", "#11111g", 1)
 	for name, theme := range map[string]string{
 		"invalid fg":      `{"fg":"zz","bg":"#000","palette":"` + validPalette + `"}`,
 		"invalid bg":      `{"fg":"#fff","bg":"12","palette":"` + validPalette + `"}`,
-		"invalid palette": `{"fg":"#fff","bg":"#000","palette":"` + strings.Replace(validPalette, "#111111", "#11111g", 1) + `"}`,
+		"invalid palette": `{"fg":"#fff","bg":"#000","palette":"` + badPalette + `"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := parseThemeFile(write(strings.ReplaceAll(name, " ", "-")+".json", theme)); err == nil {
