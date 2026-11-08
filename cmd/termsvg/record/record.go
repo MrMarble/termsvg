@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/mrmarble/termsvg/pkg/asciicast"
+	"github.com/mrmarble/termsvg/internal/asciicast"
 	"golang.org/x/term"
 )
 
