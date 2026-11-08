@@ -1,10 +1,13 @@
 package ir
 
 import (
+	"image/color"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
+	termcolor "github.com/mrmarble/termsvg/pkg/color"
 )
 
 func TestProcessor_Process(t *testing.T) {
@@ -154,6 +157,91 @@ func TestProcessor_IdleTimeCap(t *testing.T) {
 	}
 }
 
+//nolint:funlen // table cases keep idle-time edge conditions together.
+func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
+	tests := []struct {
+		name   string
+		config func(*ProcessorConfig)
+		events []asciicast.Event
+		want   []float64
+	}{
+		{
+			name: "multiple long gaps",
+			config: func(config *ProcessorConfig) {
+				config.IdleTimeLimit = 2 * time.Second
+			},
+			events: []asciicast.Event{
+				{Time: 0}, {Time: 10}, {Time: 20}, {Time: 21},
+			},
+			want: []float64{0, 2, 4, 5},
+		},
+		{
+			name: "gap equal to limit",
+			config: func(config *ProcessorConfig) {
+				config.IdleTimeLimit = 2 * time.Second
+			},
+			events: []asciicast.Event{
+				{Time: 0}, {Time: 2}, {Time: 4},
+			},
+			want: []float64{0, 2, 4},
+		},
+		{
+			name: "decimal gap below limit",
+			config: func(config *ProcessorConfig) {
+				config.IdleTimeLimit = 100 * time.Millisecond
+			},
+			events: []asciicast.Event{
+				{Time: 0}, {Time: math.Nextafter(0.1, 0)},
+			},
+			want: []float64{0, math.Nextafter(0.1, 0)},
+		},
+		{
+			name: "decimal gap above limit",
+			config: func(config *ProcessorConfig) {
+				config.IdleTimeLimit = 100 * time.Millisecond
+			},
+			events: []asciicast.Event{
+				{Time: 0}, {Time: math.Nextafter(0.1, math.Inf(1))},
+			},
+			want: []float64{0, 0.1},
+		},
+		{
+			name: "speed before capping",
+			config: func(config *ProcessorConfig) {
+				config.Speed = 2
+				config.IdleTimeLimit = 2 * time.Second
+			},
+			events: []asciicast.Event{
+				{Time: 0}, {Time: 10}, {Time: 14},
+			},
+			want: []float64{0, 2, 4},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := DefaultProcessorConfig()
+			config.Compress = false
+			tt.config(config)
+			cast := &asciicast.Cast{Events: tt.events}
+			sourceEvents := append([]asciicast.Event(nil), tt.events...)
+
+			got := NewProcessor(config).preprocessEvents(cast)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d events, want %d", len(got), len(tt.want))
+			}
+			for i, want := range tt.want {
+				if got[i].Time != want {
+					t.Errorf("event %d time = %v, want %v", i, got[i].Time, want)
+				}
+				if cast.Events[i] != sourceEvents[i] {
+					t.Errorf("source event %d = %#v, want unchanged %#v", i, cast.Events[i], sourceEvents[i])
+				}
+			}
+		})
+	}
+}
+
 func TestTextRunGrouping(t *testing.T) {
 	cast := &asciicast.Cast{
 		Header: asciicast.Header{
@@ -192,6 +280,61 @@ func TestTextRunGrouping(t *testing.T) {
 	}
 }
 
+func TestProcessor_TextRunCellExtents(t *testing.T) {
+	cast := &asciicast.Cast{
+		Header: asciicast.Header{Version: 2, Width: 10, Height: 1},
+		Events: []asciicast.Event{
+			{Time: 0, EventType: asciicast.Output, EventData: "ab\x1b[31mc"},
+		},
+	}
+
+	recording, err := NewProcessor(DefaultProcessorConfig()).Process(cast)
+	if err != nil {
+		t.Fatalf("Process() error = %v", err)
+	}
+
+	runs := recording.Frames[0].Rows[0].Runs
+	if len(runs) != 2 {
+		t.Fatalf("got %d runs, want 2: %#v", len(runs), runs)
+	}
+	if got, want := runs[0].EndCol, 2; got != want {
+		t.Errorf("first EndCol = %d, want %d", got, want)
+	}
+	if got, want := runs[1].StartCol, runs[0].EndCol; got != want {
+		t.Errorf("adjacent boundary = %d, want %d", got, want)
+	}
+	if got, want := runs[1].EndCol, 3; got != want {
+		t.Errorf("second EndCol = %d, want %d", got, want)
+	}
+}
+
+func TestCleanRuns_TrimTrailingSpacesUpdatesEndCol(t *testing.T) {
+	catalog := termcolor.NewCatalog(color.RGBA{R: 255, G: 255, B: 255, A: 255}, color.RGBA{A: 255})
+	runs := []TextRun{{Text: "text  ", StartCol: 3, EndCol: 9}}
+
+	got := cleanRuns(runs, catalog)
+	if got[0].Text != "text" || got[0].EndCol != 7 {
+		t.Fatalf("cleanRuns() = %#v, want trimmed run ending at column 7", got)
+	}
+}
+
+func TestTextRunsEqual_IncludesEndCol(t *testing.T) {
+	a := TextRun{Text: "same", StartCol: 3, EndCol: 7}
+	b := a
+	b.EndCol = 8
+
+	if textRunsEqual(&a, &b) {
+		t.Fatal("textRunsEqual() ignored EndCol")
+	}
+}
+
+func TestTextRun_ExplicitWideCellExtent(t *testing.T) {
+	run := TextRun{Text: "界", StartCol: 3, EndCol: 5}
+	if got, want := run.EndCol-run.StartCol, 2; got != want {
+		t.Errorf("cell extent = %d, want %d", got, want)
+	}
+}
+
 func TestAttrsEqual(t *testing.T) {
 	a := CellAttrs{FG: 1, BG: 2, Bold: true}
 	b := CellAttrs{FG: 1, BG: 2, Bold: true}
@@ -202,5 +345,39 @@ func TestAttrsEqual(t *testing.T) {
 	}
 	if attrsEqual(a, c) {
 		t.Error("Different attrs should not be equal")
+	}
+}
+
+func TestFramesEqual_CursorChange(t *testing.T) {
+	rows := []Row{{Y: 0, Runs: []TextRun{{Text: "same"}}}}
+	base := Frame{Rows: rows, Cursor: Cursor{Col: 4, Row: 0, Visible: true}}
+	tests := []struct {
+		name   string
+		cursor Cursor
+	}{
+		{name: "position", cursor: Cursor{Col: 5, Row: 0, Visible: true}},
+		{name: "visibility", cursor: Cursor{Col: 4, Row: 0, Visible: false}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			changed := Frame{Rows: rows, Cursor: tt.cursor}
+			if framesEqual(&base, &changed) {
+				t.Fatal("framesEqual() ignored a cursor change")
+			}
+		})
+	}
+}
+
+func TestCleanRuns_PreservesUnderlinedWhitespace(t *testing.T) {
+	catalog := termcolor.NewCatalog(
+		color.RGBA{R: 255, G: 255, B: 255, A: 255},
+		color.RGBA{A: 255},
+	)
+	runs := []TextRun{{Text: "   ", Attrs: CellAttrs{Underline: true}}}
+
+	got := cleanRuns(runs, catalog)
+	if len(got) != 1 || got[0].Text != "   " {
+		t.Fatalf("cleanRuns() = %#v, want visible underlined spaces", got)
 	}
 }

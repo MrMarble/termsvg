@@ -82,6 +82,9 @@ type TextRun struct {
 	// StartCol is the starting column (0-indexed)
 	StartCol int
 
+	// EndCol is the exclusive terminal-cell column.
+	EndCol int
+
 	// Attrs holds the visual attributes for this run
 	Attrs CellAttrs
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90">
+  <rect width="100%" height="100%" fill="#000000"/>
+  <defs><clipPath id="clip"><rect width="120" height="50"/></clipPath></defs>
+  <g transform="translate(20,20)" clip-path="url(#clip)" fill="#FFFFFF">
+    <style>text{font-family:monospace;font-size:14px;white-space:pre}.a{fill:#28323C}.b{font-weight:bold;text-decoration:underline}</style>
+    <rect class="a" width="72" height="25"/>
+    <text y="20" class="b">TermSVG</text>
+  </g>
+</svg>

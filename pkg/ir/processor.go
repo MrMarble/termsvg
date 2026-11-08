@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"strings"
 	"time"
 
 	"github.com/mrmarble/termsvg/pkg/asciicast"
@@ -86,14 +87,19 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		prevTime = frameTime
 	}
 
-	// 5. Deduplicate consecutive identical frames
+	// 5. Clean up frames: strip empty rows and trim trailing whitespace
+	for i := range frames {
+		frames[i].Rows = cleanRows(frames[i].Rows, catalog)
+	}
+
+	// 6. Deduplicate consecutive identical frames, including cursor state
 	frames = deduplicateFrames(frames)
 
-	// 6. Finalize statistics
+	// 7. Finalize statistics
 	stats.TotalFrames = len(frames)
 	stats.UniqueColors = catalog.Count()
 
-	// 6. Calculate duration
+	// 8. Calculate duration
 	var duration time.Duration
 	if len(frames) > 0 {
 		duration = frames[len(frames)-1].Time
@@ -171,6 +177,7 @@ func (p *Processor) captureRow(
 				runs = append(runs, TextRun{
 					Text:     string(current.chars),
 					StartCol: current.startX,
+					EndCol:   x,
 					Attrs:    current.attrs,
 				})
 			}
@@ -188,6 +195,7 @@ func (p *Processor) captureRow(
 		runs = append(runs, TextRun{
 			Text:     string(current.chars),
 			StartCol: current.startX,
+			EndCol:   term.Width(),
 			Attrs:    current.attrs,
 		})
 	}
@@ -250,16 +258,15 @@ func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
 		}
 	}
 
-	// Cap idle time (requires conversion to relative, cap, convert back)
+	// Keep the legacy O(n²) update order to preserve exact float64 rounding.
+	// Replace it only with a bit-exact linear algorithm if large casts become slow.
 	if p.config.IdleTimeLimit > 0 {
 		limit := p.config.IdleTimeLimit.Seconds()
 		prev := 0.0
 		for i := range events {
 			delay := events[i].Time - prev
 			if delay > limit {
-				// Reduce by the excess
 				reduction := delay - limit
-				// Shift this and all subsequent events
 				for j := i; j < len(events); j++ {
 					events[j].Time -= reduction
 				}
@@ -303,6 +310,47 @@ func floatSecondsToDuration(seconds float64) time.Duration {
 	return time.Duration(seconds * float64(time.Second))
 }
 
+// cleanRows strips empty rows and trims trailing whitespace from runs.
+func cleanRows(rows []Row, catalog *color.Catalog) []Row {
+	cleaned := make([]Row, 0, len(rows))
+	for _, row := range rows {
+		row.Runs = cleanRuns(row.Runs, catalog)
+		if len(row.Runs) > 0 {
+			cleaned = append(cleaned, row)
+		}
+	}
+	return cleaned
+}
+
+// cleanRuns removes invisible runs and trims trailing whitespace.
+func cleanRuns(runs []TextRun, catalog *color.Catalog) []TextRun {
+	cleaned := make([]TextRun, 0, len(runs))
+	for _, run := range runs {
+		if run.Text == "" {
+			continue
+		}
+		if strings.TrimSpace(run.Text) == "" && catalog.IsDefault(run.Attrs.BG) && !run.Attrs.Underline {
+			continue
+		}
+		cleaned = append(cleaned, run)
+	}
+
+	// Trim trailing whitespace from the last run (if default BG)
+	if n := len(cleaned); n > 0 {
+		last := &cleaned[n-1]
+		if catalog.IsDefault(last.Attrs.BG) && !last.Attrs.Underline {
+			trimmed := strings.TrimRight(last.Text, " ")
+			last.EndCol -= len(last.Text) - len(trimmed)
+			last.Text = trimmed
+			if last.Text == "" {
+				cleaned = cleaned[:n-1]
+			}
+		}
+	}
+
+	return cleaned
+}
+
 // deduplicateFrames removes consecutive identical frames and consolidates their delays.
 // This optimizes the recording by eliminating redundant frames.
 func deduplicateFrames(frames []Frame) []Frame {
@@ -342,9 +390,8 @@ func deduplicateFrames(frames []Frame) []Frame {
 	return deduped
 }
 
-// framesEqual compares two frames for equality (content only, not timing).
+// framesEqual compares visible frame content, including the cursor, not timing.
 func framesEqual(a, b *Frame) bool {
-	// Compare cursor state
 	if a.Cursor != b.Cursor {
 		return false
 	}
@@ -387,5 +434,6 @@ func rowsEqual(a, b *Row) bool {
 func textRunsEqual(a, b *TextRun) bool {
 	return a.Text == b.Text &&
 		a.StartCol == b.StartCol &&
+		a.EndCol == b.EndCol &&
 		a.Attrs == b.Attrs
 }
