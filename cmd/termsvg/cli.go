@@ -9,23 +9,8 @@ import (
 	"github.com/mrmarble/termsvg/cmd/termsvg/play"
 )
 
-// Version info (populated by goreleaser).
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
-
 // VersionFlag prints version information and exits when set.
 type VersionFlag string
-
-func (v VersionFlag) Decode(_ *kong.DecodeContext) error { return nil }
-func (v VersionFlag) IsBool() bool                       { return true }
-func (v VersionFlag) BeforeApply(app *kong.Kong) error {
-	fmt.Fprintf(app.Stdout, "termsvg %s (%s) built on %s\n", version, commit, date)
-	app.Exit(0)
-	return nil
-}
 
 // CLI is the termsvg command tree. Commands that are not available on every
 // platform live in platformCommands.
@@ -36,6 +21,21 @@ type CLI struct {
 	Export export.Cmd `cmd:"" help:"Export asciicast to SVG"`
 
 	platformCommands `embed:""`
+}
+
+// Version info (populated by goreleaser).
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+func (v VersionFlag) Decode(_ *kong.DecodeContext) error { return nil }
+func (v VersionFlag) IsBool() bool                       { return true }
+func (v VersionFlag) BeforeApply(app *kong.Kong) error {
+	fmt.Fprintf(app.Stdout, "termsvg %s (%s) built on %s\n", version, commit, date)
+	app.Exit(0)
+	return nil
 }
 
 // run parses args and executes the selected command. exit is called when the

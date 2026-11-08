@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+type exitSignal struct{}
+
 // runCLI runs the CLI with captured output and records the exit code the
 // parser requested, if any.
 func runCLI(t *testing.T, args ...string) (stdout, stderr string, exitCode int, err error) {
@@ -31,8 +33,6 @@ func runCLI(t *testing.T, args ...string) (stdout, stderr string, exitCode int, 
 	return out.String(), errOut.String(), exitCode, err
 }
 
-type exitSignal struct{}
-
 func TestRun_Version(t *testing.T) {
 	out, _, code, err := runCLI(t, "--version")
 	if err != nil {
@@ -47,7 +47,10 @@ func TestRun_Version(t *testing.T) {
 }
 
 func TestRun_Help(t *testing.T) {
-	out, _, code, _ := runCLI(t, "--help")
+	out, _, code, err := runCLI(t, "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
 	}
