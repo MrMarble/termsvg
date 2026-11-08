@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 project_name: termsvg
 
@@ -49,13 +49,13 @@ builds:
     main: ./cmd/termsvg
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     wrap_in_directory: true
     format_overrides:
       - goos: darwin
-        format: zip
+        formats: [zip]
       - goos: windows
-        format: zip
+        formats: [zip]
     name_template: '{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     files:
       - LICENSE
@@ -65,7 +65,7 @@ checksum:
   name_template: '{{ .ProjectName }}-{{ .Version }}-checksums.txt'
 
 snapshot:
-  name_template: SNAPSHOT-{{ .Commit }}
+  version_template: SNAPSHOT-{{ .Commit }}
 
 changelog:
   sort: asc
