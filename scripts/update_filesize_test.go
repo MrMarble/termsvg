@@ -13,6 +13,8 @@ func TestUpdateFilesizeUsesConventionalReduction(t *testing.T) {
 	mustRun(t, dir, "git", "init", "-q")
 	mustRun(t, dir, "git", "config", "user.name", "Test")
 	mustRun(t, dir, "git", "config", "user.email", "test@example.com")
+	// Keep the fixture repo hermetic: ignore the user's global signing config.
+	mustRun(t, dir, "git", "config", "commit.gpgsign", "false")
 	if err := os.Mkdir(filepath.Join(dir, "examples"), 0o750); err != nil {
 		t.Fatal(err)
 	}
