@@ -140,7 +140,7 @@ GIF and WebM exports.
 group. This keeps window decoration and resources outside the inheritance
 boundary, but it does not isolate inline SVG from host-page CSS. Standalone,
 neutral-inline, broad-host-rule, `<img>`, and `<object>` fixtures are in
-[`pkg/renderer/svg/testdata/browser`](pkg/renderer/svg/testdata/browser).
+[`internal/renderer/svg/testdata/browser`](internal/renderer/svg/testdata/browser).
 They are embedding checks, not a Safari performance claim.
 
 ## Example

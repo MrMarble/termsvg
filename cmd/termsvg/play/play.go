@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mrmarble/termsvg/pkg/asciicast"
+	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
 type Cmd struct {

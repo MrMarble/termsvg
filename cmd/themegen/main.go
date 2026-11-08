@@ -51,7 +51,7 @@ package theme
 import (
 	"image/color"
 
-	termcolor "github.com/mrmarble/termsvg/pkg/color"
+	termcolor "github.com/mrmarble/termsvg/internal/color"
 )
 
 // builtinThemes is a registry of all built-in themes.
@@ -124,7 +124,7 @@ func main() {
 	// Find themes directory
 	themesDir := "themes"
 	if _, err := os.Stat(themesDir); os.IsNotExist(err) {
-		// Try from pkg/theme directory
+		// Try from internal/theme directory
 		themesDir = "../../themes"
 		if _, err := os.Stat(themesDir); os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "Error: themes directory not found\n")
@@ -160,8 +160,8 @@ func main() {
 	}
 
 	// Generate output file
-	outputFile := "pkg/theme/builtin.go"
-	if _, err := os.Stat("pkg/theme"); os.IsNotExist(err) {
+	outputFile := "internal/theme/builtin.go"
+	if _, err := os.Stat("internal/theme"); os.IsNotExist(err) {
 		outputFile = "builtin.go"
 	}
 

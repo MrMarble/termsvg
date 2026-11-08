@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mrmarble/termsvg/internal/asciicast"
+	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/progress"
+	"github.com/mrmarble/termsvg/internal/renderer"
+	"github.com/mrmarble/termsvg/internal/renderer/gif"
+	"github.com/mrmarble/termsvg/internal/renderer/svg"
+	"github.com/mrmarble/termsvg/internal/renderer/webm"
 	"github.com/mrmarble/termsvg/internal/svgoutput"
-	"github.com/mrmarble/termsvg/pkg/asciicast"
-	"github.com/mrmarble/termsvg/pkg/ir"
-	"github.com/mrmarble/termsvg/pkg/progress"
-	"github.com/mrmarble/termsvg/pkg/renderer"
-	"github.com/mrmarble/termsvg/pkg/renderer/gif"
-	"github.com/mrmarble/termsvg/pkg/renderer/svg"
-	"github.com/mrmarble/termsvg/pkg/renderer/webm"
-	"github.com/mrmarble/termsvg/pkg/theme"
+	"github.com/mrmarble/termsvg/internal/theme"
 )
 
 type Cmd struct {

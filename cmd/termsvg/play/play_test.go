@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mrmarble/termsvg/pkg/asciicast"
+	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
 const testCast = `{"version":2,"width":80,"height":24}

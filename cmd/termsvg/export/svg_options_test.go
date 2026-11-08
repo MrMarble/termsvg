@@ -4,7 +4,7 @@ package export
 import (
 	"testing"
 
-	"github.com/mrmarble/termsvg/pkg/renderer/svg"
+	"github.com/mrmarble/termsvg/internal/renderer/svg"
 )
 
 func TestNormalizedSVGOptions(t *testing.T) {

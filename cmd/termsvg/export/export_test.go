@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	termcolor "github.com/mrmarble/termsvg/internal/color"
+	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/renderer"
+	"github.com/mrmarble/termsvg/internal/renderer/svg"
 	"github.com/mrmarble/termsvg/internal/svgoutput"
-	termcolor "github.com/mrmarble/termsvg/pkg/color"
-	"github.com/mrmarble/termsvg/pkg/ir"
-	"github.com/mrmarble/termsvg/pkg/renderer"
-	"github.com/mrmarble/termsvg/pkg/renderer/svg"
 )
 
 type rendererFunc func(io.Writer) error

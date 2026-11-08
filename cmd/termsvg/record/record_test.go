@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/creack/pty"
-	"github.com/mrmarble/termsvg/pkg/asciicast"
+	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
 func TestCmd_Save_NoEvents(t *testing.T) {
