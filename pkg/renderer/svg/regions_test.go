@@ -451,6 +451,10 @@ func assertBoundedRegionCostExact(
 }
 
 func Test444816BoundedRegionOptimizationMatchesExhaustiveBaseline(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (~35s): exhaustive-baseline comparison on a large cast")
+	}
+	t.Parallel()
 	// The pinned constants are the unbounded greedy merge of the spatial
 	// fallback set (48 regions, 30 mergeable pairs), which converges after
 	// 442 candidate evaluations; the bounded run must reach the same result.

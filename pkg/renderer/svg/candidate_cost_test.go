@@ -80,6 +80,7 @@ func TestCandidateCostMatchesRandomizedRecordings(t *testing.T) {
 }
 
 func TestCandidateCostMatchesRealCasts(t *testing.T) {
+	t.Parallel()
 	modes := []Options{
 		{Layout: LayoutFrames, Animation: AnimationCSS, FrameSwitch: FrameSwitchTranslate},
 		{Layout: LayoutBands, Animation: AnimationSMIL, FrameSwitch: FrameSwitchHref},

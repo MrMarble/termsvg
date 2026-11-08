@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+# Force the C locale so printf/awk emit "." decimals regardless of the user locale
+export LC_ALL=C
+
 # Root folder using git
 BASE_PATH=$(git rev-parse --show-toplevel)
 
@@ -58,8 +61,8 @@ for filepath in "${SVG_FILES[@]}"; do
     current=$(wc -c < "$filepath" | tr -d '[:space:]')
     current_formatted=$(format_size "$current")
 
-    # Calculate variation percent using bc to suport floating point
-    variation=$(echo "scale=4; (($first-$current)/$first)*100" | bc)
+    # Calculate variation percent with awk (floating point, no bc dependency)
+    variation=$(awk -v first="$first" -v current="$current" 'BEGIN { printf "%.4f", (first - current) / first * 100 }')
 
     # Append row to table
     TABLE+="| $filename | $iterations | $first_formatted | $current_formatted | $variation% |"$'\n'
