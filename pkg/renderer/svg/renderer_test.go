@@ -837,7 +837,7 @@ func TestIntegration_256Colors(t *testing.T) {
 	t.Logf("Generated SVG: %d bytes, %d frames, %d unique colors",
 		len(svg), rec.Stats.TotalFrames, rec.Stats.UniqueColors)
 
-	outPath := filepath.Join(examplesDir, "256colors.svg")
+	outPath := filepath.Join(t.TempDir(), "256colors.svg")
 	//nolint:gosec // test output file needs to be readable
 	f, err = os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
