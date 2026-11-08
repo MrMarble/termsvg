@@ -10,9 +10,9 @@ require (
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/tdewolff/minify/v2 v2.23.8
 	github.com/tdewolff/parse/v2 v2.8.1
-	golang.org/x/image v0.35.0
+	golang.org/x/image v0.41.0
 	golang.org/x/term v0.39.0
-	golang.org/x/text v0.33.0
+	golang.org/x/text v0.37.0
 )
 
 require (
