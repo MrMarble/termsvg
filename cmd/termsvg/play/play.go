@@ -12,7 +12,7 @@ import (
 type Cmd struct {
 	File    string        `arg:"" type:"existingfile" help:"Asciicast file to play"`
 	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = recording's idle_time_limit, if any)"`
+	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = the recording's limit, if any)"`
 }
 
 func (cmd *Cmd) Run() error {
