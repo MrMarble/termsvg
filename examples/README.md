@@ -41,6 +41,12 @@ This table tracks size changes between the first release of the example and the 
 | htop.svg | 18 | 74.15kB | 15.27kB | 79.4000% |
 | rgb.svg | 11 | 95.53kB | 6.75kB | 92.9300% |
 | session.svg | 20 | 462.64kB | 18.51kB | 96.0000% |
+| htop.gif | 1 | 158.63kB | 158.63kB | 0.0000% |
+| rgb.gif | 1 | 136.76kB | 136.76kB | 0.0000% |
+| session.gif | 1 | 480.20kB | 480.20kB | 0.0000% |
+| htop.webm | 1 | 367.87kB | 367.87kB | 0.0000% |
+| rgb.webm | 1 | 20.28kB | 20.28kB | 0.0000% |
+| session.webm | 1 | 753.98kB | 753.98kB | 0.0000% |
 
 <!--SIZES_END-->
 
