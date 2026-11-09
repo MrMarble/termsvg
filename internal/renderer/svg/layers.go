@@ -509,7 +509,7 @@ func (c *canvas) writeLayer(w io.Writer, index int) {
 		for i, frame := range frames {
 			values[i] = layerVisibilityValue(frame.state)
 		}
-		c.writeSMILAnimation(w, "animate", []smilAttribute{
+		c.smil().writeSMILAnimation(w, "animate", []smilAttribute{
 			{name: "attributeName", value: "visibility"},
 			{name: "values", value: strings.Join(values, ";")},
 			{name: "keyTimes", value: smilKeyTimes(frames)},

@@ -245,6 +245,11 @@ func (c *canvas) collector() rowCollector {
 	return rowCollector{rows: c.rows(), withoutBlockSharing: c.options.withoutBlockSharing}
 }
 
+// smil returns a smilWriter for the canvas's loop count and duration.
+func (c *canvas) smil() smilWriter {
+	return smilWriter{loopCount: c.config.LoopCount, duration: c.plan.duration}
+}
+
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }
 
 // formatInt formats an integer attribute value, using scientific notation when

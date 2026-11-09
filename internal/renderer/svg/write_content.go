@@ -30,7 +30,7 @@ func (c *canvas) writeFrames(
 	}
 	if c.options.Animation == AnimationSMIL {
 		fmt.Fprint(c.w, `<g>`)
-		c.writeSMILTranslate(c.w, frames, c.contentWidth())
+		c.smil().writeSMILTranslate(c.w, frames, c.contentWidth())
 	} else {
 		fmt.Fprintf(c.w, `<g style="animation:k %s %s step-end">`, animationDuration(c.plan.duration), c.loopCount())
 	}
@@ -73,7 +73,7 @@ func (c *canvas) writeBand(band *preparedBand) {
 	if band.kind == bandScrollTape {
 		if c.options.Animation == AnimationSMIL {
 			fmt.Fprint(c.w, `<g>`)
-			c.writeSMILVerticalTranslate(c.w, band.offsets)
+			c.smil().writeSMILVerticalTranslate(c.w, band.offsets)
 		} else {
 			fmt.Fprintf(c.w, `<g style="animation:%s %s %s step-end%s">`,
 				band.name, animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
@@ -105,7 +105,7 @@ func (c *canvas) writeSnapshotBandBody(band *preparedBand, width int) {
 	}
 	if c.options.Animation == AnimationSMIL {
 		fmt.Fprint(c.w, `<g>`)
-		c.writeSMILTranslate(c.w, band.keyframes, width)
+		c.smil().writeSMILTranslate(c.w, band.keyframes, width)
 	} else {
 		fmt.Fprintf(c.w, `<g style="animation:%s %s %s step-end%s">`,
 			band.name, animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
@@ -132,7 +132,7 @@ func (c *canvas) writeHrefSequence(frames []keyframePoint[int], ids []string, po
 		return
 	}
 	fmt.Fprintf(c.w, `<use href="#%s"%s>`, ids[initial], position)
-	c.writeSMILHref(c.w, frames, ids)
+	c.smil().writeSMILHref(c.w, frames, ids)
 	fmt.Fprint(c.w, `</use>`)
 }
 
@@ -204,7 +204,7 @@ func (c *canvas) writeCursor() {
 	fmt.Fprintf(c.w, `<g transform="translate(%s,%s)" visibility="%s"%s>`,
 		c.xmlInt(point.state.Col*ColWidth), c.xmlInt(point.state.Row*RowHeight), cursorVisibility(point.state), style)
 	if len(frames) > 1 && c.options.Animation == AnimationSMIL {
-		c.writeSMILCursor(c.w, frames)
+		c.smil().writeSMILCursor(c.w, frames)
 	}
 	cursorClass := "cursor"
 	if c.style.scheme != "" && c.style.scheme != styleLegacy {
