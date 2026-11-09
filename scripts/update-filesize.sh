@@ -9,7 +9,8 @@ BASE_PATH=$(git rev-parse --show-toplevel)
 
 EXAMPLES_FOLDER="$BASE_PATH/examples"
 README="$EXAMPLES_FOLDER/README.md"
-SVG_FILES=("$EXAMPLES_FOLDER"/*.svg)
+# Every exported example, in the order SVG, GIF, WebM
+EXAMPLE_FILES=("$EXAMPLES_FOLDER"/*.svg "$EXAMPLES_FOLDER"/*.gif "$EXAMPLES_FOLDER"/*.webm)
 
 # Markdown table header
 TABLE='| File | Iterations | First Size | Current Size | Variation |
@@ -28,7 +29,7 @@ format_size() {
     fi
 }
 
-for filepath in "${SVG_FILES[@]}"; do
+for filepath in "${EXAMPLE_FILES[@]}"; do
     [ -e "$filepath" ] || continue
     filename=$(basename "$filepath")
 

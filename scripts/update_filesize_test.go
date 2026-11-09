@@ -20,10 +20,14 @@ func TestUpdateFilesizeUsesConventionalReduction(t *testing.T) {
 	}
 	readme := "before\n<!--SIZES_START-->\nold\n<!--SIZES_END-->\nafter\n"
 	writeTestFile(t, filepath.Join(dir, "examples", "README.md"), readme)
-	writeTestFile(t, filepath.Join(dir, "examples", "sample.svg"), strings.Repeat("x", 100))
+	for _, name := range []string{"sample.svg", "sample.gif", "sample.webm"} {
+		writeTestFile(t, filepath.Join(dir, "examples", name), strings.Repeat("x", 100))
+	}
 	mustRun(t, dir, "git", "add", "examples")
 	mustRun(t, dir, "git", "commit", "-qm", "fixture")
 	writeTestFile(t, filepath.Join(dir, "examples", "sample.svg"), strings.Repeat("x", 75))
+	writeTestFile(t, filepath.Join(dir, "examples", "sample.gif"), strings.Repeat("x", 50))
+	// sample.webm is unchanged, so it reports no reduction.
 
 	script, err := os.ReadFile("update-filesize.sh")
 	if err != nil {
@@ -41,8 +45,21 @@ func TestUpdateFilesizeUsesConventionalReduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(got), "| sample.svg | 1 | 100.00B | 75.00B | 25.0000% |") {
-		t.Fatalf("README table = %q", got)
+	rows := []string{
+		"| sample.svg | 1 | 100.00B | 75.00B | 25.0000% |",
+		"| sample.gif | 1 | 100.00B | 50.00B | 50.0000% |",
+		"| sample.webm | 1 | 100.00B | 100.00B | 0.0000% |",
+	}
+	last := -1
+	for _, row := range rows {
+		i := strings.Index(string(got), row)
+		if i < 0 {
+			t.Fatalf("README table is missing %q:\n%s", row, got)
+		}
+		if i < last {
+			t.Fatalf("row %q is out of order (want SVG, GIF, then WebM):\n%s", row, got)
+		}
+		last = i
 	}
 }
 
