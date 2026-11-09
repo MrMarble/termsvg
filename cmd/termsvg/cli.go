@@ -18,7 +18,7 @@ type CLI struct {
 	Version VersionFlag `name:"version" help:"Print version information and quit"`
 
 	Play   play.Cmd   `cmd:"" help:"Play back a recorded terminal session"`
-	Export export.Cmd `cmd:"" help:"Export asciicast to SVG"`
+	Export export.Cmd `cmd:"" help:"Export asciicast to SVG, GIF or WebM"`
 
 	platformCommands `embed:""`
 }

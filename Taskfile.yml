@@ -21,8 +21,10 @@ tasks:
     desc: Build the binary
     sources:
       - ./**/*.go
+      - go.mod
+      - go.sum
     generates:
-      - ./goreleaser
+      - ./termsvg
     cmds:
       - go build ./cmd/termsvg
 
@@ -151,4 +153,4 @@ tasks:
       SNAPSHOT:
         sh: 'if [[ $GITHUB_REF != refs/tags/v* ]]; then echo "--snapshot"; fi'
     cmds:
-      - goreleaser release --rm-dist {{.SNAPSHOT}}
+      - goreleaser release --clean {{.SNAPSHOT}}

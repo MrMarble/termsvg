@@ -2,27 +2,20 @@ package play
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/mrmarble/termsvg/cmd/termsvg/internal/pacing"
 	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
 type Cmd struct {
-	File    string        `arg:"" type:"existingfile" help:"Asciicast file to play"`
-	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = the recording's limit, if any)"`
+	File string `arg:"" type:"existingfile" help:"Asciicast file to play"`
+
+	pacing.Flags `embed:""`
 }
 
 func (cmd *Cmd) Run() error {
-	f, err := os.Open(filepath.Clean(cmd.File))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	cast, err := asciicast.Parse(f)
+	cast, err := asciicast.ParseFile(cmd.File)
 	if err != nil {
 		return err
 	}

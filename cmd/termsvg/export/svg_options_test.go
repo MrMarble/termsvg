@@ -1,4 +1,3 @@
-//nolint:lll // Compact option table rows are easier to compare.
 package export
 
 import (
@@ -7,6 +6,8 @@ import (
 	"github.com/mrmarble/termsvg/internal/renderer/svg"
 )
 
+// svg.Options.Validate has its own tests; these cover how the flags map onto
+// the options and how they interact with the output format.
 func TestNormalizedSVGOptions(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -17,50 +18,31 @@ func TestNormalizedSVGOptions(t *testing.T) {
 	}{
 		{name: "zero value defaults", cmd: Cmd{}, format: "svg", want: svg.DefaultOptions()},
 		{
-			name: "regions layout", cmd: Cmd{SVGLayout: "REGIONS"}, format: "svg",
-			want: svg.Options{Layout: svg.LayoutRegions, Animation: svg.AnimationCSS, FrameSwitch: svg.FrameSwitchTranslate, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots},
-		},
-		{
-			name: "scroll layout", cmd: Cmd{SVGLayout: "SCROLL"}, format: "svg",
-			want: svg.Options{Layout: svg.LayoutScroll, Animation: svg.AnimationCSS, FrameSwitch: svg.FrameSwitchTranslate, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots},
-		},
-		{
-			name:   "experimental options",
-			cmd:    Cmd{SVGLayout: "BANDS", SVGAnimation: "SMIL", SVGMaxFPS: 30},
+			name:   "every flag is mapped case-insensitively",
+			cmd:    Cmd{SVGLayout: "REGIONS", SVGAnimation: "SMIL", SVGFrameSwitch: "HREF", SVGStyle: "AUTO", SVGPrimitives: "RECT-TRACKS", SVGMaxFPS: 30},
 			format: "svg",
 			want: svg.Options{
-				Layout:        svg.LayoutBands,
-				Animation:     svg.AnimationSMIL,
-				FrameSwitch:   svg.FrameSwitchTranslate,
-				MaxFPS:        30,
-				AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots,
+				Layout: svg.LayoutRegions, Animation: svg.AnimationSMIL, FrameSwitch: svg.FrameSwitchHref,
+				AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleAuto, Primitives: svg.PrimitiveRectTracks, MaxFPS: 30,
 			},
 		},
-		{name: "runtime objective", cmd: Cmd{SVGLayout: "AUTO", SVGAutoObjective: "RUNTIME"}, format: "svg", want: svg.Options{Layout: svg.LayoutAuto, Animation: svg.AnimationCSS, FrameSwitch: svg.FrameSwitchTranslate, AutoObjective: svg.AutoObjectiveRuntime, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots}},
-		{name: "auto style", cmd: Cmd{SVGStyle: "AUTO"}, format: "svg", want: svg.Options{Layout: svg.LayoutFrames, Animation: svg.AnimationCSS, FrameSwitch: svg.FrameSwitchTranslate, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleAuto, Primitives: svg.PrimitiveSnapshots}},
-		{name: "rect tracks", cmd: Cmd{SVGLayout: "regions", SVGAnimation: "smil", SVGPrimitives: "RECT-TRACKS"}, format: "svg", want: svg.Options{Layout: svg.LayoutRegions, Animation: svg.AnimationSMIL, FrameSwitch: svg.FrameSwitchTranslate, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveRectTracks}},
-		{name: "rect tracks require SMIL", cmd: Cmd{SVGLayout: "regions", SVGPrimitives: "rect-tracks"}, format: "svg", wantErr: true},
-		{name: "rect tracks reject auto", cmd: Cmd{SVGLayout: "auto", SVGAnimation: "smil", SVGPrimitives: "rect-tracks"}, format: "svg", wantErr: true},
-		{name: "non SVG rejects rect tracks", cmd: Cmd{SVGLayout: "regions", SVGAnimation: "smil", SVGPrimitives: "rect-tracks"}, format: "gif", wantErr: true},
-		{name: "invalid style", cmd: Cmd{SVGStyle: "compact"}, format: "svg", wantErr: true},
-		{name: "non SVG rejects style", cmd: Cmd{SVGStyle: "auto"}, format: "gif", wantErr: true},
-		{name: "WebM rejects style", cmd: Cmd{SVGStyle: "auto"}, format: "webm", wantErr: true},
-		{name: "runtime requires auto", cmd: Cmd{SVGAutoObjective: "runtime"}, format: "svg", wantErr: true},
-		{name: "invalid objective", cmd: Cmd{SVGLayout: "auto", SVGAutoObjective: "balanced"}, format: "svg", wantErr: true},
-		{name: "non SVG rejects runtime", cmd: Cmd{SVGLayout: "auto", SVGAutoObjective: "runtime"}, format: "gif", wantErr: true},
-		{name: "negative FPS", cmd: Cmd{SVGMaxFPS: -1}, format: "svg", wantErr: true},
 		{
-			name: "smil href", cmd: Cmd{SVGLayout: "bands", SVGAnimation: "smil", SVGFrameSwitch: "href"}, format: "svg",
-			want: svg.Options{Layout: svg.LayoutBands, Animation: svg.AnimationSMIL, FrameSwitch: svg.FrameSwitchHref, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots},
+			name:   "auto objective",
+			cmd:    Cmd{SVGLayout: "auto", SVGAutoObjective: "RUNTIME"},
+			format: "svg",
+			want: svg.Options{
+				Layout: svg.LayoutAuto, Animation: svg.AnimationCSS, FrameSwitch: svg.FrameSwitchTranslate,
+				AutoObjective: svg.AutoObjectiveRuntime, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots,
+			},
 		},
+		{name: "invalid combination is rejected", cmd: Cmd{SVGLayout: "regions", SVGPrimitives: "rect-tracks"}, format: "svg", wantErr: true},
+		{name: "non SVG accepts defaults", cmd: Cmd{SVGLayout: "frames", SVGAnimation: "css"}, format: "webm", want: svg.DefaultOptions()},
+		{name: "non SVG rejects layout", cmd: Cmd{SVGLayout: "bands"}, format: "gif", wantErr: true},
+		{name: "non SVG rejects style", cmd: Cmd{SVGStyle: "auto"}, format: "webm", wantErr: true},
 		{name: "non SVG rejects href", cmd: Cmd{SVGAnimation: "smil", SVGFrameSwitch: "href"}, format: "gif", wantErr: true},
-		{name: "non SVG rejects non-default", cmd: Cmd{SVGLayout: "bands"}, format: "gif", wantErr: true},
-		{
-			name:   "non SVG accepts defaults",
-			cmd:    Cmd{SVGLayout: "frames", SVGAnimation: "css"},
-			format: "webm",
-			want:   svg.DefaultOptions(),
-		},
+		{name: "non SVG rejects runtime objective", cmd: Cmd{SVGLayout: "auto", SVGAutoObjective: "runtime"}, format: "gif", wantErr: true},
+		{name: "SVG rejects system fonts", cmd: Cmd{SystemFonts: true}, format: "svg", wantErr: true},
+		{name: "raster accepts system fonts", cmd: Cmd{SystemFonts: true}, format: "gif", want: svg.DefaultOptions()},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
