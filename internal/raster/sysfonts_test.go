@@ -42,7 +42,7 @@ func TestSystemFonts_FindsFontsThatCoverARune(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sys := newSystemFonts([]string{dir, filepath.Join(dir, "does-not-exist")})
+	sys := newSystemFonts(nil, []string{dir, filepath.Join(dir, "does-not-exist")})
 
 	tests := []struct {
 		name string
@@ -76,7 +76,7 @@ func TestSystemFonts_PrefersMonospacedThenPlainFaces(t *testing.T) {
 
 	want := []string{"Beta Mono.ttf", "Alpha.ttf", "Delta Mono Bold.ttf", "Gamma-Italic.ttf", "Zeta-Bold.ttf"}
 	for range 5 { // a fresh index each time: the order must not depend on listing order
-		got := paths(newSystemFonts([]string{dir}).candidates('a'))
+		got := paths(newSystemFonts(nil, []string{dir}).candidates('a'))
 		if !slices.Equal(got, want) {
 			t.Fatalf("candidates = %v, want %v", got, want)
 		}
@@ -86,7 +86,7 @@ func TestSystemFonts_PrefersMonospacedThenPlainFaces(t *testing.T) {
 func TestSystemFonts_ListsAFileOnceWhenDirectoriesOverlap(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "sub", "DejaVuSansMono.ttf"), dejaVuSansMonoTTF)
-	sys := newSystemFonts([]string{dir, filepath.Join(dir, "sub"), dir})
+	sys := newSystemFonts(nil, []string{dir, filepath.Join(dir, "sub"), dir})
 	if got := paths(sys.candidates('ȧ')); len(got) != 1 {
 		t.Errorf("candidates = %v, want the file once", got)
 	}
@@ -96,7 +96,7 @@ func TestSystemFonts_CollectionFaces(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "pair.ttc"), makeCollection(t, dejaVuSansMonoTTF, notoSansSymbols2TTF))
 
-	sys := newSystemFonts([]string{dir})
+	sys := newSystemFonts(nil, []string{dir})
 	got := sys.candidates('⠿')
 	if len(got) != 1 || got[0].face != 1 {
 		t.Fatalf("candidates(⠿) = %+v, want face 1 of the collection", got)
@@ -125,7 +125,7 @@ func hasGlyph(t *testing.T, f *opentype.Font, r rune) bool {
 func TestSystemFonts_IsSafeForConcurrentUse(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "DejaVuSansMono.ttf"), dejaVuSansMonoTTF)
-	sys := newSystemFonts([]string{dir})
+	sys := newSystemFonts(nil, []string{dir})
 
 	var wg sync.WaitGroup
 	for range 16 {
@@ -142,26 +142,43 @@ func TestDefaultFontDirs(t *testing.T) {
 	extra1, extra2 := t.TempDir(), t.TempDir()
 	t.Setenv(fontPathEnv, extra1+string(os.PathListSeparator)+extra2)
 
-	dirs := defaultFontDirs()
-	if len(dirs) < 3 || dirs[0] != extra1 || dirs[1] != extra2 {
-		t.Fatalf("dirs = %v, want %s variable's directories first", dirs, fontPathEnv)
+	preferred, dirs := defaultFontDirs()
+	if !slices.Equal(preferred, []string{extra1, extra2}) {
+		t.Fatalf("preferred = %v, want the %s directories", preferred, fontPathEnv)
 	}
-	for _, dir := range dirs {
-		if dir == "" {
-			t.Error("empty directory in the list")
-		}
+	if len(dirs) == 0 || slices.Contains(dirs, extra1) {
+		t.Fatalf("dirs = %v, want the platform's directories only", dirs)
 	}
 
 	t.Setenv(fontPathEnv, "")
-	for _, dir := range defaultFontDirs() {
-		if dir == extra1 || dir == "" {
-			t.Errorf("unexpected directory %q", dir)
-		}
+	preferred, dirs = defaultFontDirs()
+	if len(preferred) != 0 {
+		t.Errorf("preferred = %v, want none without %s", preferred, fontPathEnv)
 	}
-	if runtime.GOOS == "linux" {
-		if dirs := defaultFontDirs(); !slices.Contains(dirs, "/usr/share/fonts") {
-			t.Errorf("dirs = %v, want /usr/share/fonts", dirs)
-		}
+	if slices.Contains(dirs, "") {
+		t.Error("empty directory in the list")
+	}
+	if runtime.GOOS == "linux" && !slices.Contains(dirs, "/usr/share/fonts") {
+		t.Errorf("dirs = %v, want /usr/share/fonts", dirs)
+	}
+}
+
+func TestSystemFonts_PreferredDirectoriesComeFirst(t *testing.T) {
+	user, system := t.TempDir(), t.TempDir()
+	// The system has a plain monospaced font; the user's directory only a bold
+	// one with a name that sorts later. The user's font must still win.
+	writeFile(t, filepath.Join(system, "Aaa-Mono.ttf"), dejaVuSansMonoTTF)
+	writeFile(t, filepath.Join(user, "Zzz-Bold.ttf"), dejaVuSansMonoTTF)
+
+	got := paths(newSystemFonts([]string{user}, []string{system}).candidates('a'))
+	if want := []string{"Zzz-Bold.ttf", "Aaa-Mono.ttf"}; !slices.Equal(got, want) {
+		t.Errorf("candidates = %v, want %v", got, want)
+	}
+
+	// A font in both is a user's font.
+	both := newSystemFonts([]string{user}, []string{user, system})
+	if got := paths(both.candidates('a')); len(got) != 2 || got[0] != "Zzz-Bold.ttf" {
+		t.Errorf("candidates = %v, want the user's font first and once", got)
 	}
 }
 

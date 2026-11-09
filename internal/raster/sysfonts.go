@@ -15,16 +15,18 @@ import (
 // nothing open: a machine can have hundreds of fonts, and the callers open just
 // the one they choose. It is safe for concurrent use.
 type systemFonts struct {
-	dirs  []string
-	once  sync.Once
-	fonts []systemFont
+	preferred []string // searched first: the user's own directories
+	dirs      []string // the platform's font directories
+	once      sync.Once
+	fonts     []systemFont
 }
 
 // systemFont is one face of an installed font file and the code points it may cover.
 type systemFont struct {
-	path   string
-	face   int // index in a collection (.ttc); 0 for a single font
-	ranges []codeRange
+	path      string
+	face      int  // index in a collection (.ttc); 0 for a single font
+	preferred bool // found in one of the user's own directories
+	ranges    []codeRange
 }
 
 // systemFontRef names a face to try for a rune.
@@ -37,14 +39,16 @@ type systemFontRef struct {
 // searched before the system ones, so a font placed there wins.
 const fontPathEnv = "TERMSVG_FONT_PATH"
 
-func newSystemFonts(dirs []string) *systemFonts {
-	return &systemFonts{dirs: dirs}
+// newSystemFonts indexes fonts from the given directories. Fonts in preferred
+// directories are tried before any in dirs, whatever their names.
+func newSystemFonts(preferred, dirs []string) *systemFonts {
+	return &systemFonts{preferred: preferred, dirs: dirs}
 }
 
-// defaultFontDirs returns the directories the platform keeps fonts in, after the
-// ones named in TERMSVG_FONT_PATH.
-func defaultFontDirs() []string {
-	dirs := filepath.SplitList(os.Getenv(fontPathEnv))
+// defaultFontDirs returns the directories named in TERMSVG_FONT_PATH, which are
+// preferred, and the ones the platform keeps fonts in.
+func defaultFontDirs() (preferred, dirs []string) {
+	preferred = filepath.SplitList(os.Getenv(fontPathEnv))
 	home, _ := os.UserHomeDir()
 
 	switch runtime.GOOS {
@@ -72,7 +76,9 @@ func defaultFontDirs() []string {
 		}
 	}
 
-	return slices.DeleteFunc(dirs, func(d string) bool { return d == "" })
+	empty := func(d string) bool { return d == "" }
+
+	return slices.DeleteFunc(preferred, empty), slices.DeleteFunc(dirs, empty)
 }
 
 // candidates returns the installed faces that may have a glyph for r, best
@@ -92,21 +98,35 @@ func (s *systemFonts) candidates(r rune) []systemFontRef {
 
 func (s *systemFonts) build() {
 	seen := make(map[string]bool)
-	for _, dir := range s.dirs {
-		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !isFontFile(path) || seen[path] {
-				return nil //nolint:nilerr // unreadable entries are skipped, not fatal
-			}
-			seen[path] = true
-			s.fonts = append(s.fonts, readSystemFont(path)...)
+	walk := func(dirs []string, preferred bool) {
+		for _, dir := range dirs {
+			_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+				if err != nil || d.IsDir() || !isFontFile(path) || seen[path] {
+					return nil //nolint:nilerr // unreadable entries are skipped, not fatal
+				}
+				seen[path] = true
+				for _, font := range readSystemFont(path) {
+					font.preferred = preferred
+					s.fonts = append(s.fonts, font)
+				}
 
-			return nil
-		})
+				return nil
+			})
+		}
 	}
+	walk(s.preferred, true)
+	walk(s.dirs, false)
 
-	// Best candidates first, then by path so the choice never depends on the
-	// order the file system listed things in.
+	// The user's directories first, then the best suited faces, then by path so
+	// the choice never depends on the order the file system listed things in.
 	slices.SortStableFunc(s.fonts, func(a, b systemFont) int {
+		if a.preferred != b.preferred {
+			if a.preferred {
+				return -1
+			}
+
+			return 1
+		}
 		if pa, pb := fontPriority(a.path), fontPriority(b.path); pa != pb {
 			return pa - pb
 		}

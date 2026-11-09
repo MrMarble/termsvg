@@ -104,7 +104,8 @@ func DefaultConfig() Config {
 func New(config *Config) (*Rasterizer, error) {
 	var sys *systemFonts
 	if config.SystemFonts {
-		sys = newSystemFonts(defaultFontDirs())
+		preferred, dirs := defaultFontDirs()
+		sys = newSystemFonts(preferred, dirs)
 	}
 
 	face, err := loadFontFace(float64(config.FontSize), sys)

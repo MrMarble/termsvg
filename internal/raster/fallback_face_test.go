@@ -289,7 +289,7 @@ func fontDir(t *testing.T, files map[string][]byte) *systemFonts {
 	for name, data := range files {
 		writeFile(t, filepath.Join(dir, name), data)
 	}
-	return newSystemFonts([]string{dir})
+	return newSystemFonts(nil, []string{dir})
 }
 
 // runesOnlyIn returns the first n runes (from U+0100 up) that the given font
@@ -391,7 +391,7 @@ func TestFallbackFace_ColourBitmapFontsCannotBeDrawn(t *testing.T) {
 	if err := os.Symlink(emoji, filepath.Join(dir, "NotoColorEmoji.ttf")); err != nil {
 		t.Skipf("cannot symlink: %v", err)
 	}
-	face := newFaceWith(t, nil, newSystemFonts([]string{dir}))
+	face := newFaceWith(t, nil, newSystemFonts(nil, []string{dir}))
 
 	// The font has the glyph but only as a colour bitmap: the rune stays the
 	// missing-glyph box instead of failing or drawing nothing.
