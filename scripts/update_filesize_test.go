@@ -1,6 +1,7 @@
 package scripts
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestUpdateFilesizeUsesConventionalReduction(t *testing.T) {
 	}
 	last := -1
 	for _, row := range rows {
-		i := strings.Index(string(got), row)
+		i := bytes.Index(got, []byte(row))
 		if i < 0 {
 			t.Fatalf("README table is missing %q:\n%s", row, got)
 		}
