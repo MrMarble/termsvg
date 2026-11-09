@@ -207,7 +207,7 @@ func (c *canvas) writeCursor() {
 		c.smil().writeSMILCursor(c.w, frames)
 	}
 	cursorClass := "cursor"
-	if c.style.scheme != "" && c.style.scheme != styleLegacy {
+	if !c.style.legacy() {
 		cursorClass = c.style.cursorClass
 	}
 	fmt.Fprintf(c.w, `<rect class="%s" width="%s" height="%s"/></g>`, cursorClass, c.xmlInt(ColWidth), c.xmlInt(RowHeight))

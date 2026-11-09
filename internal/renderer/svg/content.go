@@ -400,9 +400,9 @@ func contentKeyframesFor(content timeline[[]ir.Row]) ([]keyframePoint[int], [][]
 }
 
 func rowsHash(rows []ir.Row) uint64 {
-	h := uint64(segmentHashOffset)
+	h := uint64(hashOffset)
 	for _, row := range rows {
-		h = (h ^ semanticRowHash(row)) * segmentHashPrime
+		h = (h ^ semanticRowHash(row)) * hashPrime
 	}
 	return h
 }

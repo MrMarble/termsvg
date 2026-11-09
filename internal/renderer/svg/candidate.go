@@ -212,14 +212,7 @@ func prepareStyleCandidate(
 	options *Options,
 	scheme styleScheme,
 ) (*preparedCandidate, bool, error) {
-	c := &canvas{
-		rec:        rec,
-		plan:       *plan,
-		config:     *config,
-		options:    *options,
-		classNames: rec.Colors.GenerateClassNames(),
-	}
-	c.style = stylePlan{scheme: styleLegacy}
+	c := newCanvas(rec, plan, config, options)
 	if options.Style == StyleAuto {
 		c.style = c.styles().legacyStylePlan()
 	}
@@ -277,10 +270,8 @@ func attachStyleCostLedger(
 	config *renderer.Config,
 	candidate *preparedCandidate,
 ) {
-	c := &canvas{
-		rec: rec, plan: *plan, config: *config, options: candidate.options,
-		classNames: rec.Colors.GenerateClassNames(), style: candidate.style,
-	}
+	c := newCanvas(rec, plan, config, &candidate.options)
+	c.style = candidate.style
 	candidate.style.cost = c.buildStyleCostLedger()
 	candidate.style.styleBytes = candidate.style.cost.total
 }
@@ -307,11 +298,8 @@ func (r *Renderer) serializeCandidate(
 	candidate *preparedCandidate,
 ) error {
 	buf := bufio.NewWriterSize(w, 64*1024)
-	c := &canvas{
-		w: buf, rec: rec, plan: *candidate.plan, config: r.config, options: candidate.options,
-		classNames: rec.Colors.GenerateClassNames(), metrics: &candidate.metrics,
-		style: candidate.style,
-	}
+	c := newCanvas(rec, candidate.plan, &r.config, &candidate.options)
+	c.w, c.metrics, c.style = buf, &candidate.metrics, candidate.style
 	if err := c.render(ctx, &candidate.content); err != nil {
 		return err
 	}

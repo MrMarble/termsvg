@@ -271,8 +271,7 @@ func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, 
 	probe.Style = StyleLegacy
 	probe.Primitives = PrimitiveSnapshots
 	probe.AutoObjective = AutoObjectiveSize
-	c := &canvas{rec: rec, plan: *base, config: r.config, options: probe, classNames: rec.Colors.GenerateClassNames()}
-	c.style = stylePlan{scheme: styleLegacy}
+	c := newCanvas(rec, base, &r.config, &probe)
 	ranked := c.rankLayerCandidates(&set)
 	if len(ranked) > maxMeasuredLayerCandidates {
 		if r.config.Debug {

@@ -32,6 +32,17 @@ type canvas struct {
 	metrics    *CandidateMetrics
 }
 
+func newCanvas(rec *ir.Recording, plan *semanticPlan, config *renderer.Config, options *Options) *canvas {
+	return &canvas{
+		rec:        rec,
+		plan:       *plan,
+		config:     *config,
+		options:    *options,
+		classNames: rec.Colors.GenerateClassNames(),
+		style:      stylePlan{scheme: styleLegacy},
+	}
+}
+
 func (c *canvas) contentWidth() int {
 	if c.plan.width == 0 {
 		return c.rec.Width * ColWidth
@@ -179,45 +190,26 @@ func (c *canvas) writeStyles(content *preparedContent) {
 }
 
 func (c *canvas) writePaintStyles(sb *strings.Builder) {
-	// Default text style (white-space:pre preserves spaces, survives minification)
-	fgHex := color.RGBAtoHex(c.rec.Colors.DefaultForeground())
-	if c.style.scheme == "" || c.style.scheme == styleLegacy {
-		fmt.Fprintf(sb, "text{font-family:%s;font-size:%dpx;fill:%s;white-space:pre}",
-			c.config.FontFamily, c.config.FontSize, fgHex)
-	} else {
-		fmt.Fprintf(sb, "text{%s}", c.style.textBaseRule)
-	}
-
-	if c.plan.cursorEverVisible && (c.style.scheme == "" || c.style.scheme == styleLegacy) {
-		fmt.Fprintf(sb, ".cursor{fill:%s;animation:blink 1s step-end infinite}", fgHex)
-	}
-
-	if c.style.scheme == "" || c.style.scheme == styleLegacy {
-		// Color classes
+	if c.style.legacy() {
+		legacy := c.styles().legacyStylePlan()
+		fmt.Fprintf(sb, "text{%s}", legacy.textBaseRule)
+		if legacy.cursorRule != "" {
+			fmt.Fprintf(sb, ".cursor{%s}", legacy.cursorRule)
+		}
 		for _, id := range c.plan.usedColors {
-			rgba := c.rec.Colors.Resolved(id)
-			className := c.classNames[id]
-			hex := color.RGBAtoHex(rgba)
-			fmt.Fprintf(sb, ".%s{fill:%s}", className, hex)
+			fmt.Fprintf(sb, ".%s{fill:%s}", c.classNames[id], color.RGBAtoHex(c.rec.Colors.Resolved(id)))
 		}
-
-		// Attribute classes (only if used)
-		if c.rec.Stats.HasBold {
-			sb.WriteString(".bold{font-weight:bold}")
+		used := [4]bool{c.rec.Stats.HasBold, c.rec.Stats.HasItalic, c.rec.Stats.HasUnderline, c.rec.Stats.HasDim}
+		for i, attr := range textAttrs {
+			if used[i] {
+				fmt.Fprintf(sb, ".%s{%s}", attr.class, attr.declaration)
+			}
 		}
-		if c.rec.Stats.HasItalic {
-			sb.WriteString(".italic{font-style:italic}")
-		}
-		if c.rec.Stats.HasUnderline {
-			sb.WriteString(".underline{text-decoration:underline}")
-		}
-		if c.rec.Stats.HasDim {
-			sb.WriteString(".dim{opacity:0.5}")
-		}
-	} else {
-		for _, rule := range c.style.rules {
-			fmt.Fprintf(sb, ".%s{%s}", rule.class, rule.declarations)
-		}
+		return
+	}
+	fmt.Fprintf(sb, "text{%s}", c.style.textBaseRule)
+	for _, rule := range c.style.rules {
+		fmt.Fprintf(sb, ".%s{%s}", rule.class, rule.declarations)
 	}
 }
 

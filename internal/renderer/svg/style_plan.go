@@ -244,22 +244,14 @@ func (cc *classCollector) addFill(key, hex string, occurrences int, inherited bo
 
 // addAttributeClasses offers one class per text attribute (bold, italic, ...).
 func addAttributeClasses(cc *classCollector, counts *paintOccurrences) {
-	for _, flag := range []struct {
-		key, declaration string
-		used             func(textStyleKey) bool
-	}{
-		{"bold", "font-weight:bold", func(k textStyleKey) bool { return k.bold }},
-		{"italic", "font-style:italic", func(k textStyleKey) bool { return k.italic }},
-		{"underline", "text-decoration:underline", func(k textStyleKey) bool { return k.underline }},
-		{"dim", "opacity:0.5", func(k textStyleKey) bool { return k.dim }},
-	} {
+	for i, attr := range textAttrs {
 		occurrences := 0
 		for key, count := range counts.texts {
-			if flag.used(key) {
+			if key.attrFlags()[i] {
 				occurrences += count
 			}
 		}
-		cc.add("attr:"+flag.key, flag.declaration, occurrences)
+		cc.add("attr:"+attr.class, attr.declaration, occurrences)
 	}
 }
 
@@ -442,18 +434,10 @@ func (sp stylePlanner) textDeclarations(key textStyleKey) (css, attributes strin
 		declarations = append(declarations, "fill:"+hex)
 		attributes += ` fill="` + hex + `"`
 	}
-	for _, property := range []struct {
-		set                    bool
-		declaration, attribute string
-	}{
-		{key.bold, "font-weight:bold", ` font-weight="bold"`},
-		{key.italic, "font-style:italic", ` font-style="italic"`},
-		{key.underline, "text-decoration:underline", ` text-decoration="underline"`},
-		{key.dim, "opacity:0.5", ` opacity="0.5"`},
-	} {
-		if property.set {
-			declarations = append(declarations, property.declaration)
-			attributes += property.attribute
+	for i, set := range key.attrFlags() {
+		if set {
+			declarations = append(declarations, textAttrs[i].declaration)
+			attributes += textAttrs[i].attribute
 		}
 	}
 	return strings.Join(declarations, ";"), attributes
@@ -527,12 +511,9 @@ func (c *canvas) buildStyleCostLedger() styleCostLedger {
 			if !c.rec.Colors.IsDefault(key.fg) {
 				classes = append(classes, c.classNames[key.fg])
 			}
-			for _, class := range []struct {
-				set  bool
-				name string
-			}{{key.bold, "bold"}, {key.italic, "italic"}, {key.underline, "underline"}, {key.dim, "dim"}} {
-				if class.set {
-					classes = append(classes, class.name)
+			for i, set := range key.attrFlags() {
+				if set {
+					classes = append(classes, textAttrs[i].class)
 				}
 			}
 			addEncoding(paintEncoding{classes: classes}, occurrences)
