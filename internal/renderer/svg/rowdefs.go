@@ -33,6 +33,14 @@ type renderedRow struct {
 
 // xmlIDAllocator hands out compact XML identifiers in order, skipping the
 // reserved clip path identifier.
+// rowCollector deduplicates rendered rows into shared definitions: whole rows,
+// recurring segments and multi-row blocks. It needs only the row writer and
+// whether block sharing is disabled.
+type rowCollector struct {
+	rows                rowWriter
+	withoutBlockSharing bool
+}
+
 type xmlIDAllocator struct{ next int }
 
 // paintRow returns the runs whose paint is serialized by this row itself,
@@ -93,12 +101,12 @@ func (c *canvas) contentKeyframes() ([]keyframePoint[int], [][]ir.Row) {
 	return contentKeyframesFor(c.plan.content)
 }
 
-func (c *canvas) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
-	return c.collectRowsWithHash(contentStates, semanticRowHash)
+func (rc rowCollector) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
+	return rc.collectRowsWithHash(contentStates, semanticRowHash)
 }
 
 //nolint:funlen // each sharing stage measures the markup chosen by the one before
-func (c *canvas) collectRowsWithHash(
+func (rc rowCollector) collectRowsWithHash(
 	contentStates [][]ir.Row,
 	hash func(ir.Row) uint64,
 ) (frames [][]*renderedRow, defs []*renderedRow) {
@@ -130,12 +138,12 @@ func (c *canvas) collectRowsWithHash(
 	// the markup that will actually be serialized.
 	markup := make([]rowMarkup, len(ordered))
 	for i, entry := range ordered {
-		markup[i] = c.rows().buildRowMarkup(entry.row)
+		markup[i] = rc.rows.buildRowMarkup(entry.row)
 	}
 	ids := &xmlIDAllocator{}
-	uses, defs := c.shareRowSegments(markup, ids)
+	uses, defs := rc.shareRowSegments(markup, ids)
 	for i, entry := range ordered {
-		entry.svg, entry.elements, entry.inline = markup[i].render(c, uses[i])
+		entry.svg, entry.elements, entry.inline = markup[i].render(rc.rows.minify, uses[i])
 		for _, use := range uses[i] {
 			entry.uses = append(entry.uses, use.def.id)
 		}
@@ -157,11 +165,11 @@ func (c *canvas) collectRowsWithHash(
 		}
 		probe := *ids
 		id := probe.allocate()
-		definition := c.rows().rowDefinition(entry, id)
+		definition := rc.rows.rowDefinition(entry, id)
 		use := `<use href="#` + id + `"/>`
-		inlineBytes := entry.count * finalSVGBytes(entry.svg, c.config.Minify)
-		definitionBytes := finalSVGBytes(definition, c.config.Minify) +
-			entry.count*finalSVGBytes(use, c.config.Minify)
+		inlineBytes := entry.count * finalSVGBytes(entry.svg, rc.rows.minify)
+		definitionBytes := finalSVGBytes(definition, rc.rows.minify) +
+			entry.count*finalSVGBytes(use, rc.rows.minify)
 		if definitionBytes < inlineBytes {
 			*ids = probe
 			entry.id = id
@@ -172,8 +180,8 @@ func (c *canvas) collectRowsWithHash(
 
 	// Recurring groups of consecutive rows are shared last, measured against
 	// the references and markup chosen above.
-	if !c.options.withoutBlockSharing {
-		frames, defs = c.shareRowBlocks(frames, defs, ids)
+	if !rc.withoutBlockSharing {
+		frames, defs = rc.shareRowBlocks(frames, defs, ids)
 	}
 	return frames, defs
 }

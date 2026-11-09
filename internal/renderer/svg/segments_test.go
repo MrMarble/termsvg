@@ -223,7 +223,7 @@ func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
 	}
 	c.plan = buildRenderPlan(rec, false)
 	_, states := c.contentKeyframes()
-	frames, defs := c.collectRows(states)
+	frames, defs := c.collector().collectRows(states)
 	if len(defs) == 0 || defs[0].id != "a" || len(defs[0].uses) != 0 {
 		t.Fatalf("shared prompt definition missing: %#v", defs)
 	}

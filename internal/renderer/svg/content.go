@@ -64,7 +64,7 @@ func (c *canvas) prepareContentContext(ctx context.Context) (preparedContent, er
 	if err := contextErr(ctx); err != nil {
 		return preparedContent{}, err
 	}
-	frames, defs := c.collectRows(states)
+	frames, defs := c.collector().collectRows(states)
 	prepared := preparedContent{frameKeyframes: keyframes, frameRows: frames, rowDefs: defs}
 	if c.options.FrameSwitch == FrameSwitchHref && len(keyframes) > 1 {
 		prepared.frameStateIDs, _ = compactStateIDs(xmlIDIndexAfter(len(defs)), frames)
@@ -297,7 +297,7 @@ func (c *canvas) materializeBands(ctx context.Context, bands []preparedBand) (pr
 	}
 	stateOffsets[len(bands)] = len(allStates)
 
-	frames, defs := c.collectRows(allStates)
+	frames, defs := c.collector().collectRows(allStates)
 	if err := contextErr(ctx); err != nil {
 		return preparedContent{}, err
 	}
