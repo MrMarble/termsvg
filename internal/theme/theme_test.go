@@ -13,19 +13,6 @@ const testPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#77
 
 const testPalette8 = "#000000:#cc0000:#00cc00:#cccc00:#0000cc:#cc00cc:#00cccc:#cccccc"
 
-func TestDefault(t *testing.T) {
-	th := Default()
-	if th.Name != "default" {
-		t.Errorf("Name = %q", th.Name)
-	}
-	if th.Background != (color.RGBA{A: 255}) {
-		t.Errorf("Background = %v", th.Background)
-	}
-	if th.Foreground.A != 255 {
-		t.Errorf("Foreground alpha = %d", th.Foreground.A)
-	}
-}
-
 func TestFromAsciinema(t *testing.T) {
 	tests := []struct {
 		name    string

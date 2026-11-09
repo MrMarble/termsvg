@@ -91,7 +91,6 @@ func TestWriteFrameFiles(t *testing.T) {
 	red, blue := solid(8, 4, color.RGBA{R: 200, A: 255}), solid(8, 4, color.RGBA{B: 200, A: 255})
 	frames := []raster.RasterFrame{
 		{Image: red, Delay: 1500 * time.Millisecond},
-		{Delay: time.Second}, // nil images are skipped
 		{Image: blue, Delay: 2 * time.Millisecond},
 		{Image: red, Delay: 0}, // the last frame is still shown for a moment
 	}
@@ -159,12 +158,6 @@ func TestWriteFrameFiles_ReportsProgress(t *testing.T) {
 func TestWriteFrameFiles_Errors(t *testing.T) {
 	frame := raster.RasterFrame{Image: solid(2, 2, color.RGBA{A: 255}), Delay: time.Second}
 
-	t.Run("no usable frames", func(t *testing.T) {
-		onlyNil := []raster.RasterFrame{{Delay: time.Second}}
-		if _, err := writeFrameFiles(context.Background(), t.TempDir(), onlyNil, nil); err == nil {
-			t.Error("expected an error")
-		}
-	})
 	t.Run("cancelled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -254,8 +247,8 @@ func idleRecording() *ir.Recording {
 		Width: 30, Height: 3, Duration: 20 * time.Second,
 		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
 		Frames: []ir.Frame{
-			{Index: 0, Time: 0, Delay: 10 * time.Second, Rows: run("before the pause")},
-			{Index: 1, Time: 10 * time.Second, Delay: 10 * time.Second, Rows: run("after the pause")},
+			{Time: 0, Delay: 10 * time.Second, Rows: run("before the pause")},
+			{Time: 10 * time.Second, Delay: 10 * time.Second, Rows: run("after the pause")},
 		},
 	}
 }

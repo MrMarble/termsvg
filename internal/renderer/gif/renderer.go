@@ -3,6 +3,7 @@
 package gif
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
@@ -10,10 +11,8 @@ import (
 	"image/gif"
 	"io"
 	"log"
-	"slices"
 	"time"
 
-	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
 	"github.com/mrmarble/termsvg/internal/raster"
@@ -26,15 +25,6 @@ type Renderer struct {
 	rasterizer *raster.Rasterizer
 }
 
-// gifTimings holds timing measurements for GIF encoding.
-type gifTimings struct {
-	framesEqualTime   time.Duration
-	computeDeltaTime  time.Duration
-	framesEqualCalls  int
-	computeDeltaCalls int
-}
-
-// GIF timing constants.
 const (
 	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
 	gifTimeUnit = 10
@@ -60,64 +50,33 @@ func New(config *renderer.Config) (*Renderer, error) {
 	}, nil
 }
 
-// Format returns the output format name.
-func (r *Renderer) Format() string {
-	return "gif"
-}
-
-// FileExtension returns the file extension for GIF files.
-func (r *Renderer) FileExtension() string {
-	return ".gif"
-}
-
 // Render generates an animated GIF from the recording.
 func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) error {
 	if len(rec.Frames) == 0 {
 		return fmt.Errorf("recording has no frames")
 	}
 
-	startTime := time.Now()
-	if r.config.Debug {
-		log.Printf("[GIF] Starting GIF generation for %d frames", len(rec.Frames))
-	}
-
-	// Phase 1: Build the color palette for the GIF (needed before rendering)
-	paletteStart := time.Now()
-	palette := r.buildPalette(rec)
-	if r.config.Debug {
-		log.Printf("[GIF] Phase 1 - Palette building: %v (%d colors)", time.Since(paletteStart), len(palette))
-	}
-
-	// Phase 2: Use the raster package to render all frames directly to paletted images
-	// This avoids the expensive RGBA -> Paletted conversion
-	rasterStart := time.Now()
-	palettedFrames, err := r.rasterizer.RasterizeWithPalette(rec, palette)
+	start := time.Now()
+	// The palette has to be known before the frames are drawn, so they can be
+	// drawn straight into it.
+	frames, err := r.rasterizer.RasterizeWithPalette(rec, r.buildPalette(rec))
 	if err != nil {
 		return fmt.Errorf("failed to rasterize frames: %w", err)
 	}
-	rasterDuration := time.Since(rasterStart)
+	rasterized := time.Since(start)
 
-	if r.config.Debug {
-		log.Printf("[GIF] Phase 2 - IR rasterization: %v (%d frames)",
-			rasterDuration, len(palettedFrames))
-	}
-
-	// Check for cancellation after rendering
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// Phase 3: Assemble the GIF from paletted frames
-	assembleStart := time.Now()
-	err = r.assembleGIF(palettedFrames, w)
-	if err != nil {
+	if err := r.assembleGIF(frames, w); err != nil {
 		return err
 	}
 	if r.config.Debug {
-		log.Printf("[GIF] Phase 3 - GIF assembly: %v", time.Since(assembleStart))
-		log.Printf("[GIF] Total time: %v", time.Since(startTime))
+		log.Printf("[GIF] %d frames: rasterized in %v, assembled in %v",
+			len(frames), rasterized, time.Since(start)-rasterized)
 	}
 
 	return nil
@@ -133,116 +92,55 @@ func (r *Renderer) sendProgress(current, total int) {
 	}
 }
 
-// assembleGIF creates the final GIF from rendered paletted frames using delta encoding.
-// GIF assembly requires multiple sequential steps for delta encoding.
-//
-
+// assembleGIF writes the frames as a GIF in which each frame after the first
+// holds only the pixels that differ from the one before it.
 func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
-	g := &gif.GIF{
-		LoopCount: r.config.LoopCount,
-	}
+	g := &gif.GIF{LoopCount: r.config.LoopCount}
+	var prev *image.Paletted
 
-	var prevPaletted *image.Paletted
-	totalFrames := len(frames)
+	r.sendProgress(0, len(frames))
 
-	r.sendProgress(0, totalFrames)
+	for i, frame := range frames {
+		delay := gifDelay(frame.Delay, i == len(frames)-1)
 
-	timings := &gifTimings{}
-
-	for i, rf := range frames {
-		delay := r.calculateDelay(rf.Delay, i, len(frames))
-
-		if r.processFrame(g, prevPaletted, rf.Image, delay, timings) {
+		switch {
+		case prev == nil:
+			g.Image = append(g.Image, frame.Image)
+		case framesEqual(prev, frame.Image):
+			g.Delay[len(g.Delay)-1] += delay
 			continue
+		default:
+			g.Image = append(g.Image, changedPixels(prev, frame.Image))
 		}
+		g.Disposal = append(g.Disposal, gif.DisposalNone)
+		g.Delay = append(g.Delay, delay)
 
-		prevPaletted = rf.Image
-		r.sendProgress(i+1, totalFrames)
+		prev = frame.Image
+		r.sendProgress(i+1, len(frames))
 	}
 
-	return r.encodeAndLog(g, w, timings)
+	return gif.EncodeAll(w, g)
 }
 
-func (r *Renderer) calculateDelay(delay time.Duration, frameIdx, totalFrames int) int {
-	d := int(delay.Milliseconds() / gifTimeUnit)
-	if d < minGifDelay && frameIdx < totalFrames-1 {
+// gifDelay converts a display time to GIF delay units. Every frame but the
+// last is shown for at least minGifDelay.
+func gifDelay(delay time.Duration, last bool) int {
+	units := int(delay.Milliseconds() / gifTimeUnit)
+	if units < minGifDelay && !last {
 		return minGifDelay
 	}
-	return d
+
+	return units
 }
 
-func (r *Renderer) processFrame(g *gif.GIF, prev, curr *image.Paletted, delay int, t *gifTimings) bool {
-	if prev != nil {
-		feStart := time.Now()
-		isEqual := framesEqual(prev, curr)
-		if r.config.Debug {
-			t.framesEqualTime += time.Since(feStart)
-			t.framesEqualCalls++
-		}
-		if isEqual {
-			g.Delay[len(g.Delay)-1] += delay
-			return true
-		}
-
-		cdStart := time.Now()
-		delta := computeDelta(prev, curr, 0)
-		if r.config.Debug {
-			t.computeDeltaTime += time.Since(cdStart)
-			t.computeDeltaCalls++
-		}
-		g.Image = append(g.Image, delta)
-		g.Disposal = append(g.Disposal, gif.DisposalNone)
-	} else {
-		g.Image = append(g.Image, curr)
-		g.Disposal = append(g.Disposal, gif.DisposalNone)
-	}
-
-	g.Delay = append(g.Delay, delay)
-	return false
-}
-
-func (r *Renderer) encodeAndLog(g *gif.GIF, w io.Writer, t *gifTimings) error {
-	encodeStart := time.Now()
-	err := gif.EncodeAll(w, g)
-	encodeTime := time.Since(encodeStart)
-
-	if r.config.Debug {
-		otherTime := time.Since(time.Now().Add(-encodeTime)) - t.framesEqualTime - t.computeDeltaTime - encodeTime
-		log.Printf("[GIF] Phase 3 - GIF assembly breakdown:")
-		log.Printf("[GIF]   - framesEqual: %v (%d calls)", t.framesEqualTime, t.framesEqualCalls)
-		log.Printf("[GIF]   - computeDelta: %v (%d calls)", t.computeDeltaTime, t.computeDeltaCalls)
-		log.Printf("[GIF]   - gif.EncodeAll: %v", encodeTime)
-		log.Printf("[GIF]   - other (loop overhead): %v", otherTime)
-	}
-
-	return err
-}
-
-// framesEqual checks if two paletted images are identical
 func framesEqual(a, b *image.Paletted) bool {
-	if a.Bounds() != b.Bounds() {
-		return false
-	}
-	for i := range a.Pix {
-		if a.Pix[i] != b.Pix[i] {
-			return false
-		}
-	}
-	return true
+	return a.Bounds() == b.Bounds() && bytes.Equal(a.Pix, b.Pix)
 }
 
-// computeDelta creates a delta frame containing only pixels that changed
-// Unchanged pixels are set to the transparent color index
-func computeDelta(prev, curr *image.Paletted, transparentIdx uint8) *image.Paletted {
-	bounds := curr.Bounds()
-	delta := image.NewPaletted(bounds, curr.Palette)
-
-	// Fill with transparent initially
-	for i := range delta.Pix {
-		delta.Pix[i] = transparentIdx
-	}
-
-	// Copy only changed pixels
+// changedPixels returns an image of curr's size and palette that has curr's
+// pixels where they differ from prev, and the transparent color (index 0) elsewhere.
+func changedPixels(prev, curr *image.Paletted) *image.Paletted {
+	delta := image.NewPaletted(curr.Bounds(), curr.Palette)
 	for i := range curr.Pix {
 		if prev.Pix[i] != curr.Pix[i] {
 			delta.Pix[i] = curr.Pix[i]
@@ -259,7 +157,6 @@ func computeDelta(prev, curr *image.Paletted, transparentIdx uint8) *image.Palet
 func (r *Renderer) buildPalette(rec *ir.Recording) color.Palette {
 	palette := make(color.Palette, 0, maxGIFColors)
 	seen := make(map[color.RGBA]bool)
-	// Add transparent colour first (for potential optimization)
 	palette = append(palette, color.RGBA{})
 	add := func(c color.RGBA) {
 		if !seen[c] && len(palette) < maxGIFColors {
@@ -268,7 +165,6 @@ func (r *Renderer) buildPalette(rec *ir.Recording) color.Palette {
 		}
 	}
 
-	// Theme colours
 	theme := &r.config.Theme
 	add(theme.Background)
 	add(theme.WindowBackground)
@@ -277,20 +173,13 @@ func (r *Renderer) buildPalette(rec *ir.Recording) color.Palette {
 		add(btnColor)
 	}
 
-	// Colours from the catalog, in registration (first use) order
 	add(rec.Colors.DefaultForeground())
 	add(rec.Colors.DefaultBackground())
-	catalog := rec.Colors.All()
-	ids := make([]termcolor.ID, 0, len(catalog))
-	for id := range catalog {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	for _, id := range ids {
-		add(catalog[id])
+	for _, c := range rec.Colors.Colors() {
+		add(c)
 	}
 
-	// If the palette is too small, pad with black
+	// A GIF needs at least two colours.
 	for len(palette) < 2 {
 		palette = append(palette, color.RGBA{A: 255})
 	}

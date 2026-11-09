@@ -11,14 +11,11 @@ type ID uint16
 // Catalog maps unique colors to stable IDs for efficient referencing.
 // It deduplicates colors and provides CSS class name generation.
 type Catalog struct {
-	// colors maps ID to the resolved RGBA value
-	colors map[ID]color.RGBA
+	// colors holds the resolved RGBA value of ID i+1, in order of first use
+	colors []color.RGBA
 
 	// lookup maps color key to ID for deduplication
 	lookup map[colorKey]ID
-
-	// nextID is the next available ID
-	nextID ID
 
 	// defaultFG and defaultBG are the theme defaults
 	defaultFG color.RGBA
@@ -41,9 +38,7 @@ const DefaultID ID = 0
 // NewCatalog creates a color catalog with the given default colors.
 func NewCatalog(defaultFG, defaultBG color.RGBA) *Catalog {
 	return &Catalog{
-		colors:    make(map[ID]color.RGBA),
 		lookup:    make(map[colorKey]ID),
-		nextID:    1, // 0 is reserved for DefaultID
 		defaultFG: defaultFG,
 		defaultBG: defaultBG,
 	}
@@ -53,24 +48,19 @@ func NewCatalog(defaultFG, defaultBG color.RGBA) *Catalog {
 // If the color already exists, returns the existing ID.
 // Default colors return DefaultID.
 func (c *Catalog) Register(col Color, palette *Palette) ID {
-	// Default colors get the special ID
 	if col.Type == Default {
 		return DefaultID
 	}
 
-	// Resolve to RGBA
 	rgba := col.ToRGBA(palette)
 	key := colorKey{r: rgba.R, g: rgba.G, b: rgba.B}
 
-	// Check if already registered
 	if id, exists := c.lookup[key]; exists {
 		return id
 	}
 
-	// Register new color
-	id := c.nextID
-	c.nextID++
-	c.colors[id] = rgba
+	c.colors = append(c.colors, rgba)
+	id := ID(len(c.colors))
 	c.lookup[key] = id
 
 	return id
@@ -79,10 +69,10 @@ func (c *Catalog) Register(col Color, palette *Palette) ID {
 // Resolved returns the RGBA value for an ID.
 // For DefaultID, returns a zero RGBA (caller should use theme default).
 func (c *Catalog) Resolved(id ID) color.RGBA {
-	if id == DefaultID {
+	if id == DefaultID || int(id) > len(c.colors) {
 		return color.RGBA{}
 	}
-	return c.colors[id]
+	return c.colors[id-1]
 }
 
 // IsDefault checks if the ID represents a default color.
@@ -90,14 +80,10 @@ func (c *Catalog) IsDefault(id ID) bool {
 	return id == DefaultID
 }
 
-// All returns all color entries for iteration (e.g., generating CSS classes).
-func (c *Catalog) All() map[ID]color.RGBA {
+// Colors returns the registered colors in ID order, which is the order they
+// were first registered in. The slice is the catalog's own and must not be modified.
+func (c *Catalog) Colors() []color.RGBA {
 	return c.colors
-}
-
-// Count returns the number of unique colors (excluding default).
-func (c *Catalog) Count() int {
-	return len(c.colors)
 }
 
 // DefaultForeground returns the default foreground color.
@@ -116,8 +102,7 @@ func (c *Catalog) GenerateClassNames() map[ID]string {
 	names := make(map[ID]string)
 	gen := newIDGenerator()
 
-	// Generate names in ID order for deterministic output
-	for id := ID(1); id < c.nextID; id++ {
+	for id := ID(1); int(id) <= len(c.colors); id++ {
 		names[id] = gen.Next()
 	}
 
