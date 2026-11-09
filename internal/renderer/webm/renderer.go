@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
-	"github.com/mrmarble/termsvg/internal/progress"
 	"github.com/mrmarble/termsvg/internal/raster"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
@@ -82,7 +83,7 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 
 	// Phase 2: Encode to WebM using FFmpeg
 	encodeStart := time.Now()
-	if err := r.encodeToWebM(rgbaFrames, w); err != nil {
+	if err := r.encodeToWebM(ctx, rgbaFrames, w); err != nil {
 		return fmt.Errorf("failed to encode WebM: %w", err)
 	}
 
@@ -94,166 +95,46 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 	return nil
 }
 
-// encodeToWebM encodes RGBA frames to WebM format using FFmpeg.
-// Uses fixed 30 FPS with frame filtering to skip rapid events.
-//
-//nolint:gocognit,funlen // WebM encoding with FFmpeg requires complex frame handling
-func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error {
+func (r *Renderer) encodeToWebM(ctx context.Context, frames []raster.RasterFrame, w io.Writer) error {
 	if len(frames) == 0 {
 		return fmt.Errorf("no frames to encode")
 	}
 
-	// Filter frames to skip rapid events (similar to GIF deduplication)
-	// At 30 FPS, minimum display time is ~33ms
+	// Frames shorter than one frame of a 30 FPS video are not worth encoding.
 	filteredFrames := r.filterFrames(frames)
-
 	if r.config.Debug {
-		// Calculate total frames after duplication
-		const frameDuration = time.Second / 30
-		totalDuplicatedFrames := 0
-		for _, frame := range filteredFrames {
-			if frame.Image != nil {
-				count := max(int(frame.Delay/frameDuration), 1)
-				totalDuplicatedFrames += count
-			}
-		}
 		log.Printf("[WebM] Filtered %d frames -> %d frames (skipped %d rapid frames)",
 			len(frames), len(filteredFrames), len(frames)-len(filteredFrames))
-		log.Printf("[WebM] Total video frames after duplication: %d", totalDuplicatedFrames)
 	}
-
-	if len(filteredFrames) == 0 {
-		return fmt.Errorf("no valid frames after filtering")
-	}
-
-	// Get frame dimensions from first frame
-	firstFrame := filteredFrames[0].Image
-	if firstFrame == nil {
+	if len(filteredFrames) == 0 || filteredFrames[0].Image == nil {
 		return fmt.Errorf("no valid frames to encode")
 	}
 
-	bounds := firstFrame.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-
-	// Use fixed 30 FPS for consistent playback
-	const frameRate = 30.0
-
-	// Build FFmpeg command
-	// Input: raw RGBA frames from stdin
-	// Output: WebM with VP9 codec
-	args := []string{
-		"-y", // Overwrite output
-		"-f", "rawvideo",
-		"-vcodec", "rawvideo",
-		"-pix_fmt", "rgba",
-		"-s", fmt.Sprintf("%dx%d", width, height),
-		"-r", fmt.Sprintf("%f", frameRate),
-		"-i", "-", // Read from stdin
-		"-c:v", "libvpx-vp9",
-		"-pix_fmt", "yuv420p",
-		"-deadline", "good",
-		"-cpu-used", "5",
-		"-row-mt", "1",
-		// Bit-exact output: no random segment UID, encoding date or encoder tag,
-		// so the same recording always produces the same bytes.
-		"-fflags", "+bitexact",
-		"-flags:v", "+bitexact",
-		"-map_metadata", "-1",
-		"-f", "webm",
-		"pipe:1", // Write to stdout
-	}
-
-	// Add bitrate if specified
-	if r.config.VideoBitrate > 0 {
-		args = append(args, "-b:v", fmt.Sprintf("%dk", r.config.VideoBitrate))
-	}
-
-	cmd := exec.Command("ffmpeg", args...) //nolint:gosec // args are constructed from validated config
-
-	// Get stdin pipe for writing frames
-	stdin, err := cmd.StdinPipe()
+	// ffmpeg reads the frames from a directory and writes the video to a file
+	// in it: a file it can seek in gets a duration and a seek index, which a
+	// pipe cannot have.
+	dir, err := os.MkdirTemp("", "termsvg-webm-")
 	if err != nil {
-		return fmt.Errorf("failed to create stdin pipe: %w", err)
+		return fmt.Errorf("failed to create a work directory: %w", err)
 	}
+	defer os.RemoveAll(dir)
 
-	// Get stdout pipe for reading output
-	stdout, err := cmd.StdoutPipe()
+	listPath, err := writeFrameFiles(ctx, dir, filteredFrames, r.config.ProgressCh)
 	if err != nil {
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
+		return err
+	}
+	outPath := filepath.Join(dir, "out.webm")
+	if err := runFFmpeg(ctx, ffmpegArgs(listPath, outPath, r.config.VideoBitrate)); err != nil {
+		return err
 	}
 
-	// Start FFmpeg
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start ffmpeg: %w", err)
+	video, err := os.Open(outPath) //nolint:gosec // a file ffmpeg just wrote in our own temp dir
+	if err != nil {
+		return fmt.Errorf("failed to read the encoded video: %w", err)
 	}
-
-	// Write frames to FFmpeg in a goroutine
-	// Each frame is duplicated based on its delay to respect recording timing
-	go func() {
-		defer stdin.Close()
-
-		const frameDuration = time.Second / 30 // ~33.33ms per frame at 30 FPS
-		encodedFrames := 0
-		totalFrames := len(filteredFrames)
-
-		// Send initial progress
-		if r.config.ProgressCh != nil {
-			r.config.ProgressCh <- progress.Update{
-				Phase:   "Encoding",
-				Current: 0,
-				Total:   totalFrames,
-			}
-		}
-
-		for _, frame := range filteredFrames {
-			if frame.Image == nil {
-				continue
-			}
-
-			// Calculate how many times to duplicate this frame based on its delay
-			// At 30 FPS, each frame is 33.33ms, so a 500ms delay = 15 frames
-			frameCount := max(int(frame.Delay/frameDuration),
-				// Minimum 1 frame
-				1)
-
-			// Write the frame multiple times to match the delay
-			for range frameCount {
-				_, err := stdin.Write(frame.Image.Pix)
-				if err != nil {
-					return
-				}
-			}
-
-			// Send progress update
-			encodedFrames++
-			if r.config.ProgressCh != nil {
-				r.config.ProgressCh <- progress.Update{
-					Phase:   "Encoding",
-					Current: encodedFrames,
-					Total:   totalFrames,
-				}
-			}
-		}
-	}()
-
-	// Copy FFmpeg output to writer
-	buf := make([]byte, 32*1024)
-	for {
-		n, err := stdout.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("failed to write output: %w", writeErr)
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-
-	// Wait for FFmpeg to finish
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("ffmpeg encoding failed: %w", err)
+	defer video.Close()
+	if _, err := io.Copy(w, video); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
 	}
 
 	return nil
