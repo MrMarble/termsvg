@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -196,7 +198,7 @@ func TestCmd_Run_AsciicastV3MatchesV2(t *testing.T) {
 # a comment between events
 [0.5,"m","chapter"]
 [0.25,"o","\r\n\u001b[31mred\u001b[0m"]
-[0.125,"r","90x30"]
+[0.125,"r","20x4"]
 [0.625,"o","\r\nbye"]
 [0.5,"x","0"]
 `)
@@ -299,5 +301,45 @@ func TestCmd_Run_EightColorHeaderTheme(t *testing.T) {
 	}
 	if strings.Contains(svg, "#ff0000") || strings.Contains(svg, "#f00") {
 		t.Error("the default bright red was used instead of the theme's repeated red")
+	}
+}
+
+func TestCmd_Run_ResizeGrowsTheCanvas(t *testing.T) {
+	dir := t.TempDir()
+	fixed := writeRunFile(t, dir, "fixed.cast", `{"version":3,"term":{"cols":20,"rows":4}}
+[0.25,"o","hello"]
+[0.25,"o","\r\nworld"]
+`)
+	resized := writeRunFile(t, dir, "resized.cast", `{"version":3,"term":{"cols":20,"rows":4}}
+[0.25,"o","hello"]
+[0.125,"r","40x8"]
+[0.125,"o","\r\nworld"]
+`)
+
+	widthOf := func(in string) int {
+		t.Helper()
+		out := filepath.Join(dir, filepath.Base(in)+".svg")
+		cmd := newCmd(in, out, "svg")
+		cmd.NoWindow = true
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("export %s: %v", filepath.Base(in), err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := regexp.MustCompile(`<svg[^>]*\swidth="(\d+)"`).FindSubmatch(data)
+		if match == nil {
+			t.Fatalf("no width in %.120s", data)
+		}
+		width, err := strconv.Atoi(string(match[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return width
+	}
+
+	if fixedWidth, resizedWidth := widthOf(fixed), widthOf(resized); resizedWidth <= fixedWidth {
+		t.Errorf("canvas width after growing to 40 columns = %d, want more than the fixed %d", resizedWidth, fixedWidth)
 	}
 }

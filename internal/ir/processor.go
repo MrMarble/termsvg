@@ -3,6 +3,8 @@ package ir
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,14 @@ type Processor struct {
 	config ProcessorConfig
 }
 
+// canvasSize is the largest terminal size seen in a recording. Renderers draw
+// every frame on a canvas of this size so a terminal that grows is not clipped.
+type canvasSize struct{ cols, rows int }
+
+// maxTerminalSize bounds a terminal dimension, so a corrupt header or resize
+// event cannot make the emulator allocate an absurd screen.
+const maxTerminalSize = 4096
+
 // DefaultProcessorConfig returns sensible defaults.
 func DefaultProcessorConfig() *ProcessorConfig {
 	return &ProcessorConfig{
@@ -49,77 +59,120 @@ func (p *Processor) sendProgress(current, total int) {
 	}
 }
 
-// Process transforms a Cast into a Recording (the IR).
 func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
-	if cast.Header.Width <= 0 || cast.Header.Height <= 0 {
-		return nil, fmt.Errorf("invalid terminal size %dx%d: the recording header must set a positive width and height",
-			cast.Header.Width, cast.Header.Height)
+	if err := validateTerminalSize(cast.Header.Width, cast.Header.Height); err != nil {
+		return nil, fmt.Errorf("invalid terminal size %dx%d: %w", cast.Header.Width, cast.Header.Height, err)
 	}
 
 	// 1. Pre-process the cast (compress, adjust timing)
 	events := p.preprocessEvents(cast)
-	totalEvents := len(events)
-	if totalEvents == 0 {
+	if !hasOutput(events) {
 		return nil, errors.New("recording has no output events")
 	}
+	p.sendProgress(0, len(events))
 
-	p.sendProgress(0, totalEvents)
-
-	// 2. Initialize terminal emulator
+	// 2. Initialize terminal emulator and color catalog with theme defaults
 	term := terminal.New(cast.Header.Width, cast.Header.Height)
-
-	// 3. Initialize color catalog with theme defaults
 	catalog := color.NewCatalog(p.config.Theme.Foreground, p.config.Theme.Background)
 
-	// 4. Process each event into a frame
-	frames := make([]Frame, 0, len(events))
+	// 3. Process each event into a frame
 	stats := Stats{}
+	canvas := canvasSize{cols: cast.Header.Width, rows: cast.Header.Height}
+	frames := p.captureFrames(events, term, catalog, &canvas, &stats)
 
-	var prevTime time.Duration
-	for i, event := range events {
-		// Write to terminal emulator
-		_, _ = term.Write([]byte(event.EventData))
-
-		// Capture frame
-		frameTime := floatSecondsToDuration(event.Time)
-		frame := p.captureFrame(term, catalog, i, frameTime, frameTime-prevTime, &stats)
-		frames = append(frames, frame)
-
-		// Send progress update every 10 events or on last event
-		if i%10 == 0 || i == totalEvents-1 {
-			p.sendProgress(i+1, totalEvents)
-		}
-
-		prevTime = frameTime
-	}
-
-	// 5. Clean up frames: strip empty rows and trim trailing whitespace
+	// 4. Clean up frames: strip empty rows and trim trailing whitespace
 	for i := range frames {
 		frames[i].Rows = cleanRows(frames[i].Rows, catalog)
 	}
 
-	// 6. Deduplicate consecutive identical frames, including cursor state
+	// 5. Deduplicate consecutive identical frames, including cursor state
 	frames = deduplicateFrames(frames)
 
-	// 7. Finalize statistics
+	// 6. Finalize statistics
 	stats.TotalFrames = len(frames)
 	stats.UniqueColors = catalog.Count()
 
-	// 8. Calculate duration
+	// 7. Calculate duration
 	var duration time.Duration
 	if len(frames) > 0 {
 		duration = frames[len(frames)-1].Time
 	}
 
 	return &Recording{
-		Width:    cast.Header.Width,
-		Height:   cast.Header.Height,
+		Width:    canvas.cols,
+		Height:   canvas.rows,
 		Duration: duration,
 		Title:    cast.Header.Title,
 		Frames:   frames,
 		Colors:   catalog,
 		Stats:    stats,
 	}, nil
+}
+
+// captureFrames feeds the events to the emulator in order and captures a frame
+// after each one. Output is written to the terminal; a resize changes its size.
+func (p *Processor) captureFrames(
+	events []asciicast.Event,
+	term *terminal.Emulator,
+	catalog *color.Catalog,
+	canvas *canvasSize,
+	stats *Stats,
+) []Frame {
+	frames := make([]Frame, 0, len(events))
+	var prevTime time.Duration
+	for i, event := range events {
+		if event.EventType == asciicast.Resize {
+			cols, rows, ok := parseResize(event.EventData)
+			if !ok || (cols == term.Width() && rows == term.Height()) {
+				continue // nothing changes on screen, so there is no frame to capture
+			}
+			term.Resize(cols, rows)
+			canvas.cols, canvas.rows = max(canvas.cols, cols), max(canvas.rows, rows)
+		} else {
+			_, _ = term.Write([]byte(event.EventData))
+		}
+
+		frameTime := floatSecondsToDuration(event.Time)
+		frames = append(frames, p.captureFrame(term, catalog, i, frameTime, frameTime-prevTime, stats))
+
+		// Send progress update every 10 events
+		if i%10 == 0 {
+			p.sendProgress(i+1, len(events))
+		}
+
+		prevTime = frameTime
+	}
+	p.sendProgress(len(events), len(events))
+
+	return frames
+}
+
+func validateTerminalSize(cols, rows int) error {
+	if cols < 1 || rows < 1 || cols > maxTerminalSize || rows > maxTerminalSize {
+		return fmt.Errorf("columns and rows must be between 1 and %d", maxTerminalSize)
+	}
+
+	return nil
+}
+
+// parseResize reads a resize event's "COLSxROWS" data. Malformed or out of
+// range sizes report false and are ignored.
+func parseResize(data string) (cols, rows int, ok bool) {
+	colsText, rowsText, found := strings.Cut(strings.TrimSpace(data), "x")
+	if !found {
+		return 0, 0, false
+	}
+	cols, colsErr := strconv.Atoi(colsText)
+	rows, rowsErr := strconv.Atoi(rowsText)
+	if colsErr != nil || rowsErr != nil || validateTerminalSize(cols, rows) != nil {
+		return 0, 0, false
+	}
+
+	return cols, rows, true
+}
+
+func hasOutput(events []asciicast.Event) bool {
+	return slices.ContainsFunc(events, func(e asciicast.Event) bool { return e.EventType == asciicast.Output })
 }
 
 // captureFrame extracts the current terminal state into a Frame.
@@ -253,12 +306,12 @@ func (p *Processor) cellToAttrs(
 
 // preprocessEvents applies timing adjustments and compression.
 func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
-	// Work with a copy to avoid mutating input. Only output events are drawn:
-	// input, markers, resizes and exit statuses carry data that is not terminal
-	// output.
+	// Work with a copy to avoid mutating input. Only output and resize events
+	// affect the screen: input, markers, exit statuses and unknown codes carry
+	// data that is not terminal output.
 	events := make([]asciicast.Event, 0, len(cast.Events))
 	for _, event := range cast.Events {
-		if event.EventType == asciicast.Output {
+		if event.EventType == asciicast.Output || event.EventType == asciicast.Resize {
 			events = append(events, event)
 		}
 	}
@@ -296,7 +349,9 @@ func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
 				continue
 			}
 			last := &compressed[len(compressed)-1]
-			if event.Time == last.Time {
+			// Only output events at the same instant can share a frame; a resize
+			// carries "COLSxROWS", not terminal output.
+			if event.Time == last.Time && event.EventType == asciicast.Output && last.EventType == asciicast.Output {
 				last.EventData += event.EventData
 			} else {
 				compressed = append(compressed, event)

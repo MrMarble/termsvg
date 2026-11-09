@@ -146,7 +146,7 @@ func TestProcessor_OnlyOutputEventsAreDrawn(t *testing.T) {
 			{Time: 0.1, EventType: asciicast.Output, EventData: "ab"},
 			{Time: 0.2, EventType: asciicast.Input, EventData: "TYPED"},
 			{Time: 0.3, EventType: asciicast.Marker, EventData: "MARK"},
-			{Time: 0.4, EventType: asciicast.Resize, EventData: "90x30"},
+			{Time: 0.4, EventType: asciicast.Resize, EventData: "20x3"}, // same size: no effect
 			{Time: 0.5, EventType: asciicast.Output, EventData: "cd"},
 			{Time: 0.6, EventType: asciicast.Exit, EventData: "0"},
 			{Time: 0.7, EventType: asciicast.EventType("zz"), EventData: "UNKNOWN"},
@@ -201,5 +201,129 @@ func TestProcessor_RejectsUnusableCasts(t *testing.T) {
 				t.Fatalf("Process() = %v, %v; want error containing %q", rec, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func outputEvent(at float64, data string) asciicast.Event {
+	return asciicast.Event{Time: at, EventType: asciicast.Output, EventData: data}
+}
+
+func resizeEvent(at float64, size string) asciicast.Event {
+	return asciicast.Event{Time: at, EventType: asciicast.Resize, EventData: size}
+}
+
+func processEvents(t *testing.T, cols, rows int, events ...asciicast.Event) *Recording {
+	t.Helper()
+	cast := &asciicast.Cast{Header: asciicast.Header{Version: 2, Width: cols, Height: rows}, Events: events}
+	rec, err := NewProcessor(DefaultProcessorConfig()).Process(cast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rec
+}
+
+func rowTexts(frame Frame) []string {
+	out := make([]string, 0, len(frame.Rows))
+	for _, row := range frame.Rows {
+		var sb strings.Builder
+		for _, run := range row.Runs {
+			sb.WriteString(run.Text)
+		}
+		out = append(out, sb.String())
+	}
+	return out
+}
+
+func TestProcessor_ResizeChangesWrapping(t *testing.T) {
+	const text = "0123456789abcdef"
+	narrow := processEvents(t, 10, 4, outputEvent(0.1, text))
+	wide := processEvents(t, 10, 4, resizeEvent(0.05, "20x4"), outputEvent(0.1, text))
+
+	gotNarrow := rowTexts(narrow.Frames[len(narrow.Frames)-1])
+	if len(gotNarrow) != 2 || gotNarrow[0] != "0123456789" || gotNarrow[1] != "abcdef" {
+		t.Errorf("10-column terminal rows = %q, want the text wrapped after 10 columns", gotNarrow)
+	}
+	gotWide := rowTexts(wide.Frames[len(wide.Frames)-1])
+	if len(gotWide) != 1 || gotWide[0] != text {
+		t.Errorf("terminal resized to 20 columns rows = %q, want the text on one row", gotWide)
+	}
+}
+
+func TestProcessor_RecordingSizeIsTheLargestSeen(t *testing.T) {
+	rec := processEvents(t, 10, 3,
+		outputEvent(0.1, "a"),
+		resizeEvent(0.2, "30x8"),
+		outputEvent(0.3, "b"),
+		resizeEvent(0.4, "8x2"),
+		outputEvent(0.5, "c"),
+	)
+	if rec.Width != 30 || rec.Height != 8 {
+		t.Errorf("recording size = %dx%d, want 30x8 (the largest terminal size)", rec.Width, rec.Height)
+	}
+	if got := lastFrameText(rec); got != "abc" {
+		t.Errorf("last frame text = %q", got)
+	}
+}
+
+func TestProcessor_IgnoresInvalidResizes(t *testing.T) {
+	invalid := []string{"", "x", "10", "10x", "x10", "axb", "0x5", "5x0", "-3x4", "99999x5", "5x99999", "10 x 5"}
+	for _, size := range invalid {
+		t.Run(size, func(t *testing.T) {
+			rec := processEvents(t, 12, 4, outputEvent(0.1, "a"), resizeEvent(0.2, size), outputEvent(0.3, "b"))
+			if rec.Width != 12 || rec.Height != 4 {
+				t.Errorf("size = %dx%d after resize %q, want it unchanged at 12x4", rec.Width, rec.Height, size)
+			}
+			if got := lastFrameText(rec); got != "ab" {
+				t.Errorf("text = %q", got)
+			}
+		})
+	}
+}
+
+func TestProcessor_ResizeToCurrentSizeAddsNoFrame(t *testing.T) {
+	plain := processEvents(t, 12, 4, outputEvent(0.1, "a"), outputEvent(1.0, "b"))
+	noop := processEvents(t, 12, 4, outputEvent(0.1, "a"), resizeEvent(0.5, "12x4"), outputEvent(1.0, "b"))
+	if len(noop.Frames) != len(plain.Frames) {
+		t.Fatalf("frames = %d, want %d", len(noop.Frames), len(plain.Frames))
+	}
+	for i := range plain.Frames {
+		if plain.Frames[i].Time != noop.Frames[i].Time || plain.Frames[i].Delay != noop.Frames[i].Delay {
+			t.Errorf("frame %d timing changed by a no-op resize: %v/%v vs %v/%v", i,
+				noop.Frames[i].Time, noop.Frames[i].Delay, plain.Frames[i].Time, plain.Frames[i].Delay)
+		}
+	}
+}
+
+func TestProcessor_ResizeIsNotMergedIntoSimultaneousOutput(t *testing.T) {
+	// Events at the same instant are compressed into one write, but a resize's
+	// "COLSxROWS" data must never be written to the terminal as text.
+	rec := processEvents(t, 10, 3, outputEvent(0.1, "a"), resizeEvent(0.1, "20x3"), outputEvent(0.1, "b"))
+	if got := lastFrameText(rec); got != "ab" {
+		t.Errorf("text = %q, want %q", got, "ab")
+	}
+	if rec.Width != 20 {
+		t.Errorf("Width = %d, want 20", rec.Width)
+	}
+}
+
+func TestProcessor_ResizeAloneIsNotARecording(t *testing.T) {
+	cast := &asciicast.Cast{
+		Header: asciicast.Header{Version: 2, Width: 10, Height: 3},
+		Events: []asciicast.Event{resizeEvent(0.1, "20x5")},
+	}
+	if _, err := NewProcessor(DefaultProcessorConfig()).Process(cast); err == nil ||
+		!strings.Contains(err.Error(), "no output events") {
+		t.Errorf("error = %v, want 'no output events'", err)
+	}
+}
+
+func TestProcessor_RejectsOversizedHeader(t *testing.T) {
+	cast := &asciicast.Cast{
+		Header: asciicast.Header{Version: 2, Width: 100000, Height: 24},
+		Events: []asciicast.Event{outputEvent(0.1, "a")},
+	}
+	if _, err := NewProcessor(DefaultProcessorConfig()).Process(cast); err == nil ||
+		!strings.Contains(err.Error(), "invalid terminal size") {
+		t.Errorf("error = %v, want an invalid terminal size error", err)
 	}
 }

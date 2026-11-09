@@ -97,7 +97,7 @@ termsvg play /path/to/asciicast.cast
 
 Available options:
 
-- `-i, --idle-time-limit=<sec>` - Limit replayed terminal inactivity to max `<sec>` seconds
+- `-i, --max-idle=<duration>` - Cap idle time between events, e.g. `500ms` or `2s`. Defaults to the recording's own `idle_time_limit`, if it has one
 - `-s, --speed=<factor>` - Playback speed (can be fractional)
 
 > For the best playback experience it is recommended to run `termsvg play` in
@@ -109,8 +109,8 @@ Available options:
 **Export recorded asciicast to svg.**
 
 This command exports given asciicast (as recorded by `rec` command) to svg. Both asciicast v2 and v3
-(asciinema 3.x) files are accepted; only output events are drawn, so markers, resizes, input and exit
-events in the file are ignored.
+(asciinema 3.x) files are accepted. Output and resize events are drawn (the image is as large as the
+biggest terminal size in the recording); markers, input and exit events are ignored.
 
 Exporting from a local file:
 
@@ -122,6 +122,8 @@ Available options:
 
 - `-o, --output=<file>` - Output svg to be created. Defaults to [input].svg
 - `-m, --minify` - Minify svg using [Minify](https://github.com/tdewolff/minify)
+- `-s, --speed=<factor>` - Playback speed multiplier (can be fractional)
+- `-i, --max-idle=<duration>` - Cap idle time between events, e.g. `500ms` or `2s`. Defaults to the recording's own `idle_time_limit`, if it has one
 - `--svg-layout=frames|bands|regions|scroll|auto` - Select the compatibility frame strip, experimental local layouts, or opt-in auto selection (`scroll` uses strict upward tapes with lossless fallback)
 - `--svg-auto-objective=size|runtime` - Compare auto candidates by exact bytes (default) or deterministic structural runtime proxies
 - `--svg-style=legacy|auto` - Keep compatibility paint classes (default) or opt into exact, profitability-driven paint encoding

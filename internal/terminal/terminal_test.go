@@ -141,3 +141,23 @@ func TestConvertColor(t *testing.T) {
 		})
 	}
 }
+
+func TestEmulator_Resize(t *testing.T) {
+	e := New(10, 3)
+	write(t, e, "hello")
+	e.Resize(20, 6)
+	if e.Width() != 20 || e.Height() != 6 {
+		t.Fatalf("size = %dx%d, want 20x6", e.Width(), e.Height())
+	}
+	if got := e.Cell(0, 0).Char; got != 'h' {
+		t.Errorf("content lost on grow: cell(0,0) = %q", got)
+	}
+	e.Resize(3, 2)
+	if e.Width() != 3 || e.Height() != 2 {
+		t.Fatalf("size = %dx%d, want 3x2", e.Width(), e.Height())
+	}
+	e.Resize(0, 5) // ignored
+	if e.Width() != 3 || e.Height() != 2 {
+		t.Errorf("invalid resize changed the size to %dx%d", e.Width(), e.Height())
+	}
+}
