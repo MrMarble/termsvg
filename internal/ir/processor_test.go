@@ -99,44 +99,15 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		check func(t *testing.T, rec *Recording)
+		want  Stats // only the fields set by styling; frame counts are checked separately
 	}{
-		{name: "bold", input: esc + "1mA", check: func(t *testing.T, r *Recording) {
-			if !r.Stats.HasBold || r.Stats.HasItalic || r.Stats.HasUnderline || r.Stats.HasDim {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "italic", input: esc + "3mA", check: func(t *testing.T, r *Recording) {
-			if !r.Stats.HasItalic || r.Stats.HasBold {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "underline", input: esc + "4mA", check: func(t *testing.T, r *Recording) {
-			if !r.Stats.HasUnderline || r.Stats.HasBold {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "truecolor foreground", input: esc + "38;2;10;20;30mA", check: func(t *testing.T, r *Recording) {
-			if !r.Stats.HasTrueColor || r.Stats.UniqueColors != 1 {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "truecolor background", input: esc + "48;2;10;20;30mA", check: func(t *testing.T, r *Recording) {
-			if !r.Stats.HasTrueColor {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "ansi colors are not truecolor", input: esc + "31;42mA", check: func(t *testing.T, r *Recording) {
-			if r.Stats.HasTrueColor || r.Stats.UniqueColors != 2 {
-				t.Errorf("stats = %+v", r.Stats)
-			}
-		}},
-		{name: "plain text sets no flags", input: "A", check: func(t *testing.T, r *Recording) {
-			s := r.Stats
-			if s.HasBold || s.HasItalic || s.HasUnderline || s.HasDim || s.HasTrueColor || s.UniqueColors != 0 {
-				t.Errorf("stats = %+v", s)
-			}
-		}},
+		{name: "bold", input: esc + "1mA", want: Stats{HasBold: true}},
+		{name: "italic", input: esc + "3mA", want: Stats{HasItalic: true}},
+		{name: "underline", input: esc + "4mA", want: Stats{HasUnderline: true}},
+		{name: "truecolor foreground", input: esc + "38;2;10;20;30mA", want: Stats{HasTrueColor: true, UniqueColors: 1}},
+		{name: "truecolor background", input: esc + "48;2;10;20;30mA", want: Stats{HasTrueColor: true, UniqueColors: 1}},
+		{name: "ansi colors are not truecolor", input: esc + "31;42mA", want: Stats{UniqueColors: 2}},
+		{name: "plain text sets no flags", input: "A", want: Stats{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,7 +119,11 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tt.check(t, rec)
+			got := rec.Stats
+			got.TotalFrames, got.MaxRunsPerRow = 0, 0
+			if got != tt.want {
+				t.Errorf("stats = %+v, want %+v", got, tt.want)
+			}
 		})
 	}
 }
