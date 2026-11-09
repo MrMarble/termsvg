@@ -343,3 +343,54 @@ func TestCmd_Run_ResizeGrowsTheCanvas(t *testing.T) {
 		t.Errorf("canvas width after growing to 40 columns = %d, want more than the fixed %d", resizedWidth, fixedWidth)
 	}
 }
+
+func TestCmd_Run_SystemFontsOnlyApplyToRasterFormats(t *testing.T) {
+	dir := t.TempDir()
+	in := writeRunFile(t, dir, "in.cast", runTestCast)
+	// Keep the font search small and local: the flag must work whatever is installed.
+	t.Setenv("TERMSVG_FONT_PATH", dir)
+
+	t.Run("svg is rejected with an explanation", func(t *testing.T) {
+		cmd := newCmd(in, filepath.Join(dir, "out.svg"), "svg")
+		cmd.SystemFonts = true
+		err := cmd.Run()
+		if err == nil || !strings.Contains(err.Error(), "--system-fonts") || !strings.Contains(err.Error(), "gif and webm") {
+			t.Fatalf("error = %v, want one that explains --system-fonts is for gif and webm", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(dir, "out.svg")); statErr == nil {
+			t.Error("an SVG was written although the options were invalid")
+		}
+	})
+
+	t.Run("gif accepts it", func(t *testing.T) {
+		out := filepath.Join(dir, "out.gif")
+		cmd := newCmd(in, out, "gif")
+		cmd.SystemFonts = true
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil || !bytes.HasPrefix(data, []byte("GIF8")) {
+			t.Fatalf("output is not a GIF: %v %.8q", err, data)
+		}
+	})
+
+	t.Run("it changes nothing for text the embedded fonts cover", func(t *testing.T) {
+		export := func(systemFonts bool) []byte {
+			out := filepath.Join(dir, "cmp.gif")
+			cmd := newCmd(in, out, "gif")
+			cmd.SystemFonts = systemFonts
+			if err := cmd.Run(); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(out) //nolint:gosec // test temp file
+			if err != nil {
+				t.Fatal(err)
+			}
+			return data
+		}
+		if !bytes.Equal(export(false), export(true)) {
+			t.Error("--system-fonts changed the output of a recording the embedded fonts fully cover")
+		}
+	})
+}

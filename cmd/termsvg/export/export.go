@@ -35,6 +35,7 @@ type Cmd struct {
 	Cols             int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
 	Rows             int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
 	Debug            bool          `short:"d" help:"Enable debug logging"`
+	SystemFonts      bool          `help:"Draw glyphs the embedded fonts lack with installed fonts (GIF and WebM)"`
 	Theme            string        `short:"t" help:"Theme name (built-in) or path to theme JSON file"`
 	SVGLayout        string        `default:"frames" enum:"frames,bands,regions,scroll,auto" help:"SVG layout: frames, experimental bands/regions/scroll, or measured auto selection"`
 	SVGAnimation     string        `default:"css" enum:"css,smil" help:"SVG animation backend (css or experimental smil)"`
@@ -46,6 +47,9 @@ type Cmd struct {
 }
 
 func (cmd *Cmd) normalizedSVGOptions(format string) (svg.Options, error) {
+	if cmd.SystemFonts && format == "svg" {
+		return svg.Options{}, errors.New("--system-fonts only applies to gif and webm output: an SVG uses the viewer's fonts")
+	}
 	options := svg.DefaultOptions()
 	if cmd.SVGLayout != "" {
 		options.Layout = svg.LayoutMode(strings.ToLower(cmd.SVGLayout))
@@ -165,6 +169,7 @@ func (cmd *Cmd) rendererConfig(
 	cfg.ShowCursor = !cmd.NoCursor
 	cfg.Minify = cmd.Minify
 	cfg.Debug = cmd.Debug
+	cfg.SystemFonts = cmd.SystemFonts
 	cfg.Theme = *selectedTheme
 	cfg.ProgressCh = progressCh
 

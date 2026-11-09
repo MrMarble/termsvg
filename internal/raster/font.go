@@ -23,15 +23,16 @@ var fallbackFonts = [][]byte{dejaVuSansMonoTTF, notoSansSymbols2TTF}
 
 // loadFontFace loads the embedded fonts at the given size: JetBrains Mono, with
 // the fallback fonts for the glyphs it does not have. The fallback fonts are
-// only parsed when a recording first needs one. The returned face is not safe
+// only parsed when a recording first needs one. When sys is not nil, installed
+// fonts are tried last for runes none of the embedded fonts has. The returned face is not safe
 // for concurrent use; each goroutine needs its own.
-func loadFontFace(size float64) (font.Face, error) {
+func loadFontFace(size float64, sys *systemFonts) (font.Face, error) {
 	primary, err := opentype.Parse(jetBrainsMonoTTF)
 	if err != nil {
 		return nil, err
 	}
 
-	return newFallbackFace(primary, fallbackFonts, size)
+	return newFallbackFace(primary, fallbackFonts, sys, size)
 }
 
 func newOpenTypeFace(f *opentype.Font, size float64) (font.Face, error) {

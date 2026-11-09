@@ -12,4 +12,5 @@ SVG output does not use them: the viewer picks the font.
 The files are unmodified copies of the upstream fonts. A rune is drawn with the first font that has a glyph for
 it; runes that none of them has are drawn as the primary font's missing-glyph box.
 
-Not covered: CJK and other double-width characters, emoji, and the Powerline / Nerd Font private-use glyphs.
+Not covered by the embedded fonts: CJK and other scripts, emoji, and the Powerline / Nerd Font private-use glyphs.
+`termsvg export --system-fonts` draws them with fonts installed on the machine instead (see the main README).

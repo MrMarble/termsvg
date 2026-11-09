@@ -45,6 +45,10 @@ type Config struct {
 	// FontSize is the font size in points
 	FontSize int
 
+	// SystemFonts lets glyphs that none of the embedded fonts has be drawn with
+	// installed fonts. The output then depends on the fonts of the machine.
+	SystemFonts bool
+
 	// Layout constants (can be overridden, but defaults are provided)
 	RowHeight  int // pixels per row (default: 25)
 	ColWidth   int // pixels per column (default: 12)
@@ -59,6 +63,7 @@ type Config struct {
 type Rasterizer struct {
 	config   Config
 	fontFace font.Face
+	sysFonts *systemFonts // nil unless Config.SystemFonts
 }
 
 // PalettedFrame represents a single rendered frame as a paletted image with timing metadata.
@@ -97,7 +102,12 @@ func DefaultConfig() Config {
 
 // New creates a new Rasterizer with the given configuration.
 func New(config *Config) (*Rasterizer, error) {
-	face, err := loadFontFace(float64(config.FontSize))
+	var sys *systemFonts
+	if config.SystemFonts {
+		sys = newSystemFonts(defaultFontDirs())
+	}
+
+	face, err := loadFontFace(float64(config.FontSize), sys)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load font: %w", err)
 	}
@@ -105,6 +115,7 @@ func New(config *Config) (*Rasterizer, error) {
 	return &Rasterizer{
 		config:   *config,
 		fontFace: face,
+		sysFonts: sys,
 	}, nil
 }
 

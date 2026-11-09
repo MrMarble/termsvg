@@ -2,6 +2,8 @@ package raster
 
 import (
 	"image"
+	"io"
+	"os"
 	"unicode/utf8"
 
 	"golang.org/x/image/font"
@@ -27,16 +29,21 @@ type fallbackFace struct {
 	buf     sfnt.Buffer
 	plans   map[rune]*glyphPlan
 	direct  *glyphPlan // the plan for runes the primary font draws as it is
+
+	// sys, when set, is searched for runes none of the embedded fonts has.
+	sys       *systemFonts
+	sysExtras map[systemFontRef]*extraFont
 }
 
-// extraFont is a fallback font with the faces made from it. It is parsed the
+// extraFont is a fallback font with the faces made from it. It is opened the
 // first time a rune needs it. The nominal face is at the primary size; scaled
 // faces are made for glyphs that must shrink.
 type extraFont struct {
-	data   []byte
+	open   func() (*opentype.Font, io.Closer, error)
 	loaded bool
 	broken bool
 	font   *opentype.Font
+	closer io.Closer
 	face   font.Face
 	scaled map[fixed.Int26_6]font.Face
 }
@@ -49,28 +56,33 @@ type glyphPlan struct {
 	primary bool // drawn by the primary face, untouched
 }
 
-// load parses the font and makes its nominal face, once. It reports whether the
+// load opens the font and makes its nominal face, once. It reports whether the
 // font is usable.
 func (e *extraFont) load(size float64) bool {
 	if e.loaded {
 		return !e.broken
 	}
 	e.loaded = true
-	f, err := opentype.Parse(e.data)
+	f, closer, err := e.open()
 	if err == nil {
 		e.face, err = newOpenTypeFace(f, size)
+		if err != nil && closer != nil {
+			_ = closer.Close()
+		}
 	}
 	if err != nil {
 		e.broken = true
 		return false
 	}
-	e.font = f
+	e.font, e.closer = f, closer
 	e.scaled = make(map[fixed.Int26_6]font.Face)
 
 	return true
 }
 
-func newFallbackFace(primary *opentype.Font, fallbacks [][]byte, size float64) (*fallbackFace, error) {
+func newFallbackFace(
+	primary *opentype.Font, fallbacks [][]byte, sys *systemFonts, size float64,
+) (*fallbackFace, error) {
 	main, err := newOpenTypeFace(primary, size)
 	if err != nil {
 		return nil, err
@@ -84,8 +96,12 @@ func newFallbackFace(primary *opentype.Font, fallbacks [][]byte, size float64) (
 		f.cell = cell
 	}
 
+	f.sys = sys
 	for _, data := range fallbacks {
-		f.extras = append(f.extras, &extraFont{data: data})
+		f.extras = append(f.extras, &extraFont{open: func() (*opentype.Font, io.Closer, error) {
+			otf, err := opentype.Parse(data)
+			return otf, nil, err
+		}})
 	}
 
 	return f, nil
@@ -116,29 +132,86 @@ func (f *fallbackFace) makePlan(r rune) *glyphPlan {
 	}
 
 	for _, extra := range f.extras {
-		if !extra.load(f.size) || !f.has(extra.font, r) {
-			continue
+		if p := f.planFrom(extra, r); p != nil {
+			return p
 		}
-
-		face := extra.face
-		bounds, _, ok := face.GlyphBounds(r)
-		if !ok {
-			continue
-		}
-		if ink := bounds.Max.X - bounds.Min.X; f.cell > 0 && ink > f.cell {
-			// Too wide for one cell: draw it smaller instead of overlapping.
-			scaled, err := extra.scaledFace(f.size * float64(f.cell) / float64(ink))
-			if err != nil {
-				continue
+	}
+	if f.sys != nil {
+		for _, ref := range f.sys.candidates(r) {
+			if p := f.planFrom(f.systemExtra(ref), r); p != nil {
+				return p
 			}
-			face = scaled
-			bounds, _, _ = face.GlyphBounds(r)
 		}
-
-		return &glyphPlan{face: face, shift: (f.cell-(bounds.Max.X-bounds.Min.X))/2 - bounds.Min.X}
 	}
 
 	return f.direct // no font has it: the primary font's missing-glyph box
+}
+
+// planFrom returns how to draw r with the given fallback font, or nil when the
+// font cannot draw it (it has no glyph, or only a colour bitmap).
+func (f *fallbackFace) planFrom(extra *extraFont, r rune) *glyphPlan {
+	if !extra.load(f.size) || !f.has(extra.font, r) {
+		return nil
+	}
+
+	face := extra.face
+	bounds, _, ok := face.GlyphBounds(r)
+	if !ok {
+		return nil
+	}
+	if ink := bounds.Max.X - bounds.Min.X; f.cell > 0 && ink > f.cell {
+		// Too wide for one cell: draw it smaller instead of overlapping.
+		scaled, err := extra.scaledFace(f.size * float64(f.cell) / float64(ink))
+		if err != nil {
+			return nil
+		}
+		face = scaled
+		bounds, _, _ = face.GlyphBounds(r)
+	}
+
+	return &glyphPlan{face: face, shift: (f.cell-(bounds.Max.X-bounds.Min.X))/2 - bounds.Min.X}
+}
+
+// systemExtra returns the fallback font for an installed face, creating it once.
+func (f *fallbackFace) systemExtra(ref systemFontRef) *extraFont {
+	if extra, ok := f.sysExtras[ref]; ok {
+		return extra
+	}
+	if f.sysExtras == nil {
+		f.sysExtras = make(map[systemFontRef]*extraFont)
+	}
+	extra := &extraFont{open: func() (*opentype.Font, io.Closer, error) { return openSystemFont(ref) }}
+	f.sysExtras[ref] = extra
+
+	return extra
+}
+
+// openSystemFont opens one face of an installed font. The file stays open until
+// the returned closer is closed, because glyph data is read from it on demand.
+func openSystemFont(ref systemFontRef) (*opentype.Font, io.Closer, error) {
+	file, err := os.Open(ref.path)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var magic [4]byte
+	_, _ = file.ReadAt(magic[:], 0)
+
+	var otf *opentype.Font
+	if string(magic[:]) != "ttcf" {
+		otf, err = opentype.ParseReaderAt(file)
+	} else {
+		var collection *opentype.Collection
+		if collection, err = opentype.ParseCollectionReaderAt(file); err == nil {
+			otf, err = collection.Font(ref.face)
+		}
+	}
+	if err != nil {
+		_ = file.Close()
+		return nil, nil, err
+	}
+
+	return otf, file, nil
 }
 
 // scaledFace returns a face of this font at the given size, creating it once.
@@ -205,17 +278,25 @@ func (f *fallbackFace) Kern(r0, r1 rune) fixed.Int26_6 {
 // Metrics implements font.Face.
 func (f *fallbackFace) Metrics() font.Metrics { return f.main.Metrics() }
 
-// Close implements font.Face.
 func (f *fallbackFace) Close() error {
 	err := f.main.Close()
-	for _, extra := range f.extras {
+	closeExtra := func(extra *extraFont) {
 		if !extra.loaded || extra.broken {
-			continue
+			return
 		}
 		_ = extra.face.Close()
 		for _, face := range extra.scaled {
 			_ = face.Close()
 		}
+		if extra.closer != nil {
+			_ = extra.closer.Close()
+		}
+	}
+	for _, extra := range f.extras {
+		closeExtra(extra)
+	}
+	for _, extra := range f.sysExtras {
+		closeExtra(extra)
 	}
 
 	return err
