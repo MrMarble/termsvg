@@ -9,6 +9,7 @@ import (
 	"image/gif"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -510,6 +511,56 @@ func TestRenderer_buildPalette(t *testing.T) {
 		}
 		if got := len(r.buildPalette(rec)); got != 256 {
 			t.Errorf("palette size = %d, want 256", got)
+		}
+	})
+
+	t.Run("is deterministic", func(t *testing.T) {
+		rec := gifTestRecording()
+		for i := range 40 {
+			rec.Colors.Register(termcolor.FromRGB(uint8(i*5), uint8(255-i), uint8(i*3)), &cfg.Theme.Palette)
+		}
+		first := r.buildPalette(rec)
+		for range 20 {
+			if got := r.buildPalette(rec); !slices.Equal(got, first) {
+				t.Fatal("palette differs between calls")
+			}
+		}
+	})
+
+	t.Run("has no duplicate colours", func(t *testing.T) {
+		rec := gifTestRecording()
+		// Registering a colour equal to a theme colour must not add a second entry.
+		rec.Colors.Register(termcolor.FromRGB(cfg.Theme.Foreground.R, cfg.Theme.Foreground.G,
+			cfg.Theme.Foreground.B), &cfg.Theme.Palette)
+		seen := map[color.Color]bool{}
+		for _, c := range r.buildPalette(rec) {
+			if seen[c] {
+				t.Fatalf("duplicate palette entry %v", c)
+			}
+			seen[c] = true
+		}
+	})
+
+	t.Run("overflow keeps theme colours and drops the newest recording colours", func(t *testing.T) {
+		rec := gifTestRecording()
+		var ids []termcolor.ID
+		for i := range 400 {
+			ids = append(ids, rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>8), 77), &cfg.Theme.Palette))
+		}
+		pal := r.buildPalette(rec)
+		for _, c := range []color.RGBA{
+			cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
+			cfg.Theme.WindowButtons[0], cfg.Theme.WindowButtons[2],
+		} {
+			if !contains(pal, c) {
+				t.Errorf("theme colour %v dropped on overflow", c)
+			}
+		}
+		if !contains(pal, rec.Colors.Resolved(ids[0])) {
+			t.Error("the first colour used by the recording was dropped")
+		}
+		if contains(pal, rec.Colors.Resolved(ids[len(ids)-1])) {
+			t.Error("the most recently introduced colour survived while 256 were already taken")
 		}
 	})
 }

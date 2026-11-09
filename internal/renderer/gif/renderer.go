@@ -10,8 +10,10 @@ import (
 	"image/gif"
 	"io"
 	"log"
+	"slices"
 	"time"
 
+	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
 	"github.com/mrmarble/termsvg/internal/raster"
@@ -40,6 +42,9 @@ const (
 	// minGifDelay is the minimum delay value to avoid browser clamping.
 	// Browsers clamp delays < 20ms to 100ms, so we use 2 units = 20ms.
 	minGifDelay = 2
+
+	// maxGIFColors is the size of a GIF palette.
+	maxGIFColors = 256
 )
 
 // New creates a new GIF renderer with the given configuration.
@@ -247,44 +252,47 @@ func computeDelta(prev, curr *image.Paletted, transparentIdx uint8) *image.Palet
 	return delta
 }
 
-// buildPalette creates a color palette from the recording's colors
+// buildPalette creates the GIF colour palette: a transparent entry, then the
+// theme colours, then the recording's colours in the order they first appear.
+// The order is deterministic, and when there are more than 256 colours the
+// ones dropped are always the most recently introduced.
 func (r *Renderer) buildPalette(rec *ir.Recording) color.Palette {
-	// Collect all unique colors
-	colorSet := make(map[color.RGBA]bool)
-
-	// Add theme colors
-	colorSet[r.config.Theme.Background] = true
-	colorSet[r.config.Theme.WindowBackground] = true
-	colorSet[r.config.Theme.Foreground] = true
-	for _, btnColor := range r.config.Theme.WindowButtons {
-		colorSet[btnColor] = true
+	palette := make(color.Palette, 0, maxGIFColors)
+	seen := make(map[color.RGBA]bool)
+	// Add transparent colour first (for potential optimization)
+	palette = append(palette, color.RGBA{})
+	add := func(c color.RGBA) {
+		if !seen[c] && len(palette) < maxGIFColors {
+			seen[c] = true
+			palette = append(palette, c)
+		}
 	}
 
-	// Add colors from the color catalog
-	colorSet[rec.Colors.DefaultForeground()] = true
-	colorSet[rec.Colors.DefaultBackground()] = true
-	for _, rgba := range rec.Colors.All() {
-		colorSet[rgba] = true
+	// Theme colours
+	theme := &r.config.Theme
+	add(theme.Background)
+	add(theme.WindowBackground)
+	add(theme.Foreground)
+	for _, btnColor := range theme.WindowButtons {
+		add(btnColor)
 	}
 
-	// Convert to palette
-	palette := make(color.Palette, 0, len(colorSet)+1)
-
-	// Add transparent color first (for potential optimization)
-	palette = append(palette, color.RGBA{0, 0, 0, 0})
-
-	for c := range colorSet {
-		palette = append(palette, c)
+	// Colours from the catalog, in registration (first use) order
+	add(rec.Colors.DefaultForeground())
+	add(rec.Colors.DefaultBackground())
+	catalog := rec.Colors.All()
+	ids := make([]termcolor.ID, 0, len(catalog))
+	for id := range catalog {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		add(catalog[id])
 	}
 
-	// If palette is too small, pad with black
+	// If the palette is too small, pad with black
 	for len(palette) < 2 {
-		palette = append(palette, color.RGBA{0, 0, 0, 255})
-	}
-
-	// GIF supports max 256 colors - if we have more, the quantizer will handle it
-	if len(palette) > 256 {
-		palette = palette[:256]
+		palette = append(palette, color.RGBA{A: 255})
 	}
 
 	return palette
