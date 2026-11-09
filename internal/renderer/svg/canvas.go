@@ -207,7 +207,7 @@ func (c *canvas) writePaintStyles(sb *strings.Builder) {
 		for _, id := range c.plan.usedColors {
 			fmt.Fprintf(sb, ".%s{fill:%s}", c.classNames[id], color.RGBAtoHex(c.rec.Colors.Resolved(id)))
 		}
-		used := [4]bool{c.rec.Stats.HasBold, c.rec.Stats.HasItalic, c.rec.Stats.HasUnderline, c.rec.Stats.HasDim}
+		used := statsAttrFlags(c.rec.Stats)
 		for i, attr := range textAttrs {
 			if used[i] {
 				fmt.Fprintf(sb, ".%s{%s}", attr.class, attr.declaration)

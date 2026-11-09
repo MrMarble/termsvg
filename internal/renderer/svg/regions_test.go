@@ -466,7 +466,7 @@ func Test444816BoundedRegionOptimizationMatchesExhaustiveBaseline(t *testing.T) 
 		t.Fatal(err)
 	}
 	c := canvas{
-		rec: rec, plan: plan, config: *config, options: options,
+		rec: rec, plan: plan, config: *config, options: options, style: stylePlan{scheme: styleLegacy},
 		classNames: rec.Colors.GenerateClassNames(), metrics: &CandidateMetrics{},
 	}
 	regions := buildDynamicRegions(&plan, rec.Colors)

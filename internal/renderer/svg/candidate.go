@@ -57,7 +57,7 @@ func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) 
 			return nil, err
 		}
 		if candidate.metrics.FinalBytes == 0 {
-			if err := r.measureCandidate(ctx, rec, candidate); err != nil {
+			if err := r.measureCandidate(ctx, candidate); err != nil {
 				return nil, err
 			}
 		}
@@ -97,7 +97,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, frames); err != nil {
+	if err := r.measureCandidate(ctx, frames); err != nil {
 		return nil, err
 	}
 	options.Layout = LayoutBands
@@ -105,7 +105,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, bands); err != nil {
+	if err := r.measureCandidate(ctx, bands); err != nil {
 		return nil, err
 	}
 	options.Layout = LayoutRegions
@@ -113,7 +113,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, regions); err != nil {
+	if err := r.measureCandidate(ctx, regions); err != nil {
 		return nil, err
 	}
 	selected := selectPreparedCandidate(r.options.AutoObjective, frames, bands, regions)
@@ -276,7 +276,7 @@ func attachStyleCostLedger(
 	candidate.style.styleBytes = candidate.style.cost.total
 }
 
-func (r *Renderer) measureCandidate(ctx context.Context, rec *ir.Recording, candidate *preparedCandidate) error {
+func (r *Renderer) measureCandidate(ctx context.Context, candidate *preparedCandidate) error {
 	if err := contextErr(ctx); err != nil {
 		return err
 	}

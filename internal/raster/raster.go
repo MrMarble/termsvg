@@ -13,6 +13,12 @@ import (
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
+// LastFrameHold is the least time the last frame stays on screen. A recording
+// ends at its last event, so that frame would otherwise flash by, and a looping
+// GIF or video would restart before the final screen could be read. It also
+// means no format needs a floor for the last frame.
+const LastFrameHold = 2 * time.Second
+
 // RasterFrame is a rendered RGBA frame and how long it is shown.
 //
 //nolint:revive // RasterFrame naming is intentional to distinguish from IR frames

@@ -16,10 +16,14 @@ func attrFlags(attrs ir.CellAttrs) [4]bool {
 	return [4]bool{attrs.Bold, attrs.Italic, attrs.Underline, attrs.Dim}
 }
 
+func statsAttrFlags(stats ir.Stats) [4]bool {
+	return [4]bool{stats.HasBold, stats.HasItalic, stats.HasUnderline, stats.HasDim}
+}
+
 func (k textStyleKey) attrFlags() [4]bool {
 	return [4]bool{k.bold, k.italic, k.underline, k.dim}
 }
 
 // legacy reports whether the plan is the compatibility encoding: colour and
-// attribute classes, and the zero plan of a canvas that was never styled.
-func (p *stylePlan) legacy() bool { return p.scheme == "" || p.scheme == styleLegacy }
+// attribute classes.
+func (p *stylePlan) legacy() bool { return p.scheme == styleLegacy }

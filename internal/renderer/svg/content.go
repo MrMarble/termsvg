@@ -2,8 +2,6 @@ package svg
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -133,25 +131,6 @@ func shiftRegionContent(content timeline[[]ir.Row], columns int) timeline[[]ir.R
 		}
 	}
 	return shifted
-}
-
-func (c *canvas) renderRegionRepresentation(ctx context.Context, w io.Writer, content *preparedContent) error {
-	if err := contextErr(ctx); err != nil {
-		return err
-	}
-	probe := *c
-	probe.w = w
-	probe.metrics = &CandidateMetrics{}
-	probe.plan.cursor = timeline[ir.Cursor]{}
-	probe.plan.cursorEverVisible = false
-	fmt.Fprint(w, `<svg><defs>`)
-	probe.writeRowDefs(content.rowDefs)
-	probe.writeStateDefs(content)
-	fmt.Fprint(w, `</defs>`)
-	probe.writeStyles(content)
-	probe.writeContent(content)
-	fmt.Fprint(w, `</svg>`)
-	return contextErr(ctx)
 }
 
 func (c *canvas) prepareBands(ctx context.Context) (preparedContent, error) {

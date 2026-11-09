@@ -2,9 +2,11 @@ package svg
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/mrmarble/termsvg/internal/color"
+	"github.com/mrmarble/termsvg/internal/ir"
 )
 
 func optimizeRegionMerges(
@@ -36,4 +38,23 @@ func (c *canvas) serializedRegionBytes(ctx context.Context, regions []dynamicReg
 		return 0, err
 	}
 	return counter.size(), nil
+}
+
+func (c *canvas) renderRegionRepresentation(ctx context.Context, w io.Writer, content *preparedContent) error {
+	if err := contextErr(ctx); err != nil {
+		return err
+	}
+	probe := *c
+	probe.w = w
+	probe.metrics = &CandidateMetrics{}
+	probe.plan.cursor = timeline[ir.Cursor]{}
+	probe.plan.cursorEverVisible = false
+	fmt.Fprint(w, `<svg><defs>`)
+	probe.writeRowDefs(content.rowDefs)
+	probe.writeStateDefs(content)
+	fmt.Fprint(w, `</defs>`)
+	probe.writeStyles(content)
+	probe.writeContent(content)
+	fmt.Fprint(w, `</svg>`)
+	return contextErr(ctx)
 }

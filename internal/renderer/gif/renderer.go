@@ -29,6 +29,10 @@ const (
 	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
 	gifTimeUnit = 10
 
+	// minGIFDelay is the shortest GIF frame delay: browsers clamp delays under
+	// 20ms to 100ms.
+	minGIFDelay = 20 * time.Millisecond
+
 	// maxGIFColors is the size of a GIF palette.
 	maxGIFColors = 256
 )
@@ -112,9 +116,9 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	return gif.EncodeAll(w, g)
 }
 
-// gifDelay converts a display time to GIF delay units, at least raster.MinGIFDelay.
+// gifDelay converts a display time to GIF delay units, at least minGIFDelay.
 func gifDelay(delay time.Duration) int {
-	return int(max(delay, raster.MinGIFDelay).Milliseconds() / gifTimeUnit)
+	return int(max(delay, minGIFDelay).Milliseconds() / gifTimeUnit)
 }
 
 func framesEqual(a, b *image.Paletted) bool {

@@ -236,26 +236,16 @@ func elementIDPrefix(svg string) string {
 
 func semanticRowHash(row ir.Row) uint64 {
 	h := uint64(hashOffset)
-	addInt := func(value int) {
-		//nolint:gosec // convert signed values to stable two's-complement hash bytes.
-		v := uint64(value)
-		for range 8 {
-			h = (h ^ uint64(byte(v))) * hashPrime
-			v >>= 8
-		}
-	}
-	addInt(row.Y)
-	addInt(len(row.Runs))
+	h = mixHash(h, row.Y)
+	h = mixHash(h, len(row.Runs))
 	for _, run := range row.Runs {
-		addInt(len(run.Text))
-		for i := range len(run.Text) {
-			h = (h ^ uint64(run.Text[i])) * hashPrime
-		}
-		addInt(run.StartCol)
-		addInt(run.EndCol)
-		addInt(int(run.Attrs.FG))
-		addInt(int(run.Attrs.BG))
-		h = (h ^ uint64(attrBits(run.Attrs))) * hashPrime
+		h = mixHash(h, len(run.Text))
+		h = hashString(h, run.Text)
+		h = mixHash(h, run.StartCol)
+		h = mixHash(h, run.EndCol)
+		h = mixHash(h, int(run.Attrs.FG))
+		h = mixHash(h, int(run.Attrs.BG))
+		h = mixHash(h, attrBits(run.Attrs))
 	}
 	return h
 }

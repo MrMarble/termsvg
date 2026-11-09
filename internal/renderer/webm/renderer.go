@@ -111,7 +111,7 @@ func filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
 
 	for i, frame := range frames {
 		totalDelay := frame.Delay + accumulatedDelay
-		if totalDelay < raster.VideoMergeBelow && i < len(frames)-1 {
+		if totalDelay < videoMergeBelow && i < len(frames)-1 {
 			accumulatedDelay = totalDelay
 			continue
 		}
