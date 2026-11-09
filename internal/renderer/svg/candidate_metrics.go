@@ -138,7 +138,7 @@ func addStructuralMetrics(metrics *CandidateMetrics, c *canvas, content *prepare
 	addMetric(metrics, false, "style", 1)
 
 	for _, definition := range content.rowDefs {
-		if c.renderedElementCount(definition) > 1 {
+		if c.rows().renderedElementCount(definition) > 1 {
 			addMetric(metrics, true, "g", 1)
 		}
 		renderedDefinition := *definition
@@ -166,7 +166,7 @@ func addStructuralMetrics(metrics *CandidateMetrics, c *canvas, content *prepare
 		if !ownsStateDefinition(content.frameStateIDs, content.frameRows, i) {
 			continue
 		}
-		if c.stateNeedsWrapper(content.frameRows[i]) {
+		if c.rows().stateNeedsWrapper(content.frameRows[i]) {
 			addMetric(metrics, true, "g", 1)
 		}
 		addStateRowsMetrics(metrics, c, true, content.frameRows[i:i+1])
@@ -177,7 +177,7 @@ func addStructuralMetrics(metrics *CandidateMetrics, c *canvas, content *prepare
 			if !ownsStateDefinition(band.stateIDs, band.rows, i) {
 				continue
 			}
-			if c.stateNeedsWrapper(band.rows[i]) {
+			if c.rows().stateNeedsWrapper(band.rows[i]) {
 				addMetric(metrics, true, "g", 1)
 			}
 			addStateRowsMetrics(metrics, c, true, band.rows[i:i+1])
@@ -249,7 +249,7 @@ func addUseExpansionMetrics(metrics *CandidateMetrics, c *canvas, content *prepa
 	metrics.SourceActiveNodes, metrics.SourceDefinitionNodes = metrics.ActiveNodes, metrics.DefinitionNodes
 	graph := make(map[string]definitionNode)
 	for _, row := range content.rowDefs {
-		elements := c.renderedElementCount(row)
+		elements := c.rows().renderedElementCount(row)
 		//nolint:gosec // element counts are non-negative.
 		graph[row.id] = definitionNode{nodes: uint64(elements + boolInt(elements > 1)), uses: row.uses}
 	}
@@ -258,7 +258,7 @@ func addUseExpansionMetrics(metrics *CandidateMetrics, c *canvas, content *prepa
 			if row.id == "" {
 				// Segment references are counted through ids below, one node each.
 				//nolint:gosec // element counts are non-negative.
-				nodes = saturatingAdd(nodes, uint64(c.renderedElementCount(row)-len(row.uses)))
+				nodes = saturatingAdd(nodes, uint64(c.rows().renderedElementCount(row)-len(row.uses)))
 				ids = append(ids, row.uses...)
 				continue
 			}
@@ -270,7 +270,7 @@ func addUseExpansionMetrics(metrics *CandidateMetrics, c *canvas, content *prepa
 		nodes, uses := rowUses(rows)
 		children := saturatingAdd(nodes, uint64(len(uses)))
 		//nolint:gosec // boolInt returns 0 or 1.
-		return definitionNode{nodes: saturatingAdd(children, uint64(boolInt(c.stateNeedsWrapper(rows)))), uses: uses}
+		return definitionNode{nodes: saturatingAdd(children, uint64(boolInt(c.rows().stateNeedsWrapper(rows)))), uses: uses}
 	}
 	for i, id := range content.frameStateIDs {
 		if ownsStateDefinition(content.frameStateIDs, content.frameRows, i) {

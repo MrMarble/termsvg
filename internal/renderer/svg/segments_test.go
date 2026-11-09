@@ -233,8 +233,8 @@ func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
 	if prefix.svg != expected.String() || prefix.definition != `<g id="a">`+prefix.svg+`</g>` {
 		t.Fatalf("definition markup = %q; want anchored row %q", prefix.definition, expected.String())
 	}
-	if prefix.elements != 4 || c.renderedElementCount(prefix) != 4 {
-		t.Fatalf("prefix elements = %d/%d; want 4", prefix.elements, c.renderedElementCount(prefix))
+	if prefix.elements != 4 || c.rows().renderedElementCount(prefix) != 4 {
+		t.Fatalf("prefix elements = %d/%d; want 4", prefix.elements, c.rows().renderedElementCount(prefix))
 	}
 	for _, rows := range frames {
 		for _, row := range rows {

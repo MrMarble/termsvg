@@ -282,7 +282,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 		if len(item.paintRows()) != 0 || len(item.paintRow().Runs) != 0 {
 			t.Fatalf("state %d block reference paints rows itself", i)
 		}
-		if c.stateNeedsWrapper(rows) || c.stateElementCount(rows) != 1 {
+		if c.rows().stateNeedsWrapper(rows) || c.rows().stateElementCount(rows) != 1 {
 			t.Fatalf("state %d made of one block reference needs a wrapper", i)
 		}
 	}

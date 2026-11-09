@@ -505,6 +505,6 @@ func (c *canvas) segmentDefinition(candidate *segmentCandidate) *renderedRow {
 	def.svg = sb.String()
 	def.elements = candidate.elements
 	def.count = len(candidate.users)
-	def.definition = c.rowDefinition(def, def.id)
+	def.definition = c.rows().rowDefinition(def, def.id)
 	return def
 }

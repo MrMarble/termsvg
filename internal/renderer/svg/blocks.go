@@ -160,7 +160,7 @@ func (c *canvas) renderedRowItems(row *renderedRow) int {
 	if row.id != "" {
 		return 1
 	}
-	return c.renderedElementCount(row)
+	return c.rows().renderedElementCount(row)
 }
 
 // blockRowHash hashes a row independently of its absolute position.
@@ -426,7 +426,7 @@ func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate)
 		def.uses = append(def.uses, item.uses...)
 	}
 	def.svg = sb.String()
-	def.definition = c.rowDefinition(def, def.id)
+	def.definition = c.rows().rowDefinition(def, def.id)
 	return def
 }
 

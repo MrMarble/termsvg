@@ -157,7 +157,7 @@ func (c *canvas) collectRowsWithHash(
 		}
 		probe := *ids
 		id := probe.allocate()
-		definition := c.rowDefinition(entry, id)
+		definition := c.rows().rowDefinition(entry, id)
 		use := `<use href="#` + id + `"/>`
 		inlineBytes := entry.count * finalSVGBytes(entry.svg, c.config.Minify)
 		definitionBytes := finalSVGBytes(definition, c.config.Minify) +
@@ -213,23 +213,6 @@ func finalSVGBytes(value string, minified bool) int {
 	return bytes
 }
 
-func (c *canvas) rowDefinition(row *renderedRow, id string) string {
-	if c.renderedElementCount(row) == 1 {
-		return addElementID(row.svg, id)
-	}
-	return `<g id="` + id + `">` + row.svg + `</g>`
-}
-
-// renderedElementCount reports the XML elements a rendered row serializes.
-// Rows produced by collectRows carry an exact count; rows constructed directly
-// from IR fall back to counting their runs.
-func (c *canvas) renderedElementCount(row *renderedRow) int {
-	if row.elements > 0 {
-		return row.elements
-	}
-	return c.rowElementCount(row.paintRow()) + len(row.uses)
-}
-
 func addElementID(svg, id string) string {
 	prefix := elementIDPrefix(svg)
 	if prefix == "" {
@@ -255,16 +238,6 @@ func elementIDPrefix(svg string) string {
 		}
 	}
 	return ""
-}
-
-func (c *canvas) rowElementCount(row ir.Row) int {
-	count := len(c.rows().backgroundSpans(row))
-	for _, run := range row.Runs {
-		if _, _, ok := compactTextRun(run); ok {
-			count++
-		}
-	}
-	return count
 }
 
 func semanticRowHash(row ir.Row) uint64 {
@@ -336,7 +309,7 @@ func (c *canvas) writeStateDefs(content *preparedContent) {
 }
 
 func (c *canvas) writeStateDefinition(id string, rows []*renderedRow) {
-	if !c.stateNeedsWrapper(rows) {
+	if !c.rows().stateNeedsWrapper(rows) {
 		var body strings.Builder
 		writer := c.w
 		c.w = &body
@@ -345,38 +318,11 @@ func (c *canvas) writeStateDefinition(id string, rows []*renderedRow) {
 		fmt.Fprint(c.w, addElementID(body.String(), id))
 		return
 	}
-	if c.stateElementCount(rows) == 0 && c.config.Minify {
+	if c.rows().stateElementCount(rows) == 0 && c.config.Minify {
 		fmt.Fprintf(c.w, `<g id="%s"/>`, id)
 		return
 	}
 	fmt.Fprintf(c.w, `<g id="%s">`, id)
 	c.writeFrameRows(rows)
 	fmt.Fprint(c.w, `</g>`)
-}
-
-func (c *canvas) stateNeedsWrapper(rows []*renderedRow) bool {
-	if c.stateElementCount(rows) != 1 {
-		return true
-	}
-	for _, row := range rows {
-		if row.id != "" {
-			return false
-		}
-		if c.renderedElementCount(row) == 1 {
-			return elementIDPrefix(row.svg) == ""
-		}
-	}
-	return true
-}
-
-func (c *canvas) stateElementCount(rows []*renderedRow) int {
-	count := 0
-	for _, row := range rows {
-		if row.id != "" {
-			count++
-		} else {
-			count += c.renderedElementCount(row)
-		}
-	}
-	return count
 }
