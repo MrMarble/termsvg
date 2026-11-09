@@ -25,9 +25,12 @@ type Config struct {
 	ShowCursor bool // Enable cursor rendering (default: true)
 	FontFamily string
 	FontSize   int
-	LoopCount  int // 0 = infinite, -1 = no loop
-	Minify     bool
-	Debug      bool // Enable debug logging
+	// SystemFonts lets the raster formats (GIF, WebM) draw glyphs that the
+	// embedded fonts lack with installed fonts. Output then depends on the machine.
+	SystemFonts bool
+	LoopCount   int // 0 = infinite, -1 = no loop
+	Minify      bool
+	Debug       bool // Enable debug logging
 
 	// Video encoding options (for WebM/MP4 formats)
 	VideoBitrate int // Video bitrate in kbps (0 = use default)
@@ -54,15 +57,16 @@ func DefaultConfig() *Config {
 // This helper reduces duplication between renderers that need rasterization.
 func NewRasterizer(config *Config) (*raster.Rasterizer, error) {
 	rasterConfig := raster.Config{
-		Theme:      config.Theme,
-		ShowWindow: config.ShowWindow,
-		ShowCursor: config.ShowCursor,
-		FontSize:   config.FontSize,
-		RowHeight:  raster.RowHeight,
-		ColWidth:   raster.ColWidth,
-		Padding:    raster.Padding,
-		HeaderSize: raster.HeaderSize,
-		ProgressCh: config.ProgressCh,
+		Theme:       config.Theme,
+		ShowWindow:  config.ShowWindow,
+		ShowCursor:  config.ShowCursor,
+		FontSize:    config.FontSize,
+		SystemFonts: config.SystemFonts,
+		RowHeight:   raster.RowHeight,
+		ColWidth:    raster.ColWidth,
+		Padding:     raster.Padding,
+		HeaderSize:  raster.HeaderSize,
+		ProgressCh:  config.ProgressCh,
 	}
 
 	rasterizer, err := raster.New(&rasterConfig)

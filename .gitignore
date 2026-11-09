@@ -2,6 +2,7 @@
 /termsvg
 *.cast
 *.txt
+!internal/raster/fonts/*.txt
 .task
 dist
 *.svg

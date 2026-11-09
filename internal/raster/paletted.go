@@ -56,7 +56,7 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	for range numWorkers {
 		wg.Go(func() {
 			// Create own font face for this worker
-			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize))
+			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize), fr.rasterizer.sysFonts)
 			if err != nil {
 				// If font loading fails, use the shared one as fallback
 				face = fr.rasterizer.fontFace

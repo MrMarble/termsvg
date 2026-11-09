@@ -122,6 +122,7 @@ Available options:
 
 - `-o, --output=<file>` - Output file to be created. Defaults to [input].[format]
 - `-f, --format=svg|gif|webm` - Output format (default `svg`). WebM needs [ffmpeg](https://ffmpeg.org) with `libvpx-vp9`
+- `--system-fonts` - Draw glyphs the embedded fonts lack with fonts installed on this machine (GIF and WebM only, see [Fonts in GIF and WebM](#fonts-in-gif-and-webm))
 - `-m, --minify` - Minify svg using [Minify](https://github.com/tdewolff/minify)
 - `-s, --speed=<factor>` - Playback speed multiplier (can be fractional)
 - `-i, --max-idle=<duration>` - Cap idle time between events, e.g. `500ms` or `2s`. Defaults to the recording's own `idle_time_limit`, if it has one
@@ -147,6 +148,36 @@ boundary, but it does not isolate inline SVG from host-page CSS. Standalone,
 neutral-inline, broad-host-rule, `<img>`, and `<object>` fixtures are in
 [`internal/renderer/svg/testdata/browser`](internal/renderer/svg/testdata/browser).
 They are embedding checks, not a Safari performance claim.
+
+### Fonts in GIF and WebM
+
+SVG output uses the viewer's fonts. GIF and WebM are drawn by termsvg, with fonts embedded in the binary:
+[JetBrains Mono](https://www.jetbrains.com/lp/mono/), then DejaVu Sans Mono and Noto Sans Symbols 2 for glyphs it lacks
+(Braille, arrows, maths, shapes and many symbols). Licenses are in
+[`internal/raster/fonts`](internal/raster/fonts).
+
+Anything still missing, such as CJK text, Powerline or Nerd Font icons, or Hebrew, is drawn as a box. With
+`--system-fonts`, termsvg looks for those glyphs in the fonts installed on the machine, after the embedded ones:
+
+| System | Font directories searched |
+| ------ | ------------------------- |
+| Linux and BSD | `/usr/share/fonts`, `/usr/local/share/fonts`, `$XDG_DATA_HOME/fonts` (or `~/.local/share/fonts`), `~/.fonts` |
+| macOS | `/System/Library/Fonts`, `/System/Library/Fonts/Supplemental`, `/Library/Fonts`, `~/Library/Fonts` |
+| Windows | `%WINDIR%\Fonts`, `%LOCALAPPDATA%\Microsoft\Windows\Fonts` |
+
+Set `TERMSVG_FONT_PATH` to a list of extra directories (separated like `PATH`) to search those first, for
+example for a Nerd Font installed somewhere unusual. TrueType and OpenType fonts and collections (`.ttf`, `.otf`,
+`.ttc`, `.otc`) are used; plain, monospaced faces are preferred.
+
+Things to know:
+
+- The output then depends on the machine's fonts, so it is not reproducible across machines. That is why it is
+  off by default and the examples in this repository do not use it. Recordings the embedded fonts fully cover are
+  not affected.
+- The fonts are indexed the first time a missing glyph is met (about 0.2 s for 800 installed fonts).
+- Color emoji fonts cannot be drawn, so emoji stay as boxes unless a monochrome font has them.
+- The terminal emulator gives every character one cell, so CJK and other wide glyphs are drawn small, inside a
+  single cell, instead of two cells wide.
 
 ## Example
 

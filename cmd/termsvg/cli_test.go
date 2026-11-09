@@ -104,3 +104,23 @@ func TestRun_ExportSVG(t *testing.T) {
 		t.Errorf("output is not an SVG: %.60s", data)
 	}
 }
+
+func TestRun_SystemFontsFlag(t *testing.T) {
+	dir := t.TempDir()
+	in := filepath.Join(dir, "in.cast")
+	cast := `{"version":2,"width":10,"height":3}` + "\n" + `[0.1,"o","hi"]` + "\n"
+	if err := os.WriteFile(in, []byte(cast), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	gifOut := filepath.Join(dir, "a.gif")
+	if _, _, _, err := runCLI(t, "export", "--system-fonts", "-f", "gif", "-o", gifOut, in); err != nil {
+		t.Errorf("--system-fonts with gif: %v", err)
+	}
+	if _, _, _, err := runCLI(t, "export", "--system-fonts", "-o", filepath.Join(dir, "a.svg"), in); err == nil {
+		t.Error("--system-fonts with the default svg format should be an error")
+	}
+	if out, _, _, err := runCLI(t, "export", "--help"); err == nil && !strings.Contains(out, "--system-fonts") {
+		t.Errorf("--system-fonts is not in the help:\n%s", out)
+	}
+}
