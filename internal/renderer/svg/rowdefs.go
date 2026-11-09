@@ -1,0 +1,382 @@
+package svg
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/mrmarble/termsvg/internal/ir"
+)
+
+type renderedRow struct {
+	row        ir.Row
+	svg        string
+	definition string
+	count      int
+	order      int
+	id         string
+	// elements is the number of XML elements in svg. It is zero for rows
+	// constructed without segment sharing, where the row itself is authoritative.
+	elements int
+	// uses lists the shared definitions referenced by svg, in order: segment
+	// identifiers, and for a block the identifiers its covered rows reference.
+	uses []string
+	// inline holds the runs serialized directly when uses is not empty.
+	inline ir.Row
+	// rows holds the rows a shared block covers: the anchor rows of a block
+	// definition, or the rows a block reference replaces. row is rows[0].
+	rows []ir.Row
+	// items holds the rendered rows a block definition's body is made of. It
+	// is nil for a block reference, whose paint is drawn through the definition.
+	items []*renderedRow
+}
+
+// xmlIDAllocator hands out compact XML identifiers in order, skipping the
+// reserved clip path identifier.
+type xmlIDAllocator struct{ next int }
+
+// paintRow returns the runs whose paint is serialized by this row itself,
+// excluding runs that are drawn through shared references. Block entries
+// paint several rows or none; paintRows lists them.
+func (r *renderedRow) paintRow() ir.Row {
+	if len(r.uses) > 0 || len(r.rows) > 0 {
+		return r.inline
+	}
+	return r.row
+}
+
+// paintRows returns every row whose paint this entry serializes itself: the
+// inline items of a block definition, nothing for a block reference, and the
+// paint row of any other entry.
+func (r *renderedRow) paintRows() []ir.Row {
+	if len(r.rows) == 0 {
+		return []ir.Row{r.paintRow()}
+	}
+	rows := make([]ir.Row, 0, len(r.items))
+	for _, item := range r.items {
+		if item.id == "" {
+			rows = append(rows, item.paintRow())
+		}
+	}
+	return rows
+}
+
+func (a *xmlIDAllocator) allocate() string {
+	for {
+		id := compactXMLIDAt(a.next)
+		a.next++
+		if id != "clip" {
+			return id
+		}
+	}
+}
+
+// compactXMLIDs allocates count identifiers starting at allocator index start
+// and returns the index that follows them.
+func compactXMLIDs(start, count int) (ids []string, next int) {
+	allocator := xmlIDAllocator{next: start}
+	ids = make([]string, count)
+	for i := range ids {
+		ids[i] = allocator.allocate()
+	}
+	return ids, allocator.next
+}
+
+// xmlIDIndexAfter returns the allocator index that follows count identifiers
+// allocated from the start of the alphabet.
+func xmlIDIndexAfter(count int) int {
+	_, next := compactXMLIDs(0, count)
+	return next
+}
+
+func (c *canvas) contentKeyframes() ([]keyframePoint[int], [][]ir.Row) {
+	return contentKeyframesFor(c.plan.content)
+}
+
+func (c *canvas) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
+	return c.collectRowsWithHash(contentStates, semanticRowHash)
+}
+
+//nolint:funlen // each sharing stage measures the markup chosen by the one before
+func (c *canvas) collectRowsWithHash(
+	contentStates [][]ir.Row,
+	hash func(ir.Row) uint64,
+) (frames [][]*renderedRow, defs []*renderedRow) {
+	seen := make(map[uint64][]*renderedRow)
+	frames = make([][]*renderedRow, len(contentStates))
+	ordered := make([]*renderedRow, 0)
+
+	for i, rows := range contentStates {
+		for _, row := range rows {
+			key := hash(row)
+			var entry *renderedRow
+			for _, candidate := range seen[key] {
+				if rowEqual(candidate.row, row) {
+					entry = candidate
+					break
+				}
+			}
+			if entry == nil {
+				entry = &renderedRow{row: row, order: len(ordered)}
+				seen[key] = append(seen[key], entry)
+				ordered = append(ordered, entry)
+			}
+			entry.count++
+			frames[i] = append(frames[i], entry)
+		}
+	}
+
+	// Shared segments are chosen first so whole-row interning below measures
+	// the markup that will actually be serialized.
+	markup := make([]rowMarkup, len(ordered))
+	for i, entry := range ordered {
+		markup[i] = c.buildRowMarkup(entry.row)
+	}
+	ids := &xmlIDAllocator{}
+	uses, defs := c.shareRowSegments(markup, ids)
+	for i, entry := range ordered {
+		entry.svg, entry.elements, entry.inline = markup[i].render(c, uses[i])
+		for _, use := range uses[i] {
+			entry.uses = append(entry.uses, use.def.id)
+		}
+	}
+
+	// Give the most frequently referenced rows the shortest identifiers. The
+	// first-occurrence order is the deterministic tie-breaker.
+	candidates := append([]*renderedRow(nil), ordered...)
+	slices.SortStableFunc(candidates, func(a, b *renderedRow) int {
+		if a.count != b.count {
+			return b.count - a.count
+		}
+		return a.order - b.order
+	})
+
+	for _, entry := range candidates {
+		if entry.count < 2 || entry.svg == "" {
+			continue
+		}
+		probe := *ids
+		id := probe.allocate()
+		definition := c.rowDefinition(entry, id)
+		use := `<use href="#` + id + `"/>`
+		inlineBytes := entry.count * finalSVGBytes(entry.svg, c.config.Minify)
+		definitionBytes := finalSVGBytes(definition, c.config.Minify) +
+			entry.count*finalSVGBytes(use, c.config.Minify)
+		if definitionBytes < inlineBytes {
+			*ids = probe
+			entry.id = id
+			entry.definition = definition
+			defs = append(defs, entry)
+		}
+	}
+
+	// Recurring groups of consecutive rows are shared last, measured against
+	// the references and markup chosen above.
+	if !c.options.withoutBlockSharing {
+		frames, defs = c.shareRowBlocks(frames, defs, ids)
+	}
+	return frames, defs
+}
+
+func compactXMLID(index int) string {
+	for {
+		value := compactXMLIDAt(index)
+		if value != "clip" {
+			return value
+		}
+		index++
+	}
+}
+
+func compactXMLIDAt(index int) string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyz"
+	index++
+	var id [16]byte
+	pos := len(id)
+	for index > 0 {
+		index--
+		pos--
+		id[pos] = alphabet[index%len(alphabet)]
+		index /= len(alphabet)
+	}
+	return string(id[pos:])
+}
+
+func finalSVGBytes(value string, minified bool) int {
+	bytes := len(value)
+	if minified {
+		// The export pipeline converts every UTF-8 NBSP (two bytes) back to a
+		// one-byte ASCII space after minification. Profitability must therefore
+		// use the bytes that will actually reach the output file.
+		bytes -= strings.Count(value, "\u00a0")
+	}
+	return bytes
+}
+
+func (c *canvas) rowDefinition(row *renderedRow, id string) string {
+	if c.renderedElementCount(row) == 1 {
+		return addElementID(row.svg, id)
+	}
+	return `<g id="` + id + `">` + row.svg + `</g>`
+}
+
+// renderedElementCount reports the XML elements a rendered row serializes.
+// Rows produced by collectRows carry an exact count; rows constructed directly
+// from IR fall back to counting their runs.
+func (c *canvas) renderedElementCount(row *renderedRow) int {
+	if row.elements > 0 {
+		return row.elements
+	}
+	return c.rowElementCount(row.paintRow()) + len(row.uses)
+}
+
+func addElementID(svg, id string) string {
+	prefix := elementIDPrefix(svg)
+	if prefix == "" {
+		return `<g id="` + id + `">` + svg + `</g>`
+	}
+	return prefix + ` id="` + id + `"` + strings.TrimPrefix(svg, prefix)
+}
+
+func elementIDPrefix(svg string) string {
+	end := strings.IndexByte(svg, '>')
+	if end < 0 {
+		return ""
+	}
+	start := svg[:end+1]
+	for _, name := range []string{"rect", "text", "use"} {
+		prefix := "<" + name
+		if strings.HasPrefix(start, prefix) &&
+			(len(start) == len(prefix)+1 || start[len(prefix)] == ' ' || start[len(prefix)] == '/') {
+			if strings.Contains(start, ` id="`) {
+				return ""
+			}
+			return prefix
+		}
+	}
+	return ""
+}
+
+func (c *canvas) rowElementCount(row ir.Row) int {
+	count := len(c.backgroundSpans(row))
+	for _, run := range row.Runs {
+		if _, _, ok := compactTextRun(run); ok {
+			count++
+		}
+	}
+	return count
+}
+
+func semanticRowHash(row ir.Row) uint64 {
+	const (
+		offset = 14695981039346656037
+		prime  = 1099511628211
+	)
+	h := uint64(offset)
+	addInt := func(value int) {
+		//nolint:gosec // convert signed values to stable two's-complement hash bytes.
+		v := uint64(value)
+		for range 8 {
+			h = (h ^ uint64(byte(v))) * prime
+			v >>= 8
+		}
+	}
+	addInt(row.Y)
+	addInt(len(row.Runs))
+	for _, run := range row.Runs {
+		addInt(len(run.Text))
+		for i := range len(run.Text) {
+			h = (h ^ uint64(run.Text[i])) * prime
+		}
+		addInt(run.StartCol)
+		addInt(run.EndCol)
+		addInt(int(run.Attrs.FG))
+		addInt(int(run.Attrs.BG))
+		flags := uint64(0)
+		if run.Attrs.Bold {
+			flags |= 1
+		}
+		if run.Attrs.Italic {
+			flags |= 2
+		}
+		if run.Attrs.Underline {
+			flags |= 4
+		}
+		if run.Attrs.Dim {
+			flags |= 8
+		}
+		h = (h ^ flags) * prime
+	}
+	return h
+}
+
+func (c *canvas) writeRowDefs(defs []*renderedRow) {
+	for _, row := range defs {
+		fmt.Fprint(c.w, row.definition)
+	}
+}
+
+func (c *canvas) writeStateDefs(content *preparedContent) {
+	if c.options.FrameSwitch != FrameSwitchHref {
+		return
+	}
+	for i, id := range content.frameStateIDs {
+		if ownsStateDefinition(content.frameStateIDs, content.frameRows, i) {
+			c.writeStateDefinition(id, content.frameRows[i])
+		}
+	}
+	for bandIndex := range content.bands {
+		band := &content.bands[bandIndex]
+		for i, id := range band.stateIDs {
+			if ownsStateDefinition(band.stateIDs, band.rows, i) {
+				c.writeStateDefinition(id, band.rows[i])
+			}
+		}
+	}
+}
+
+func (c *canvas) writeStateDefinition(id string, rows []*renderedRow) {
+	if !c.stateNeedsWrapper(rows) {
+		var body strings.Builder
+		writer := c.w
+		c.w = &body
+		c.writeFrameRows(rows)
+		c.w = writer
+		fmt.Fprint(c.w, addElementID(body.String(), id))
+		return
+	}
+	if c.stateElementCount(rows) == 0 && c.config.Minify {
+		fmt.Fprintf(c.w, `<g id="%s"/>`, id)
+		return
+	}
+	fmt.Fprintf(c.w, `<g id="%s">`, id)
+	c.writeFrameRows(rows)
+	fmt.Fprint(c.w, `</g>`)
+}
+
+func (c *canvas) stateNeedsWrapper(rows []*renderedRow) bool {
+	if c.stateElementCount(rows) != 1 {
+		return true
+	}
+	for _, row := range rows {
+		if row.id != "" {
+			return false
+		}
+		if c.renderedElementCount(row) == 1 {
+			return elementIDPrefix(row.svg) == ""
+		}
+	}
+	return true
+}
+
+func (c *canvas) stateElementCount(rows []*renderedRow) int {
+	count := 0
+	for _, row := range rows {
+		if row.id != "" {
+			count++
+		} else {
+			count += c.renderedElementCount(row)
+		}
+	}
+	return count
+}
