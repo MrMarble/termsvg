@@ -62,7 +62,7 @@ func TestSMILTranslateValuesAndKeyTimesHaveMatchingLengths(t *testing.T) {
 	c := canvas{
 		w:       &out,
 		rec:     experimentalRecording(),
-		plan:    renderPlan{duration: experimentalRecording().Duration},
+		plan:    semanticPlan{duration: experimentalRecording().Duration},
 		config:  renderer.Config{},
 		options: Options{Animation: AnimationSMIL},
 	}

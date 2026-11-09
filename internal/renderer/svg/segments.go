@@ -392,7 +392,8 @@ func selectSegments(
 			continue
 		}
 		chooseSegmentAnchor(markup, candidate, users)
-		idLen := len(compactXMLID(len(accepted)))
+		next := xmlIDAllocator{next: len(accepted)}
+		idLen := len(next.allocate())
 		if segmentSavings(minify, markup, candidate, users, idLen) <= 0 {
 			release()
 			continue

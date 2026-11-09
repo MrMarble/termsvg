@@ -21,7 +21,7 @@ const maxInertGap = 28
 // where labels, borders, and separators are static around a changing value.
 //
 //nolint:gocognit // decodes, compares and rewrites each row in one pass
-func (p *renderPlan) hoistStaticCells(width, height int, colors *color.Catalog) {
+func (p *semanticPlan) hoistStaticCells(width, height int, colors *color.Catalog) {
 	if width <= 0 || len(p.content.points) < 2 {
 		return
 	}
@@ -216,7 +216,7 @@ func inertPieceEnd(runes []rune, start int) int {
 }
 
 // splitInertGaps canonicalizes every planned row.
-func (p *renderPlan) splitInertGaps(colors *color.Catalog) {
+func (p *semanticPlan) splitInertGaps(colors *color.Catalog) {
 	for i := range p.staticRows {
 		p.staticRows[i] = splitInertGaps(p.staticRows[i], colors)
 	}

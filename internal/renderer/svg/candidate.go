@@ -32,6 +32,12 @@ type countingWriter struct {
 // variant and keeps the one the objective prefers. Interval-static layers are
 // chosen by an estimate, so the plan without them is measured as well.
 func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) (*preparedCandidate, error) {
+	if len(rec.Frames) == 0 {
+		return nil, fmt.Errorf("recording has no frames")
+	}
+	if err := r.options.Validate(); err != nil {
+		return nil, err
+	}
 	plan, err := r.buildSemanticPlan(ctx, rec)
 	if err != nil {
 		return nil, err
@@ -67,15 +73,9 @@ func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) 
 	return selected, nil
 }
 
-// MeasureCandidate renders the configured candidate to a sink and reports its
+// measureBest renders the configured candidate to a sink and reports its
 // exact serialized size and structural cost.
-func (r *Renderer) MeasureCandidate(ctx context.Context, rec *ir.Recording) (CandidateMetrics, error) {
-	if len(rec.Frames) == 0 {
-		return CandidateMetrics{}, fmt.Errorf("recording has no frames")
-	}
-	if err := r.options.Validate(); err != nil {
-		return CandidateMetrics{}, err
-	}
+func (r *Renderer) measureBest(ctx context.Context, rec *ir.Recording) (CandidateMetrics, error) {
 	candidate, err := r.prepareBestCandidate(ctx, rec)
 	if err != nil {
 		return CandidateMetrics{}, err
@@ -286,11 +286,10 @@ func attachStyleCostLedger(
 }
 
 func (r *Renderer) measureCandidate(ctx context.Context, rec *ir.Recording, candidate *preparedCandidate) error {
-	bytes, err := costPreparedCandidate(ctx, rec, &r.config, candidate)
-	if err != nil {
+	if err := contextErr(ctx); err != nil {
 		return err
 	}
-	candidate.metrics.FinalBytes = bytes
+	candidate.metrics.FinalBytes = candidate.cost.finalBytes
 	return nil
 }
 
@@ -307,9 +306,6 @@ func (r *Renderer) serializeCandidate(
 	w io.Writer,
 	candidate *preparedCandidate,
 ) error {
-	if r.onCandidateSerialize != nil {
-		r.onCandidateSerialize()
-	}
 	buf := bufio.NewWriterSize(w, 64*1024)
 	c := &canvas{
 		w: buf, rec: rec, plan: *candidate.plan, config: r.config, options: candidate.options,

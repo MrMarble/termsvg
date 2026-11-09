@@ -24,7 +24,7 @@ import (
 type canvas struct {
 	w          io.Writer
 	rec        *ir.Recording
-	plan       renderPlan
+	plan       semanticPlan
 	config     renderer.Config
 	options    Options
 	classNames map[color.ID]string

@@ -9,7 +9,7 @@ import (
 
 func TestPruneZeroDwellCursorEndpointForInfiniteLoop(t *testing.T) {
 	duration := time.Second
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: duration,
 		cursor: timeline[ir.Cursor]{duration: duration, points: []timelinePoint[ir.Cursor]{
 			{time: 0, state: ir.Cursor{Visible: false}},
@@ -35,7 +35,7 @@ func TestPruneZeroDwellCursorEndpointPreservesFiniteLoop(t *testing.T) {
 		{time: duration, state: ir.Cursor{Visible: true}},
 	}
 	for _, loopCount := range []int{-1, 1, 3} {
-		plan := renderPlan{
+		plan := semanticPlan{
 			duration: duration,
 			cursor: timeline[ir.Cursor]{
 				duration: duration,
@@ -52,7 +52,7 @@ func TestPruneZeroDwellCursorEndpointPreservesFiniteLoop(t *testing.T) {
 
 func TestPruneZeroDwellCursorEndpointPreservesVisibleDwell(t *testing.T) {
 	duration := time.Second
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: duration,
 		cursor: timeline[ir.Cursor]{duration: duration, points: []timelinePoint[ir.Cursor]{
 			{time: 0, state: ir.Cursor{Visible: false}},

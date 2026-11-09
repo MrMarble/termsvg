@@ -182,16 +182,6 @@ func (rc rowCollector) collectRowsWithHash(
 	return frames, defs
 }
 
-func compactXMLID(index int) string {
-	for {
-		value := compactXMLIDAt(index)
-		if value != "clip" {
-			return value
-		}
-		index++
-	}
-}
-
 func compactXMLIDAt(index int) string {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz"
 	index++
@@ -209,7 +199,7 @@ func compactXMLIDAt(index int) string {
 func finalSVGBytes(value string, minified bool) int {
 	bytes := len(value)
 	if minified {
-		// The export pipeline converts every UTF-8 NBSP (two bytes) back to a
+		// svgoutput converts every UTF-8 NBSP (two bytes) back to a
 		// one-byte ASCII space after minification. Profitability must therefore
 		// use the bytes that will actually reach the output file.
 		bytes -= strings.Count(value, "\u00a0")

@@ -57,7 +57,7 @@ func TestRectTracksEmitProfitableGrowingBar(t *testing.T) {
 	if strings.Index(got, `<rect class=`) > strings.Index(got, `<text`) && strings.Contains(got, `<text`) {
 		t.Fatalf("retained rectangle follows text: %s", got)
 	}
-	metrics, err := r.MeasureCandidate(context.Background(), rec)
+	metrics, err := r.measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestRectTracksEmitProfitableShrinkingBar(t *testing.T) {
 	config := renderer.DefaultConfig()
 	config.Minify = true
 	metrics, err := New(config, WithLayout(LayoutScroll), WithAnimation(AnimationSMIL),
-		WithPrimitiveMode(PrimitiveRectTracks)).MeasureCandidate(context.Background(), rectTrackRecording(t, states, false))
+		WithPrimitiveMode(PrimitiveRectTracks)).measureBest(context.Background(), rectTrackRecording(t, states, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestRectTracksFallBackOnAmbiguousRectangleIdentity(t *testing.T) {
 	rec := rectTrackRecording(t, []rectState{{width: 8}, {width: 3, secondX: 5, secondWidth: 3}, {width: 8}}, false)
 	r := New(renderer.DefaultConfig(),
 		WithLayout(LayoutRegions), WithAnimation(AnimationSMIL), WithPrimitiveMode(PrimitiveRectTracks))
-	metrics, err := r.MeasureCandidate(context.Background(), rec)
+	metrics, err := r.measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestRectTracksKeepIndependentAdjacentRegions(t *testing.T) {
 	config := renderer.DefaultConfig()
 	config.Minify = true
 	metrics, err := New(config, WithLayout(LayoutRegions), WithAnimation(AnimationSMIL),
-		WithPrimitiveMode(PrimitiveRectTracks)).MeasureCandidate(context.Background(), rec)
+		WithPrimitiveMode(PrimitiveRectTracks)).measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestRectTracksKeepIndependentAdjacentRegions(t *testing.T) {
 
 func TestRetainedRectTieKeepsSnapshot(t *testing.T) {
 	cost := preparedContentCost{definitions: 1, styles: 2, active: 3}
-	if retainedRectWins(cost, cost) {
+	if bandReplacementWins(cost, cost) {
 		t.Fatal("equal retained representation replaced snapshots")
 	}
 }
@@ -164,7 +164,7 @@ func TestRetainedRectEmitsCompleteExactTimelines(t *testing.T) {
 		{time: 4 * time.Second, state: row(0, 0, blue)},
 	}}
 	c := canvas{
-		rec: &ir.Recording{Colors: catalog}, plan: renderPlan{duration: 4 * time.Second},
+		rec: &ir.Recording{Colors: catalog}, plan: semanticPlan{duration: 4 * time.Second},
 		config: renderer.Config{LoopCount: 2}, classNames: catalog.GenerateClassNames(),
 		style: stylePlan{scheme: styleLegacy},
 	}

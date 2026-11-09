@@ -4,7 +4,6 @@ package svg
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/mrmarble/termsvg/internal/ir"
@@ -13,10 +12,8 @@ import (
 
 // Renderer implements the renderer.Renderer interface for SVG output.
 type Renderer struct {
-	config               renderer.Config
-	options              Options
-	onSemanticPlanBuild  func()
-	onCandidateSerialize func()
+	config  renderer.Config
+	options Options
 }
 
 // Layout constants for SVG rendering
@@ -37,9 +34,6 @@ const (
 )
 
 func (r *Renderer) buildSemanticPlan(ctx context.Context, rec *ir.Recording) (semanticPlan, error) {
-	if r.onSemanticPlanBuild != nil {
-		r.onSemanticPlanBuild()
-	}
 	return buildSemanticPlan(ctx, rec, r.config.ShowCursor, r.options.MaxFPS, r.config.LoopCount)
 }
 
@@ -51,7 +45,7 @@ func New(config *renderer.Config, opts ...Option) *Renderer {
 			opt(&options)
 		}
 	}
-	return &Renderer{config: *config, options: options.normalized()}
+	return &Renderer{config: *config, options: options.Normalize()}
 }
 
 // Format returns the output format name.
@@ -64,17 +58,14 @@ func (r *Renderer) FileExtension() string {
 	return ".svg"
 }
 
-// Render generates an animated SVG from the recording.
+// Render generates an animated SVG from the recording. With config.Minify the
+// output is minified as it is written.
 func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) error {
-	if len(rec.Frames) == 0 {
-		return fmt.Errorf("recording has no frames")
-	}
-	if err := r.options.Validate(); err != nil {
-		return err
-	}
 	candidate, err := r.prepareBestCandidate(ctx, rec)
 	if err != nil {
 		return err
 	}
-	return r.serializeCandidate(ctx, rec, w, candidate)
+	return writeFinalSVG(w, r.config.Minify, func(w io.Writer) error {
+		return r.serializeCandidate(ctx, rec, w, candidate)
+	})
 }

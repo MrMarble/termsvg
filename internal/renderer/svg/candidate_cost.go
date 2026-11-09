@@ -1,60 +1,33 @@
 package svg
 
 import (
-	"context"
 	"fmt"
 	"io"
-
-	"github.com/mrmarble/termsvg/internal/ir"
-	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
 type preparedCandidateCost struct {
-	finalBytes    int64
-	fragmentWalks int
+	finalBytes int64
 }
 
 type preparedContentCost struct {
-	definitions   int64
-	styles        int64
-	active        int64
-	regionBytes   int64
-	fragmentWalks int
+	definitions int64
+	styles      int64
+	active      int64
+	regionBytes int64
 }
 
 type candidateCostLedger struct {
-	bytes         int64
-	minify        bool
-	fragmentWalks int
+	bytes  int64
+	minify bool
 }
 
 func (l *candidateCostLedger) add(write func(io.Writer)) {
 	counter := &countingWriter{collapseNBSP: l.minify}
 	write(counter)
 	l.bytes += counter.size()
-	l.fragmentWalks++
 }
 
 func (l *candidateCostLedger) addBytes(bytes int64) { l.bytes += bytes }
-
-func costPreparedCandidate(
-	ctx context.Context,
-	_ *ir.Recording,
-	_ *renderer.Config,
-	candidate *preparedCandidate,
-) (int64, error) {
-	if err := contextErr(ctx); err != nil {
-		return 0, err
-	}
-	return candidate.cost.finalBytes, nil
-}
-
-func costPreparedContent(ctx context.Context, _ *canvas, content *preparedContent) (int64, error) {
-	if err := contextErr(ctx); err != nil {
-		return 0, err
-	}
-	return content.cost.regionBytes, nil
-}
 
 func buildPreparedCandidateCost(c *canvas, candidate *preparedCandidate) preparedCandidateCost {
 	ledger := candidateCostLedger{minify: c.config.Minify}
@@ -86,10 +59,7 @@ func buildPreparedCandidateCost(c *canvas, candidate *preparedCandidate) prepare
 	ledger.addBytes(candidate.content.cost.active)
 	ledger.add(func(w io.Writer) { c.w = w; c.writeCursor() })
 	ledger.add(func(w io.Writer) { fmt.Fprint(w, `</g></svg>`) })
-	return preparedCandidateCost{
-		finalBytes:    ledger.bytes,
-		fragmentWalks: ledger.fragmentWalks + candidate.content.cost.fragmentWalks,
-	}
+	return preparedCandidateCost{finalBytes: ledger.bytes}
 }
 
 func buildPreparedContentCost(c *canvas, content *preparedContent) preparedContentCost {
@@ -116,6 +86,5 @@ func buildPreparedContentCost(c *canvas, content *preparedContent) preparedConte
 	regionBytes := int64(len(`<svg><defs>`)+len(`</defs>`)+len(`</svg>`)) + definitions.bytes + styles.bytes + active.bytes
 	return preparedContentCost{
 		definitions: definitions.bytes, styles: styles.bytes, active: active.bytes, regionBytes: regionBytes,
-		fragmentWalks: definitions.fragmentWalks + styles.fragmentWalks + active.fragmentWalks,
 	}
 }

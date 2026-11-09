@@ -19,7 +19,6 @@ import (
 	"github.com/mrmarble/termsvg/internal/renderer/gif"
 	"github.com/mrmarble/termsvg/internal/renderer/svg"
 	"github.com/mrmarble/termsvg/internal/renderer/webm"
-	"github.com/mrmarble/termsvg/internal/svgoutput"
 	"github.com/mrmarble/termsvg/internal/theme"
 )
 
@@ -46,61 +45,39 @@ type Cmd struct {
 	SVGMaxFPS        int           `default:"0" help:"Maximum SVG timeline FPS, up to 1000; 0 preserves every state"`
 }
 
-func (cmd *Cmd) normalizedSVGOptions(format string) (svg.Options, error) {
-	if cmd.SystemFonts && format == "svg" {
-		return svg.Options{}, errors.New("--system-fonts only applies to gif and webm output: an SVG uses the viewer's fonts")
+func (cmd *Cmd) svgOptions() svg.Options {
+	return svg.Options{
+		Layout:        svg.LayoutMode(cmd.SVGLayout),
+		Animation:     svg.AnimationMode(cmd.SVGAnimation),
+		FrameSwitch:   svg.FrameSwitchMode(cmd.SVGFrameSwitch),
+		AutoObjective: svg.AutoObjective(cmd.SVGAutoObjective),
+		Style:         svg.StyleMode(cmd.SVGStyle),
+		Primitives:    svg.PrimitiveMode(cmd.SVGPrimitives),
+		MaxFPS:        cmd.SVGMaxFPS,
+	}.Normalize()
+}
+
+// checkFormatFlags rejects flags that do not apply to format and returns the
+// SVG options in effect.
+func (cmd *Cmd) checkFormatFlags(format string) (svg.Options, error) {
+	options := cmd.svgOptions()
+	if format == "svg" {
+		if cmd.SystemFonts {
+			return svg.Options{}, errors.New("--system-fonts only applies to gif and webm output: an SVG uses the viewer's fonts")
+		}
+		return options, options.Validate()
 	}
-	options := svg.DefaultOptions()
-	if cmd.SVGLayout != "" {
-		options.Layout = svg.LayoutMode(strings.ToLower(cmd.SVGLayout))
-	}
-	if cmd.SVGAnimation != "" {
-		options.Animation = svg.AnimationMode(strings.ToLower(cmd.SVGAnimation))
-	}
-	if cmd.SVGFrameSwitch != "" {
-		options.FrameSwitch = svg.FrameSwitchMode(strings.ToLower(cmd.SVGFrameSwitch))
-	}
-	if cmd.SVGAutoObjective != "" {
-		options.AutoObjective = svg.AutoObjective(strings.ToLower(cmd.SVGAutoObjective))
-	}
-	if cmd.SVGStyle != "" {
-		options.Style = svg.StyleMode(strings.ToLower(cmd.SVGStyle))
-	}
-	if cmd.SVGPrimitives != "" {
-		options.Primitives = svg.PrimitiveMode(strings.ToLower(cmd.SVGPrimitives))
-	}
-	options.MaxFPS = cmd.SVGMaxFPS
 	if err := options.Validate(); err != nil {
 		return svg.Options{}, err
 	}
-	if format != "svg" && options != svg.DefaultOptions() {
+	if options != svg.DefaultOptions() {
 		return svg.Options{}, fmt.Errorf("svg-specific options cannot be used with %s output", format)
 	}
 	return options, nil
 }
 
-func writeOutput(
-	ctx context.Context,
-	rdr renderer.Renderer,
-	rec *ir.Recording,
-	dst io.Writer,
-	minifySVG bool,
-) error {
-	if !minifySVG {
-		return rdr.Render(ctx, rec, dst)
-	}
-
-	return svgoutput.Write(dst, func(w io.Writer) error { return rdr.Render(ctx, rec, w) })
-}
-
-func writeOutputFile(
-	ctx context.Context,
-	rdr renderer.Renderer,
-	rec *ir.Recording,
-	dst io.WriteCloser,
-	minifySVG bool,
-) error {
-	return errors.Join(writeOutput(ctx, rdr, rec, dst, minifySVG), dst.Close())
+func writeOutputFile(ctx context.Context, rdr renderer.Renderer, rec *ir.Recording, dst io.WriteCloser) error {
+	return errors.Join(rdr.Render(ctx, rec, dst), dst.Close())
 }
 
 func loadCast(path string) (*asciicast.Cast, error) {
@@ -185,16 +162,7 @@ func newRenderer(format string, cfg *renderer.Config, svgOptions *svg.Options) (
 		}
 		return r, nil
 	case "svg":
-		return svg.New(
-			cfg,
-			svg.WithLayout(svgOptions.Layout),
-			svg.WithAnimation(svgOptions.Animation),
-			svg.WithFrameSwitch(svgOptions.FrameSwitch),
-			svg.WithMaxFPS(svgOptions.MaxFPS),
-			svg.WithAutoObjective(svgOptions.AutoObjective),
-			svg.WithStyleMode(svgOptions.Style),
-			svg.WithPrimitiveMode(svgOptions.Primitives),
-		), nil
+		return svg.New(cfg, svg.WithOptions(*svgOptions)), nil
 	case "webm":
 		r, err := webm.New(cfg)
 		if err != nil {
@@ -208,7 +176,7 @@ func newRenderer(format string, cfg *renderer.Config, svgOptions *svg.Options) (
 
 func (cmd *Cmd) Run() error {
 	format := strings.ToLower(cmd.Format)
-	svgOptions, err := cmd.normalizedSVGOptions(format)
+	svgOptions, err := cmd.checkFormatFlags(format)
 	if err != nil {
 		return err
 	}
@@ -262,7 +230,7 @@ func (cmd *Cmd) Run() error {
 		return err
 	}
 
-	if err := writeOutputFile(context.Background(), rdr, rec, outFile, cmd.Minify && format == "svg"); err != nil {
+	if err := writeOutputFile(context.Background(), rdr, rec, outFile); err != nil {
 		return err
 	}
 

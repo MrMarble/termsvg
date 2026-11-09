@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildRowBandsUsesLocalHorizontalBounds(t *testing.T) {
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{{Y: 2, Runs: []ir.TextRun{{Text: "1", StartCol: 10, EndCol: 11}}}}},
@@ -38,7 +38,7 @@ func TestBuildRowBandsUsesLocalHorizontalBounds(t *testing.T) {
 }
 
 func TestBuildRowBandsClampsOverhangAtTerminalEdges(t *testing.T) {
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "a", StartCol: 0, EndCol: 1}}}}},

@@ -19,7 +19,7 @@ type rowBand struct {
 	content timeline[[]ir.Row]
 }
 
-func buildRowBands(plan *renderPlan, width, height int) []rowBand {
+func buildRowBands(plan *semanticPlan, width, height int) []rowBand {
 	lanes := make([]rowLane, 0, height)
 	for y := range height {
 		points := make([]timelinePoint[ir.Row], len(plan.content.points))

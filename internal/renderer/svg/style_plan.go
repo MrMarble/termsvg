@@ -70,7 +70,7 @@ type classSpec struct {
 type stylePlanner struct {
 	rec    *ir.Recording
 	config *renderer.Config
-	plan   *renderPlan
+	plan   *semanticPlan
 }
 
 // classCollector accumulates class candidates in the order they are offered.
