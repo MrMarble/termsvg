@@ -3,7 +3,6 @@ package record
 import (
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,7 +44,19 @@ func TestCmd_Run_NoTTYStdin(t *testing.T) {
 	}
 }
 
-func TestHandlePtySize(t *testing.T) {
+func TestHandlePtySize_InheritsSizeAndStops(t *testing.T) {
+	// The "terminal" whose size we inherit.
+	termMaster, termSlave, err := pty.Open()
+	if err != nil {
+		t.Skipf("cannot open pty: %v", err)
+	}
+	defer termMaster.Close()
+	defer termSlave.Close()
+	if err := pty.Setsize(termSlave, &pty.Winsize{Rows: 33, Cols: 101}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The recorded program's pty, which should end up with the same size.
 	ptmx, tty, err := pty.Open()
 	if err != nil {
 		t.Skipf("cannot open pty: %v", err)
@@ -53,12 +64,16 @@ func TestHandlePtySize(t *testing.T) {
 	defer ptmx.Close()
 	defer tty.Close()
 
-	ch := handlePtySize(ptmx)
-	if ch == nil {
-		t.Fatal("expected a signal channel")
+	stop := handlePtySize(termSlave, ptmx)
+	stop() // waits for the goroutine, so the initial resize has been applied
+
+	rows, cols, err := pty.Getsize(ptmx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	signal.Stop(ch)
-	close(ch)
+	if rows != 33 || cols != 101 {
+		t.Errorf("size = %dx%d, want 33x101", rows, cols)
+	}
 }
 
 // withPtyStdio replaces os.Stdin/os.Stdout with a pty slave for the test and
@@ -112,18 +127,29 @@ func TestCmd_Run_RecordsSession(t *testing.T) {
 }
 
 func TestCmd_Run_SkipFirstLine(t *testing.T) {
-	withPtyStdio(t)
-	file := filepath.Join(t.TempDir(), "out.cast")
-	cmd := &Cmd{File: file, Command: "printf 'first\\n'; sleep 0.3; printf second", SkipFirstLine: true}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{name: "same chunk", command: `printf 'first\nsecond'`},
+		{name: "separate chunks", command: `printf 'first\n'; sleep 0.3; printf second`},
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // test temp file
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(data), "first") || !strings.Contains(string(data), "second") {
-		t.Errorf("unexpected cast content: %s", data)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withPtyStdio(t)
+			file := filepath.Join(t.TempDir(), "out.cast")
+			cmd := &Cmd{File: file, Command: tt.command, SkipFirstLine: true}
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			data, err := os.ReadFile(file) //nolint:gosec // test temp file
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "first") || !strings.Contains(string(data), "second") {
+				t.Errorf("unexpected cast content: %s", data)
+			}
+		})
 	}
 }
 
