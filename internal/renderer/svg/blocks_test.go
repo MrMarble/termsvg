@@ -253,7 +253,8 @@ func TestBlockDefinitionAndReferences(t *testing.T) {
 			t.Fatalf("block item %d = %#v; want anchor row %d", i, item.row, i+1)
 		}
 	}
-	if !strings.HasPrefix(block.definition, `<g id="`+block.id+`"><use href="#`) || !strings.HasSuffix(block.definition, `/></g>`) {
+	opening := `<g id="` + block.id + `"><use href="#`
+	if !strings.HasPrefix(block.definition, opening) || !strings.HasSuffix(block.definition, `/></g>`) {
 		t.Fatalf("block definition = %q; want a group of references", block.definition)
 	}
 	if painted := block.paintRows(); len(painted) != 3 {

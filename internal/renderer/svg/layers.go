@@ -252,7 +252,11 @@ func (p *semanticPlan) withIntervalLayers(
 // estimate and each is kept only when the exact frames serialization of the
 // plan shrinks. The caller still compares the layered and plain plans on the
 // configured layout.
-func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, base *semanticPlan) (semanticPlan, error) {
+func (r *Renderer) selectIntervalLayers(
+	ctx context.Context,
+	rec *ir.Recording,
+	base *semanticPlan,
+) (semanticPlan, error) {
 	set := base.intervalLayerCandidates(rec.Width, rec.Height, rec.Colors)
 	if len(set.candidates) == 0 {
 		return *base, nil

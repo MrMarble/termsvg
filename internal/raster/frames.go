@@ -18,7 +18,9 @@ import (
 // encoding sees only the pixels that change.
 func (r *Rasterizer) baseImage(rec *ir.Recording) *image.RGBA {
 	contentWidth, contentHeight := rec.Width*layout.ColWidth, rec.Height*layout.RowHeight
-	img := image.NewRGBA(image.Rect(0, 0, layout.PaddedWidth(contentWidth), layout.PaddedHeight(contentHeight, r.config.ShowWindow)))
+	width := layout.PaddedWidth(contentWidth)
+	height := layout.PaddedHeight(contentHeight, r.config.ShowWindow)
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	if r.config.ShowWindow {
 		r.drawWindow(img)

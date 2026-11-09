@@ -113,20 +113,20 @@ func (cmd *Cmd) selectTheme(cast *asciicast.Cast) theme.Theme {
 
 func (cmd *Cmd) processorConfig(
 	idleLimit time.Duration,
-	selectedTheme theme.Theme,
+	selectedTheme *theme.Theme,
 	progressCh chan<- progress.Update,
 ) *ir.ProcessorConfig {
 	cfg := ir.DefaultProcessorConfig()
 	cfg.Speed = cmd.Speed
 	cfg.IdleTimeLimit = idleLimit
-	cfg.Theme = selectedTheme
+	cfg.Theme = *selectedTheme
 	cfg.ProgressCh = progressCh
 
 	return cfg
 }
 
 func (cmd *Cmd) rendererConfig(
-	selectedTheme theme.Theme,
+	selectedTheme *theme.Theme,
 	progressCh chan<- progress.Update,
 ) *renderer.Config {
 	cfg := renderer.DefaultConfig()
@@ -135,7 +135,7 @@ func (cmd *Cmd) rendererConfig(
 	cfg.Minify = cmd.Minify
 	cfg.Debug = cmd.Debug
 	cfg.SystemFonts = cmd.SystemFonts
-	cfg.Theme = selectedTheme
+	cfg.Theme = *selectedTheme
 	cfg.ProgressCh = progressCh
 
 	return cfg
@@ -190,12 +190,12 @@ func (cmd *Cmd) Run() error {
 	selectedTheme := cmd.selectTheme(cast)
 
 	err = progress.Run(func(progressCh chan<- progress.Update) error {
-		rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), selectedTheme, progressCh)).Process(cast)
+		rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), &selectedTheme, progressCh)).Process(cast)
 		if err != nil {
 			return err
 		}
 
-		rdr, err := newRenderer(format, cmd.rendererConfig(selectedTheme, progressCh), &svgOptions)
+		rdr, err := newRenderer(format, cmd.rendererConfig(&selectedTheme, progressCh), &svgOptions)
 		if err != nil {
 			return err
 		}

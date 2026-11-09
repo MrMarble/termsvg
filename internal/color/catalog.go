@@ -60,7 +60,7 @@ func (c *Catalog) Register(col Color, palette *Palette) ID {
 	}
 
 	c.colors = append(c.colors, rgba)
-	id := ID(len(c.colors))
+	id := ID(len(c.colors)) //nolint:gosec // a recording does not use anywhere near 65535 distinct colors
 	c.lookup[key] = id
 
 	return id

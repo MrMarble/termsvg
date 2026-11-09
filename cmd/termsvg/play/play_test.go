@@ -86,7 +86,8 @@ func TestPlayback_MaxIdleCapsGaps(t *testing.T) {
 }
 
 func TestPlayback_RespectsRealTiming(t *testing.T) {
-	// The last event is at 500ms. The fake sleep does not advance the clock, so each wait is the full distance to its event.
+	// The last event is at 500ms. The fake sleep does not advance the clock, so each
+	// wait is the full distance to its event.
 	if _, waited := play(t, 1, 0); waited < 500*time.Millisecond || waited > 600*time.Millisecond {
 		t.Errorf("playback waits %v, want about 500ms", waited)
 	}

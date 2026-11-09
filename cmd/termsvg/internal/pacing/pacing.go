@@ -6,5 +6,5 @@ import "time"
 // Flags are the timing flags of commands that replay a recording.
 type Flags struct {
 	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = the recording's idle_time_limit, if any)"`
+	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time (0 = recording's idle_time_limit, if any)"`
 }

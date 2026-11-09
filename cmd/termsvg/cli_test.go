@@ -77,7 +77,11 @@ func TestRun_Errors(t *testing.T) {
 		{name: "no command", args: nil, wantErr: "expected one of"},
 		{name: "unknown command", args: []string{"frobnicate"}, wantErr: "frobnicate"},
 		{name: "unknown flag", args: []string{"--nope"}, wantErr: "--nope"},
-		{name: "missing input file", args: []string{"play", filepath.Join(t.TempDir(), "missing.cast")}, wantErr: "missing.cast"},
+		{
+			name:    "missing input file",
+			args:    []string{"play", filepath.Join(t.TempDir(), "missing.cast")},
+			wantErr: "missing.cast",
+		},
 		{name: "invalid enum", args: []string{"export", "-f", "png", cast}, wantErr: "png"},
 	}
 	for _, tt := range tests {

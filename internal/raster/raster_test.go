@@ -158,7 +158,6 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 	if frames[1].Delay != LastFrameHold { // its own 1s is shorter than the hold given to the last frame
 		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, LastFrameHold)
 	}
-
 }
 
 func TestRasterize_WithWindow(t *testing.T) {

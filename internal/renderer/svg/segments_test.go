@@ -256,7 +256,24 @@ func TestSegmentSavingsEqualSerializedByteDelta(t *testing.T) {
 	rec := promptRecording()
 	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
 	c.plan = buildRenderPlan(rec, false)
-	_, states := c.plan.contentKeyframes()
+	rc := c.collector()
+	unique := uniquePlanRows(&c.plan)
+	buildMarkup := func() []rowMarkup {
+		markup := make([]rowMarkup, len(unique))
+		for i, row := range unique {
+			markup[i] = rc.rows.buildRowMarkup(row)
+		}
+		return markup
+	}
+
+	computed := computedSegmentSavings(t, buildMarkup())
+	if measured := measuredSegmentSavings(&rc, buildMarkup()); measured != computed {
+		t.Fatalf("computed savings = %d, measured serialized delta = %d", computed, measured)
+	}
+}
+
+func uniquePlanRows(plan *semanticPlan) []ir.Row {
+	_, states := plan.contentKeyframes()
 	var unique []ir.Row
 	for _, rows := range states {
 		for _, row := range rows {
@@ -265,31 +282,22 @@ func TestSegmentSavingsEqualSerializedByteDelta(t *testing.T) {
 			}
 		}
 	}
-	rc := c.collector()
-	buildMarkup := func() []rowMarkup {
-		markup := make([]rowMarkup, len(unique))
-		for i, row := range unique {
-			markup[i] = rc.rows.buildRowMarkup(row)
-		}
-		return markup
-	}
-	claimed := func(markup []rowMarkup) [][]bool {
-		out := make([][]bool, len(markup))
-		for i := range markup {
-			out[i] = make([]bool, len(markup[i].row.Runs))
-		}
-		return out
-	}
+	return unique
+}
 
-	markup := buildMarkup()
-	units := segmentUnits{markup: markup, claimed: claimed(markup)}
-	candidates := collectSegmentCandidates(markup)
-	ids := &xmlIDAllocator{}
+func computedSegmentSavings(t *testing.T, markup []rowMarkup) int {
+	t.Helper()
+	claimed := make([][]bool, len(markup))
+	for i := range markup {
+		claimed[i] = make([]bool, len(markup[i].row.Runs))
+	}
+	units := segmentUnits{markup: markup, claimed: claimed}
+	idLen := func(n int) int {
+		next := xmlIDAllocator{next: n}
+		return len(next.allocate())
+	}
 	accepted := finalizeShared(false, units,
-		selectShared(false, units, candidates, 2, func(n int) int {
-			next := xmlIDAllocator{next: n}
-			return len(next.allocate())
-		}), ids)
+		selectShared(false, units, collectSegmentCandidates(markup), 2, idLen), &xmlIDAllocator{})
 	if len(accepted) == 0 {
 		t.Fatal("no segment accepted")
 	}
@@ -297,20 +305,20 @@ func TestSegmentSavingsEqualSerializedByteDelta(t *testing.T) {
 	for _, candidate := range accepted {
 		computed += shareSavings(false, units, &candidate.shareCandidate, candidate.users, len(candidate.id))
 	}
+	return computed
+}
 
-	fresh := buildMarkup()
-	uses, defs := rc.shareRowSegments(fresh, &xmlIDAllocator{})
+func measuredSegmentSavings(rc *rowCollector, markup []rowMarkup) int {
+	uses, defs := rc.shareRowSegments(markup, &xmlIDAllocator{})
 	plainBytes, sharedBytes := 0, 0
-	for i := range fresh {
-		plain, _, _ := fresh[i].render(false, nil)
-		shared, _, _ := fresh[i].render(false, uses[i])
+	for i := range markup {
+		plain, _, _ := markup[i].render(false, nil)
+		shared, _, _ := markup[i].render(false, uses[i])
 		plainBytes += finalSVGBytes(plain, false)
 		sharedBytes += finalSVGBytes(shared, false)
 	}
 	for _, def := range defs {
 		sharedBytes += finalSVGBytes(def.definition, false)
 	}
-	if measured := plainBytes - sharedBytes; measured != computed {
-		t.Fatalf("computed savings = %d, measured serialized delta = %d", computed, measured)
-	}
+	return plainBytes - sharedBytes
 }
