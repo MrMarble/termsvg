@@ -11,7 +11,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mrmarble/termsvg/cmd/termsvg/internal/pacing"
 )
+
+// defaultWindowBackground is the default theme's window color, #282d35.
+const defaultWindowBackground = "#282d35"
 
 const runTestPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
 	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
@@ -34,9 +39,21 @@ func writeRunFile(t *testing.T, dir, name, content string) string {
 // newCmd returns a Cmd carrying the defaults Kong would apply.
 func newCmd(file, output, format string) *Cmd {
 	return &Cmd{
-		File: file, Output: output, Format: format, Speed: 1,
+		File: file, Output: output, Format: format, Flags: pacing.Flags{Speed: 1},
 		SVGLayout: "frames", SVGAnimation: "css", SVGFrameSwitch: "translate",
 		SVGAutoObjective: "size", SVGStyle: "legacy", SVGPrimitives: "snapshots",
+	}
+}
+
+// assertMagic fails unless the file at path starts with the given magic bytes.
+func assertMagic(t *testing.T, path, magic string) {
+	t.Helper()
+	data, err := os.ReadFile(path) //nolint:gosec // test temp file
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(data), magic) {
+		t.Errorf("unexpected file header %q, want prefix %q", data[:min(8, len(data))], magic)
 	}
 }
 
@@ -100,13 +117,7 @@ func TestCmd_Run_OtherFormats(t *testing.T) {
 			if err := newCmd(in, out, tt.format).Run(); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
-			data, err := os.ReadFile(out) //nolint:gosec // test temp file
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.HasPrefix(string(data), tt.magic) {
-				t.Errorf("unexpected file header %q", data[:min(8, len(data))])
-			}
+			assertMagic(t, out, tt.magic)
 		})
 	}
 }
@@ -125,13 +136,13 @@ func TestCmd_Run_Themes(t *testing.T) {
 		name  string
 		file  string
 		theme string
-		want  string // substring expected in the SVG (lowercase hex)
+		want  string // lowercase hex expected in the SVG
 	}{
 		{name: "builtin by flag", file: plain, theme: "dracula", want: "#282a36"},
 		{name: "theme file by flag", file: plain, theme: themeFile, want: "#010203"},
-		{name: "unknown flag theme falls back", file: plain, theme: "does-not-exist"},
+		{name: "unknown flag theme falls back", file: plain, theme: "does-not-exist", want: defaultWindowBackground},
 		{name: "theme from cast header", file: withTheme, want: "#445566"},
-		{name: "invalid header theme ignored", file: badTheme},
+		{name: "invalid header theme ignored", file: badTheme, want: defaultWindowBackground},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -142,8 +153,11 @@ func TestCmd_Run_Themes(t *testing.T) {
 			if err := cmd.Run(); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
-			data, _ := os.ReadFile(out) //nolint:gosec // test temp file
-			if tt.want != "" && !strings.Contains(strings.ToLower(string(data)), tt.want) {
+			data, err := os.ReadFile(out) //nolint:gosec // test temp file
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(strings.ToLower(string(data)), tt.want) {
 				t.Errorf("output missing %s", tt.want)
 			}
 		})
@@ -174,7 +188,6 @@ func TestCmd_Run_Errors(t *testing.T) {
 		}},
 		{name: "unparsable input", build: func() *Cmd { return newCmd(bad, filepath.Join(dir, "o.svg"), "svg") }},
 		{name: "unwritable output", build: func() *Cmd { return newCmd(good, filepath.Join(dir, "no-dir", "o.svg"), "svg") }},
-		{name: "unsupported format", build: func() *Cmd { return newCmd(good, filepath.Join(dir, "o.xyz"), "xyz") }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -370,10 +383,7 @@ func TestCmd_Run_SystemFontsOnlyApplyToRasterFormats(t *testing.T) {
 		if err := cmd.Run(); err != nil {
 			t.Fatalf("Run() error = %v", err)
 		}
-		data, err := os.ReadFile(out) //nolint:gosec // test temp file
-		if err != nil || !bytes.HasPrefix(data, []byte("GIF8")) {
-			t.Fatalf("output is not a GIF: %v %.8q", err, data)
-		}
+		assertMagic(t, out, "GIF8")
 	})
 
 	t.Run("it changes nothing for text the embedded fonts cover", func(t *testing.T) {

@@ -29,8 +29,16 @@ raw_files=()
 metric_args=()
 render_times=()
 
+if [[ -z ${EPOCHREALTIME:-} ]]; then
+    echo "bash 5 or newer is required (EPOCHREALTIME)" >&2
+    exit 1
+fi
+
+# clock_ns prints the wall clock in nanoseconds, at microsecond resolution.
+# EPOCHREALTIME is seconds and microseconds; its separator depends on the locale.
 clock_ns() {
-    python3 -c 'import time; print(time.time_ns())'
+    local now=${EPOCHREALTIME/[.,]/}
+    echo "$((now * 1000))"
 }
 
 render_variant() {

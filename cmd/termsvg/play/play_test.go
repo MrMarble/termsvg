@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mrmarble/termsvg/cmd/termsvg/internal/pacing"
 	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
@@ -115,9 +116,9 @@ func TestCmd_Run(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "plays file", cmd: Cmd{File: good, Speed: 10}, want: "abc"},
-		{name: "invalid cast", cmd: Cmd{File: bad, Speed: 1}, wantErr: true},
-		{name: "missing file", cmd: Cmd{File: filepath.Join(dir, "none.cast"), Speed: 1}, wantErr: true},
+		{name: "plays file", cmd: Cmd{File: good, Flags: pacing.Flags{Speed: 10}}, want: "abc"},
+		{name: "invalid cast", cmd: Cmd{File: bad, Flags: pacing.Flags{Speed: 1}}, wantErr: true},
+		{name: "missing file", cmd: Cmd{File: filepath.Join(dir, "none.cast"), Flags: pacing.Flags{Speed: 1}}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -144,7 +145,7 @@ func TestCmd_Run_UsesRecordingIdleTimeLimit(t *testing.T) {
 
 	start := time.Now()
 	var err error
-	out := captureStdout(t, func() { err = (&Cmd{File: in, Speed: 1}).Run() })
+	out := captureStdout(t, func() { err = (&Cmd{File: in, Flags: pacing.Flags{Speed: 1}}).Run() })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,10 +8,10 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/mrmarble/termsvg/cmd/termsvg/internal/pacing"
 	"github.com/mrmarble/termsvg/internal/asciicast"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
@@ -24,26 +24,25 @@ import (
 )
 
 type Cmd struct {
-	File             string        `arg:"" type:"existingfile" help:"Asciicast file to export"`
-	Output           string        `short:"o" type:"path" help:"Output file path (default: <input>.<format>)"`
-	Format           string        `short:"f" default:"svg" enum:"svg,gif,webm" help:"Output format (svg, gif, webm)"`
-	Minify           bool          `short:"m" help:"Minify output (SVG only)"`
-	NoWindow         bool          `short:"n" help:"Don't render terminal window chrome"`
-	NoCursor         bool          `short:"C" help:"Don't render cursor"`
-	Speed            float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle          time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = recording's idle_time_limit, if any)"`
-	Cols             int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
-	Rows             int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
-	Debug            bool          `short:"d" help:"Enable debug logging"`
-	SystemFonts      bool          `help:"Draw glyphs the embedded fonts lack with installed fonts (GIF and WebM)"`
-	Theme            string        `short:"t" help:"Theme name (built-in) or path to theme JSON file"`
-	SVGLayout        string        `default:"frames" enum:"frames,bands,regions,scroll,auto" help:"SVG layout: frames, experimental bands/regions/scroll, or measured auto selection"`
-	SVGAnimation     string        `default:"css" enum:"css,smil" help:"SVG animation backend (css or experimental smil)"`
-	SVGFrameSwitch   string        `default:"translate" enum:"translate,href" help:"SVG state switching: translated strips or experimental animated hrefs"`
-	SVGAutoObjective string        `default:"size" enum:"size,runtime" help:"SVG auto layout objective: size or structural runtime proxies"`
-	SVGStyle         string        `default:"legacy" enum:"legacy,auto" help:"SVG paint encoding: compatibility legacy or measured auto selection"`
-	SVGPrimitives    string        `default:"snapshots" enum:"snapshots,rect-tracks" help:"SVG primitives: snapshots or experimental retained background rectangles"`
-	SVGMaxFPS        int           `default:"0" help:"Maximum SVG timeline FPS, up to 1000; 0 preserves every state"`
+	File             string `arg:"" type:"existingfile" help:"Asciicast file to export"`
+	Output           string `short:"o" type:"path" help:"Output file path (default: <input>.<format>)"`
+	Format           string `short:"f" default:"svg" enum:"svg,gif,webm" help:"Output format (svg, gif, webm)"`
+	Minify           bool   `short:"m" help:"Minify output (SVG only)"`
+	NoWindow         bool   `short:"n" help:"Don't render terminal window chrome"`
+	NoCursor         bool   `short:"C" help:"Don't render cursor"`
+	pacing.Flags     `embed:""`
+	Cols             int    `short:"c" default:"0" help:"Override columns (0 = use original)"`
+	Rows             int    `short:"r" default:"0" help:"Override rows (0 = use original)"`
+	Debug            bool   `short:"d" help:"Enable debug logging"`
+	SystemFonts      bool   `help:"Draw glyphs the embedded fonts lack with installed fonts (GIF and WebM)"`
+	Theme            string `short:"t" help:"Theme name (built-in) or path to theme JSON file"`
+	SVGLayout        string `default:"frames" enum:"frames,bands,regions,scroll,auto" help:"SVG layout: frames, experimental bands/regions/scroll, or measured auto selection"`
+	SVGAnimation     string `default:"css" enum:"css,smil" help:"SVG animation backend (css or experimental smil)"`
+	SVGFrameSwitch   string `default:"translate" enum:"translate,href" help:"SVG state switching: translated strips or experimental animated hrefs"`
+	SVGAutoObjective string `default:"size" enum:"size,runtime" help:"SVG auto layout objective: size or structural runtime proxies"`
+	SVGStyle         string `default:"legacy" enum:"legacy,auto" help:"SVG paint encoding: compatibility legacy or measured auto selection"`
+	SVGPrimitives    string `default:"snapshots" enum:"snapshots,rect-tracks" help:"SVG primitives: snapshots or experimental retained background rectangles"`
+	SVGMaxFPS        int    `default:"0" help:"Maximum SVG timeline FPS, up to 1000; 0 preserves every state"`
 }
 
 func (cmd *Cmd) normalizedSVGOptions(format string) (svg.Options, error) {
@@ -103,16 +102,6 @@ func writeOutputFile(
 	return errors.Join(writeOutput(ctx, rdr, rec, dst, minifySVG), dst.Close())
 }
 
-func loadCast(path string) (*asciicast.Cast, error) {
-	f, err := os.Open(filepath.Clean(path))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return asciicast.Parse(f)
-}
-
 // selectTheme picks the theme to render with. The --theme flag wins, then the
 // theme embedded in the cast header, then the default theme.
 func (cmd *Cmd) selectTheme(cast *asciicast.Cast) theme.Theme {
@@ -148,20 +137,20 @@ func (cmd *Cmd) selectTheme(cast *asciicast.Cast) theme.Theme {
 
 func (cmd *Cmd) processorConfig(
 	idleLimit time.Duration,
-	selectedTheme *theme.Theme,
+	selectedTheme theme.Theme,
 	progressCh chan<- progress.Update,
 ) *ir.ProcessorConfig {
 	cfg := ir.DefaultProcessorConfig()
 	cfg.Speed = cmd.Speed
 	cfg.IdleTimeLimit = idleLimit
-	cfg.Theme = *selectedTheme
+	cfg.Theme = selectedTheme
 	cfg.ProgressCh = progressCh
 
 	return cfg
 }
 
 func (cmd *Cmd) rendererConfig(
-	selectedTheme *theme.Theme,
+	selectedTheme theme.Theme,
 	progressCh chan<- progress.Update,
 ) *renderer.Config {
 	cfg := renderer.DefaultConfig()
@@ -170,7 +159,7 @@ func (cmd *Cmd) rendererConfig(
 	cfg.Minify = cmd.Minify
 	cfg.Debug = cmd.Debug
 	cfg.SystemFonts = cmd.SystemFonts
-	cfg.Theme = *selectedTheme
+	cfg.Theme = selectedTheme
 	cfg.ProgressCh = progressCh
 
 	return cfg
@@ -195,19 +184,17 @@ func newRenderer(format string, cfg *renderer.Config, svgOptions *svg.Options) (
 			svg.WithStyleMode(svgOptions.Style),
 			svg.WithPrimitiveMode(svgOptions.Primitives),
 		), nil
-	case "webm":
+	default: // webm; Kong's enum rejects any other format
 		r, err := webm.New(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create WebM renderer: %w", err)
 		}
 		return r, nil
-	default:
-		return nil, fmt.Errorf("unsupported format: %s", format)
 	}
 }
 
 func (cmd *Cmd) Run() error {
-	format := strings.ToLower(cmd.Format)
+	format := cmd.Format
 	svgOptions, err := cmd.normalizedSVGOptions(format)
 	if err != nil {
 		return err
@@ -221,12 +208,11 @@ func (cmd *Cmd) Run() error {
 		output = cmd.File + "." + format
 	}
 
-	cast, err := loadCast(cmd.File)
+	cast, err := asciicast.ParseFile(cmd.File)
 	if err != nil {
 		return err
 	}
 
-	// Override dimensions if specified
 	if cmd.Cols > 0 {
 		cast.Header.Width = cmd.Cols
 	}
@@ -247,15 +233,18 @@ func (cmd *Cmd) Run() error {
 		}
 	}()
 
-	rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), &selectedTheme, progressCh)).Process(cast)
+	rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), selectedTheme, progressCh)).Process(cast)
 	if err != nil {
 		return err
 	}
 
-	rdr, err := newRenderer(format, cmd.rendererConfig(&selectedTheme, progressCh), &svgOptions)
+	rdr, err := newRenderer(format, cmd.rendererConfig(selectedTheme, progressCh), &svgOptions)
 	if err != nil {
 		return err
 	}
+
+	_, statErr := os.Stat(output)
+	isNewFile := errors.Is(statErr, os.ErrNotExist)
 
 	outFile, err := os.Create(output) //nolint:gosec // output path is from user CLI input
 	if err != nil {
@@ -263,6 +252,9 @@ func (cmd *Cmd) Run() error {
 	}
 
 	if err := writeOutputFile(context.Background(), rdr, rec, outFile, cmd.Minify && format == "svg"); err != nil {
+		if isNewFile {
+			_ = os.Remove(output)
+		}
 		return err
 	}
 

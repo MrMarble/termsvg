@@ -12,6 +12,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -311,6 +312,17 @@ func Parse(r io.Reader) (*Cast, error) {
 	}
 
 	return Unmarshal(data)
+}
+
+// ParseFile reads and parses the asciicast file at path.
+func ParseFile(path string) (*Cast, error) {
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return Parse(f)
 }
 
 func (c *Cast) WriteTo(w io.Writer) (int64, error) {
