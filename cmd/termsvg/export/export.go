@@ -99,7 +99,107 @@ func writeOutputFile(
 	return errors.Join(writeOutput(ctx, rdr, rec, dst, minifySVG), dst.Close())
 }
 
-//nolint:gocognit,funlen // sequential export steps are clearer in one function
+func loadCast(path string) (*asciicast.Cast, error) {
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return asciicast.Parse(f)
+}
+
+// selectTheme picks the theme to render with. The --theme flag wins, then the
+// theme embedded in the cast header, then the default theme.
+func (cmd *Cmd) selectTheme(cast *asciicast.Cast) theme.Theme {
+	selected := theme.Default()
+	source := "default"
+
+	if cmd.Theme != "" {
+		t, err := theme.Load(cmd.Theme)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load theme %q: %v\n", cmd.Theme, err)
+			fmt.Fprintf(os.Stderr, "Falling back to default theme\n")
+		} else {
+			selected, source = t, "CLI flag"
+		}
+	} else if cast.Header.Theme.Fg != "" {
+		t, err := theme.FromAsciinema("asciicast", cast.Header.Theme.Fg,
+			cast.Header.Theme.Bg, cast.Header.Theme.Palette)
+		if err != nil {
+			if cmd.Debug {
+				log.Printf("[Export] Invalid theme in asciicast header: %v", err)
+			}
+		} else {
+			selected, source = t, "asciicast header"
+		}
+	}
+
+	if cmd.Debug {
+		log.Printf("[Export] Using theme from %s: %s", source, selected.Name)
+	}
+
+	return selected
+}
+
+func (cmd *Cmd) processorConfig(
+	selectedTheme *theme.Theme,
+	progressCh chan<- progress.Update,
+) *ir.ProcessorConfig {
+	cfg := ir.DefaultProcessorConfig()
+	cfg.Speed = cmd.Speed
+	cfg.IdleTimeLimit = cmd.MaxIdle
+	cfg.Theme = *selectedTheme
+	cfg.ProgressCh = progressCh
+
+	return cfg
+}
+
+func (cmd *Cmd) rendererConfig(
+	selectedTheme *theme.Theme,
+	progressCh chan<- progress.Update,
+) *renderer.Config {
+	cfg := renderer.DefaultConfig()
+	cfg.ShowWindow = !cmd.NoWindow
+	cfg.ShowCursor = !cmd.NoCursor
+	cfg.Minify = cmd.Minify
+	cfg.Debug = cmd.Debug
+	cfg.Theme = *selectedTheme
+	cfg.ProgressCh = progressCh
+
+	return cfg
+}
+
+func newRenderer(format string, cfg *renderer.Config, svgOptions *svg.Options) (renderer.Renderer, error) {
+	switch format {
+	case "gif":
+		r, err := gif.New(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create GIF renderer: %w", err)
+		}
+		return r, nil
+	case "svg":
+		return svg.New(
+			cfg,
+			svg.WithLayout(svgOptions.Layout),
+			svg.WithAnimation(svgOptions.Animation),
+			svg.WithFrameSwitch(svgOptions.FrameSwitch),
+			svg.WithMaxFPS(svgOptions.MaxFPS),
+			svg.WithAutoObjective(svgOptions.AutoObjective),
+			svg.WithStyleMode(svgOptions.Style),
+			svg.WithPrimitiveMode(svgOptions.Primitives),
+		), nil
+	case "webm":
+		r, err := webm.New(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create WebM renderer: %w", err)
+		}
+		return r, nil
+	default:
+		return nil, fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
 func (cmd *Cmd) Run() error {
 	format := strings.ToLower(cmd.Format)
 	svgOptions, err := cmd.normalizedSVGOptions(format)
@@ -115,14 +215,7 @@ func (cmd *Cmd) Run() error {
 		output = cmd.File + "." + format
 	}
 
-	// Load cast file
-	f, err := os.Open(filepath.Clean(cmd.File))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	cast, err := asciicast.Parse(f)
+	cast, err := loadCast(cmd.File)
 	if err != nil {
 		return err
 	}
@@ -135,39 +228,8 @@ func (cmd *Cmd) Run() error {
 		cast.Header.Height = cmd.Rows
 	}
 
-	// Determine theme to use
-	selectedTheme := theme.Default()
-	themeSource := "default"
+	selectedTheme := cmd.selectTheme(cast)
 
-	if cmd.Theme != "" {
-		// CLI flag takes priority
-		t, err := theme.Load(cmd.Theme)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load theme %q: %v\n", cmd.Theme, err)
-			fmt.Fprintf(os.Stderr, "Falling back to default theme\n")
-		} else {
-			selectedTheme = t
-			themeSource = "CLI flag"
-		}
-	} else if cast.Header.Theme.Fg != "" {
-		// Use theme from asciicast header
-		t, err := theme.FromAsciinema("asciicast", cast.Header.Theme.Fg,
-			cast.Header.Theme.Bg, cast.Header.Theme.Palette)
-		if err != nil {
-			if cmd.Debug {
-				log.Printf("[Export] Invalid theme in asciicast header: %v", err)
-			}
-		} else {
-			selectedTheme = t
-			themeSource = "asciicast header"
-		}
-	}
-
-	if cmd.Debug {
-		log.Printf("[Export] Using theme from %s: %s", themeSource, selectedTheme.Name)
-	}
-
-	// Create progress reporter
 	reporter, progressCh := progress.New()
 	reporter.Start()
 	exported := false
@@ -179,58 +241,16 @@ func (cmd *Cmd) Run() error {
 		}
 	}()
 
-	// Process through IR
-	procConfig := ir.DefaultProcessorConfig()
-	procConfig.Speed = cmd.Speed
-	procConfig.IdleTimeLimit = cmd.MaxIdle
-	procConfig.Theme = selectedTheme
-	procConfig.ProgressCh = progressCh
-
-	proc := ir.NewProcessor(procConfig)
-	rec, err := proc.Process(cast)
+	rec, err := ir.NewProcessor(cmd.processorConfig(&selectedTheme, progressCh)).Process(cast)
 	if err != nil {
 		return err
 	}
 
-	// Create renderer based on format
-	renderConfig := renderer.DefaultConfig()
-	renderConfig.ShowWindow = !cmd.NoWindow
-	renderConfig.ShowCursor = !cmd.NoCursor
-	renderConfig.Minify = cmd.Minify
-	renderConfig.Debug = cmd.Debug
-	renderConfig.Theme = selectedTheme
-	renderConfig.ProgressCh = progressCh
-
-	var rdr renderer.Renderer
-	switch format {
-	case "gif":
-		gifRenderer, err := gif.New(renderConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create GIF renderer: %w", err)
-		}
-		rdr = gifRenderer
-	case "svg":
-		rdr = svg.New(
-			renderConfig,
-			svg.WithLayout(svgOptions.Layout),
-			svg.WithAnimation(svgOptions.Animation),
-			svg.WithFrameSwitch(svgOptions.FrameSwitch),
-			svg.WithMaxFPS(svgOptions.MaxFPS),
-			svg.WithAutoObjective(svgOptions.AutoObjective),
-			svg.WithStyleMode(svgOptions.Style),
-			svg.WithPrimitiveMode(svgOptions.Primitives),
-		)
-	case "webm":
-		webmRenderer, err := webm.New(renderConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create WebM renderer: %w", err)
-		}
-		rdr = webmRenderer
-	default:
-		return fmt.Errorf("unsupported format: %s", format)
+	rdr, err := newRenderer(format, cmd.rendererConfig(&selectedTheme, progressCh), &svgOptions)
+	if err != nil {
+		return err
 	}
 
-	// Create output file
 	outFile, err := os.Create(output) //nolint:gosec // output path is from user CLI input
 	if err != nil {
 		return err

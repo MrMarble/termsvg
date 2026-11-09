@@ -3,7 +3,6 @@ package theme
 import (
 	"fmt"
 	"image/color"
-	"strconv"
 	"strings"
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
@@ -41,12 +40,12 @@ func Default() Theme {
 // Returns an error if the palette doesn't have exactly 16 colors.
 func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 	// Parse foreground and background colors
-	fgColor, err := ParseHexColor(fg)
+	fgColor, err := termcolor.ParseHex(fg)
 	if err != nil {
 		return Theme{}, fmt.Errorf("invalid foreground color %q: %w", fg, err)
 	}
 
-	bgColor, err := ParseHexColor(bg)
+	bgColor, err := termcolor.ParseHex(bg)
 	if err != nil {
 		return Theme{}, fmt.Errorf("invalid background color %q: %w", bg, err)
 	}
@@ -60,7 +59,7 @@ func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 	// Build 256-color palette: start with standard, override first 16 colors
 	fullPalette := termcolor.Standard()
 	for i, hex := range paletteColors {
-		c, err := ParseHexColor(hex)
+		c, err := termcolor.ParseHex(hex)
 		if err != nil {
 			return Theme{}, fmt.Errorf("invalid palette color %d %q: %w", i, hex, err)
 		}
@@ -76,48 +75,4 @@ func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 	theme.WindowBackground = bgColor // Use asciinema bg for window background too
 
 	return theme, nil
-}
-
-// ParseHexColor parses a hex color string (e.g., "#ff5733" or "#f53") into color.RGBA.
-func ParseHexColor(hex string) (color.RGBA, error) {
-	// Remove # prefix if present
-	hex = strings.TrimPrefix(hex, "#")
-
-	var r, g, b uint64
-	var err error
-
-	switch len(hex) {
-	case 3:
-		// Short form: RGB -> RRGGBB
-		r, err = strconv.ParseUint(hex[0:1]+hex[0:1], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid red component: %w", err)
-		}
-		g, err = strconv.ParseUint(hex[1:2]+hex[1:2], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid green component: %w", err)
-		}
-		b, err = strconv.ParseUint(hex[2:3]+hex[2:3], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid blue component: %w", err)
-		}
-	case 6:
-		// Long form: RRGGBB
-		r, err = strconv.ParseUint(hex[0:2], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid red component: %w", err)
-		}
-		g, err = strconv.ParseUint(hex[2:4], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid green component: %w", err)
-		}
-		b, err = strconv.ParseUint(hex[4:6], 16, 8)
-		if err != nil {
-			return color.RGBA{}, fmt.Errorf("invalid blue component: %w", err)
-		}
-	default:
-		return color.RGBA{}, fmt.Errorf("hex color must be 3 or 6 characters, got %d", len(hex))
-	}
-
-	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}, nil
 }
