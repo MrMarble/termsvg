@@ -46,6 +46,12 @@ func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error 
 	startTime := time.Now()
 
 	for _, event := range cast.Events {
+		// Only output is replayed; input, markers, resizes and exit statuses
+		// carry data that is not meant for the terminal.
+		if event.EventType != asciicast.Output {
+			continue
+		}
+
 		targetTime := time.Duration(event.Time * float64(time.Second))
 		elapsed := time.Since(startTime)
 
