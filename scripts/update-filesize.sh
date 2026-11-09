@@ -7,6 +7,12 @@ export LC_ALL=C
 # Root folder using git
 BASE_PATH=$(git rev-parse --show-toplevel)
 
+# The table is derived from history, so a truncated history gives wrong numbers.
+if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+    echo "update-filesize.sh needs the full git history; run 'git fetch --unshallow' first" >&2
+    exit 1
+fi
+
 EXAMPLES_FOLDER="$BASE_PATH/examples"
 README="$EXAMPLES_FOLDER/README.md"
 # Every exported example, in the order SVG, GIF, WebM
@@ -33,8 +39,10 @@ for filepath in "${EXAMPLE_FILES[@]}"; do
     [ -e "$filepath" ] || continue
     filename=$(basename "$filepath")
 
-    # Get git commit hash history for file
-    blobs=$(git log --all --format=%H -- "examples/$filename")
+    # Commits that changed the file, newest first. Only the checked-out
+    # history counts (first-parent: changes that landed on this branch), so the
+    # numbers do not depend on which other branches or refs a clone happens to have.
+    blobs=$(git log --first-parent --format=%H -- "examples/$filename")
 
     iterations=0
     first=
