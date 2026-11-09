@@ -39,7 +39,7 @@ type temporalSchedule struct {
 
 const regionCandidateEvaluationBudget = 512
 
-func buildDynamicRegions(plan *renderPlan, colors *color.Catalog) []dynamicRegion {
+func buildDynamicRegions(plan *semanticPlan, colors *color.Catalog) []dynamicRegion {
 	if len(plan.content.points) == 0 {
 		return nil
 	}
@@ -52,7 +52,7 @@ func buildDynamicRegions(plan *renderPlan, colors *color.Catalog) []dynamicRegio
 	return regions
 }
 
-func visualGridsForPlan(plan *renderPlan, colors *color.Catalog) []visualGrid {
+func visualGridsForPlan(plan *semanticPlan, colors *color.Catalog) []visualGrid {
 	grids := make([]visualGrid, len(plan.content.points))
 	for i, point := range plan.content.points {
 		grids[i] = buildVisualGrid(plan.width, plan.height, point.state, colors)
@@ -61,7 +61,7 @@ func visualGridsForPlan(plan *renderPlan, colors *color.Catalog) []visualGrid {
 }
 
 func dynamicRegionsForRow(
-	plan *renderPlan,
+	plan *semanticPlan,
 	grids []visualGrid,
 	y int,
 ) []dynamicRegion {
@@ -130,7 +130,7 @@ func visualAtoms(grids []visualGrid, y, width int) [][2]int {
 	return atoms
 }
 
-func atomSchedule(plan *renderPlan, grids []visualGrid, y, start, end int) temporalSchedule {
+func atomSchedule(plan *semanticPlan, grids []visualGrid, y, start, end int) temporalSchedule {
 	var schedule temporalSchedule
 	for state := 1; state < len(grids); state++ {
 		if !visualAtomEqual(&grids[state-1].rows[y], &grids[state].rows[y], start, end) {
@@ -163,11 +163,7 @@ func (a temporalSchedule) equal(b temporalSchedule) bool {
 	return a.hash == b.hash && slices.Equal(a.times, b.times)
 }
 
-func (c *canvas) optimizeDynamicRegions(ctx context.Context, regions []dynamicRegion) ([]dynamicRegion, error) {
-	return c.optimizeDynamicRegionsWithBudget(ctx, regions, regionCandidateEvaluationBudget)
-}
-
-func (c *canvas) optimizeDynamicRegionsWithBudget(
+func (c *canvas) optimizeDynamicRegions(
 	ctx context.Context,
 	regions []dynamicRegion,
 	evaluationBudget int,
@@ -180,7 +176,7 @@ func (c *canvas) optimizeDynamicRegionsWithBudget(
 		if err != nil {
 			return 0, err
 		}
-		return costPreparedContent(ctx, &probe, &content)
+		return content.cost.regionBytes, nil
 	}
 	if evaluationBudget > 0 && len(mergeableRegionPairs(regions)) > evaluationBudget {
 		spatial := spatialDynamicRegions(&c.plan, grids)
@@ -203,7 +199,7 @@ func (c *canvas) optimizeDynamicRegionsWithBudget(
 }
 
 //nolint:gocognit // diffs a row's atoms and joins the dynamic runs in one pass
-func spatialDynamicRegions(plan *renderPlan, grids []visualGrid) []dynamicRegion {
+func spatialDynamicRegions(plan *semanticPlan, grids []visualGrid) []dynamicRegion {
 	regions := make([]dynamicRegion, 0)
 	for y := range plan.height {
 		supported := true
@@ -244,14 +240,6 @@ func spatialDynamicRegions(plan *renderPlan, grids []visualGrid) []dynamicRegion
 		}
 	}
 	return regions
-}
-
-func optimizeRegionMerges(
-	regions []dynamicRegion,
-	measure func([]dynamicRegion) (int64, error),
-	merge func([]dynamicRegion, int, int) []dynamicRegion,
-) ([]dynamicRegion, error) {
-	return optimizeRegionMergesWithBudget(regions, 0, measure, merge)
 }
 
 func optimizeRegionMergesWithBudget(
@@ -388,17 +376,8 @@ func dynamicRegionsMergeable(a, b *dynamicRegion) bool {
 	return vertical || horizontal
 }
 
-func mergeDynamicRegions(
-	plan *renderPlan,
-	regions []dynamicRegion,
-	i, j int,
-	colors *color.Catalog,
-) []dynamicRegion {
-	return mergeDynamicRegionsFromGrids(plan, visualGridsForPlan(plan, colors), regions, i, j)
-}
-
 func mergeDynamicRegionsFromGrids(
-	plan *renderPlan,
+	plan *semanticPlan,
 	grids []visualGrid,
 	regions []dynamicRegion,
 	i, j int,
@@ -430,7 +409,7 @@ func mergeDynamicRegionsFromGrids(
 	return out
 }
 
-func rowTimeline(plan *renderPlan, y int) timeline[ir.Row] {
+func rowTimeline(plan *semanticPlan, y int) timeline[ir.Row] {
 	points := make([]timelinePoint[ir.Row], len(plan.content.points))
 	for i, point := range plan.content.points {
 		points[i] = timelinePoint[ir.Row]{time: point.time, state: rowAt(point.state, y)}
@@ -454,7 +433,7 @@ func rowTimelineRows(content timeline[ir.Row]) timeline[[]ir.Row] {
 }
 
 func cropRegionFromGrids(
-	plan *renderPlan,
+	plan *semanticPlan,
 	grids []visualGrid,
 	x, y, width, height int,
 ) dynamicRegion {

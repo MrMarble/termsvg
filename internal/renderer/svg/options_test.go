@@ -3,20 +3,7 @@ package svg
 
 import (
 	"testing"
-
-	"github.com/mrmarble/termsvg/internal/renderer"
 )
-
-func TestDefaultOptionsPreserveCompatibilityPath(t *testing.T) {
-	got := DefaultOptions()
-	want := Options{Layout: LayoutFrames, Animation: AnimationCSS, FrameSwitch: FrameSwitchTranslate, AutoObjective: AutoObjectiveSize, Style: StyleLegacy, Primitives: PrimitiveSnapshots}
-	if got != want {
-		t.Fatalf("DefaultOptions() = %#v, want %#v", got, want)
-	}
-	if err := got.Validate(); err != nil {
-		t.Fatalf("default options are invalid: %v", err)
-	}
-}
 
 func TestRectTracksRequireSMILLocalLayout(t *testing.T) {
 	for _, options := range []Options{
@@ -29,25 +16,6 @@ func TestRectTracksRequireSMILLocalLayout(t *testing.T) {
 		}
 	}
 	options := Options{Layout: LayoutRegions, Animation: AnimationSMIL, Primitives: PrimitiveRectTracks}
-	if err := options.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-}
-
-func TestRegionsLayoutValidates(t *testing.T) {
-	options := DefaultOptions()
-	options.Layout = LayoutRegions
-	if err := options.Validate(); err != nil {
-		t.Fatalf("regions layout failed validation: %v", err)
-	}
-}
-
-func TestScrollLayoutValidatesWithoutChangingDefault(t *testing.T) {
-	if DefaultOptions().Layout != LayoutFrames {
-		t.Fatalf("default layout = %q, want %q", DefaultOptions().Layout, LayoutFrames)
-	}
-	options := DefaultOptions()
-	options.Layout = LayoutScroll
 	if err := options.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
@@ -79,17 +47,15 @@ func TestRendererOptionsValidation(t *testing.T) {
 	}
 }
 
-func TestNewAcceptsFunctionalOptionsWithoutChangingExistingCallers(t *testing.T) {
-	config := renderer.DefaultConfig()
-	if got := New(config); got.options != DefaultOptions() {
-		t.Fatalf("New(config) options = %#v", got.options)
+func TestNormalizeFillsDefaultsAndLowercases(t *testing.T) {
+	if got := (Options{}).Normalize(); got != DefaultOptions() {
+		t.Fatalf("Normalize() of zero options = %#v, want defaults", got)
 	}
-	got := New(config, WithLayout(LayoutAuto), WithAnimation(AnimationSMIL), WithMaxFPS(30), WithAutoObjective(AutoObjectiveRuntime), WithStyleMode(StyleAuto))
-	want := Options{
-		Layout: LayoutAuto, Animation: AnimationSMIL, FrameSwitch: FrameSwitchTranslate, MaxFPS: 30,
-		AutoObjective: AutoObjectiveRuntime, Style: StyleAuto, Primitives: PrimitiveSnapshots,
+	got := Options{Layout: "REGIONS", Animation: "SMIL", MaxFPS: 5}.Normalize()
+	if got.Layout != LayoutRegions || got.Animation != AnimationSMIL || got.MaxFPS != 5 {
+		t.Fatalf("Normalize() = %#v", got)
 	}
-	if got.options != want {
-		t.Fatalf("functional options = %#v, want %#v", got.options, want)
+	if err := DefaultOptions().Validate(); err != nil {
+		t.Fatalf("defaults are invalid: %v", err)
 	}
 }

@@ -75,7 +75,7 @@ func (c *canvas) prepareContentContext(ctx context.Context) (preparedContent, er
 
 func (c *canvas) prepareRegions(ctx context.Context) (preparedContent, error) {
 	regions := buildDynamicRegions(&c.plan, c.rec.Colors)
-	optimized, err := c.optimizeDynamicRegions(ctx, regions)
+	optimized, err := c.optimizeDynamicRegions(ctx, regions, regionCandidateEvaluationBudget)
 	if err != nil {
 		return preparedContent{}, err
 	}
@@ -230,12 +230,8 @@ func exactBandReplacementDelta(snapshot, tape preparedContentCost) int64 {
 	return tape.definitions - snapshot.definitions + tape.styles - snapshot.styles + tape.active - snapshot.active
 }
 
-func scrollTapeWins(snapshot, tape preparedContentCost) bool {
-	return exactBandReplacementDelta(snapshot, tape) < 0
-}
-
-func retainedRectWins(snapshot, retained preparedContentCost) bool {
-	return exactBandReplacementDelta(snapshot, retained) < 0
+func bandReplacementWins(snapshot, replacement preparedContentCost) bool {
+	return exactBandReplacementDelta(snapshot, replacement) < 0
 }
 
 func (c *canvas) prepareLocalViewports(ctx context.Context, bands []rowBand) (preparedContent, error) {
@@ -274,7 +270,7 @@ func (c *canvas) prepareLocalViewports(ctx context.Context, bands []rowBand) (pr
 		if err != nil {
 			return preparedContent{}, err
 		}
-		if retainedRectWins(prepared.cost, candidate.cost) {
+		if bandReplacementWins(prepared.cost, candidate.cost) {
 			prepared = candidate
 		}
 	}
@@ -404,9 +400,9 @@ func contentKeyframesFor(content timeline[[]ir.Row]) ([]keyframePoint[int], [][]
 }
 
 func rowsHash(rows []ir.Row) uint64 {
-	h := uint64(segmentHashOffset)
+	h := uint64(hashOffset)
 	for _, row := range rows {
-		h = (h ^ semanticRowHash(row)) * segmentHashPrime
+		h = (h ^ semanticRowHash(row)) * hashPrime
 	}
 	return h
 }

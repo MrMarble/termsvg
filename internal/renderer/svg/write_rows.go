@@ -30,7 +30,6 @@ type backgroundSpan struct {
 
 var svgTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// xmlInt formats an integer attribute value; see formatInt.
 func (rw rowWriter) xmlInt(value int) string { return formatInt(value, rw.minify) }
 
 func (rw rowWriter) writeRow(w io.Writer, row ir.Row) {
@@ -48,7 +47,7 @@ func (rw rowWriter) writeBackgroundSpan(w io.Writer, rowY int, span backgroundSp
 	if x != 0 {
 		xAttr = ` x="` + rw.xmlInt(x) + `"`
 	}
-	if rw.style.scheme == "" || rw.style.scheme == styleLegacy {
+	if rw.style.legacy() {
 		fmt.Fprintf(w, `<rect class="%s"%s y="%s" width="%s" height="%s"/>`,
 			rw.classNames[span.colorID], xAttr, rw.xmlInt(rowY*RowHeight),
 			rw.xmlInt((span.endCol-span.startCol)*ColWidth), rw.xmlInt(RowHeight))
@@ -111,7 +110,7 @@ func (rw rowWriter) writeTextRun(w io.Writer, run ir.TextRun, rowY int) {
 	}
 
 	// Replace spaces with non-breaking spaces to survive minification. The
-	// streaming export transform restores them after minification.
+	// svgoutput restores them after minification.
 	if rw.minify {
 		text = strings.ReplaceAll(text, " ", "\u00A0")
 	}
@@ -123,32 +122,23 @@ func (rw rowWriter) writeTextRun(w io.Writer, run ir.TextRun, rowY int) {
 		xAttr = ` x="` + rw.xmlInt(x) + `"`
 	}
 
-	if rw.style.scheme != "" && rw.style.scheme != styleLegacy {
+	if !rw.style.legacy() {
 		key := textStyleKey{run.Attrs.FG, run.Attrs.Bold, run.Attrs.Italic, run.Attrs.Underline, run.Attrs.Dim}
 		fmt.Fprintf(w, `<text%s y="%s"%s>%s</text>`,
 			xAttr, rw.xmlInt(y), styleAttributes(rw.style.texts[key]), svgTextEscaper.Replace(text))
 		return
 	}
 
-	// Build class list
 	var classes []string
 	if !rw.rec.Colors.IsDefault(run.Attrs.FG) {
 		classes = append(classes, rw.classNames[run.Attrs.FG])
 	}
-	if run.Attrs.Bold {
-		classes = append(classes, "bold")
-	}
-	if run.Attrs.Italic {
-		classes = append(classes, "italic")
-	}
-	if run.Attrs.Underline {
-		classes = append(classes, "underline")
-	}
-	if run.Attrs.Dim {
-		classes = append(classes, "dim")
+	for i, set := range attrFlags(run.Attrs) {
+		if set {
+			classes = append(classes, textAttrs[i].class)
+		}
 	}
 
-	// Build attributes
 	classAttr := ""
 	if len(classes) > 0 {
 		classAttr = fmt.Sprintf(" class=%q", strings.Join(classes, " "))

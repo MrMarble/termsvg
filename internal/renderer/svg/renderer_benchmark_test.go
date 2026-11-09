@@ -124,14 +124,14 @@ func BenchmarkRetainedBackgroundTracks(b *testing.B) {
 func benchmarkScrollCandidate(b *testing.B, rec *ir.Recording, options ...Option) {
 	b.Helper()
 	r := New(renderer.DefaultConfig(), options...)
-	metrics, err := r.MeasureCandidate(context.Background(), rec)
+	metrics, err := r.measureBest(context.Background(), rec)
 	if err != nil {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if _, err := r.MeasureCandidate(context.Background(), rec); err != nil {
+		if _, err := r.measureBest(context.Background(), rec); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -153,7 +153,7 @@ func BenchmarkAutoSelection(b *testing.B) {
 	r := New(config, WithLayout(LayoutAuto))
 	b.ReportAllocs()
 	for range b.N {
-		if _, err := r.MeasureCandidate(context.Background(), rec); err != nil {
+		if _, err := r.measureBest(context.Background(), rec); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -171,14 +171,14 @@ func BenchmarkStylePlanSelection(b *testing.B) {
 				config := renderer.DefaultConfig()
 				config.Minify = minify
 				r := New(config, WithStyleMode(style))
-				metrics, err := r.MeasureCandidate(context.Background(), rec)
+				metrics, err := r.measureBest(context.Background(), rec)
 				if err != nil {
 					b.Fatal(err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
-					if _, err := r.MeasureCandidate(context.Background(), rec); err != nil {
+					if _, err := r.measureBest(context.Background(), rec); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -312,7 +312,7 @@ func benchmarkCandidate(b *testing.B, rec *ir.Recording, config *renderer.Config
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if _, err := r.MeasureCandidate(ctx, rec); err != nil {
+		if _, err := r.measureBest(ctx, rec); err != nil {
 			b.Fatal(err)
 		}
 	}

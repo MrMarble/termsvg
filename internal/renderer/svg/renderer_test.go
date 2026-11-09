@@ -17,8 +17,6 @@ import (
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/renderer"
-	"github.com/tdewolff/minify/v2"
-	msvg "github.com/tdewolff/minify/v2/svg"
 )
 
 type writeCountingWriter struct {
@@ -545,15 +543,6 @@ func TestRender_HoistsTextWhitespaceAndEscapesTextNodes(t *testing.T) {
 				t.Fatalf("Render() error = %v", err)
 			}
 			svg := buf.String()
-			if isMinified {
-				m := minify.New()
-				m.AddFunc("image/svg+xml", msvg.Minify)
-				var output bytes.Buffer
-				if err := m.Minify("image/svg+xml", &output, &buf); err != nil {
-					t.Fatalf("Minify() error = %v", err)
-				}
-				svg = strings.ReplaceAll(output.String(), "\u00a0", " ")
-			}
 			if !isMinified && (strings.Count(svg, `xml:space="preserve"`) != 1 ||
 				!strings.Contains(svg, `<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve"`)) {
 				t.Fatalf("xml:space was not inherited from the root SVG: %s", svg)

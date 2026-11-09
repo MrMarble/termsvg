@@ -49,6 +49,11 @@ func TestNormalizedSVGOptions(t *testing.T) {
 		{name: "invalid objective", cmd: Cmd{SVGLayout: "auto", SVGAutoObjective: "balanced"}, format: "svg", wantErr: true},
 		{name: "non SVG rejects runtime", cmd: Cmd{SVGLayout: "auto", SVGAutoObjective: "runtime"}, format: "gif", wantErr: true},
 		{name: "negative FPS", cmd: Cmd{SVGMaxFPS: -1}, format: "svg", wantErr: true},
+		{
+			name: "smil href", cmd: Cmd{SVGLayout: "bands", SVGAnimation: "smil", SVGFrameSwitch: "href"}, format: "svg",
+			want: svg.Options{Layout: svg.LayoutBands, Animation: svg.AnimationSMIL, FrameSwitch: svg.FrameSwitchHref, AutoObjective: svg.AutoObjectiveSize, Style: svg.StyleLegacy, Primitives: svg.PrimitiveSnapshots},
+		},
+		{name: "non SVG rejects href", cmd: Cmd{SVGAnimation: "smil", SVGFrameSwitch: "href"}, format: "gif", wantErr: true},
 		{name: "non SVG rejects non-default", cmd: Cmd{SVGLayout: "bands"}, format: "gif", wantErr: true},
 		{
 			name:   "non SVG accepts defaults",
@@ -59,12 +64,12 @@ func TestNormalizedSVGOptions(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := test.cmd.normalizedSVGOptions(test.format)
+			got, err := test.cmd.checkFormatFlags(test.format)
 			if (err != nil) != test.wantErr {
-				t.Fatalf("normalizedSVGOptions() error = %v, wantErr %v", err, test.wantErr)
+				t.Fatalf("checkFormatFlags() error = %v, wantErr %v", err, test.wantErr)
 			}
 			if err == nil && got != test.want {
-				t.Fatalf("normalizedSVGOptions() = %#v, want %#v", got, test.want)
+				t.Fatalf("checkFormatFlags() = %#v, want %#v", got, test.want)
 			}
 		})
 	}

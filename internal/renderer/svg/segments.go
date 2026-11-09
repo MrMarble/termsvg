@@ -65,9 +65,6 @@ const (
 	// maxSegmentRuns bounds the candidate enumeration to O(runs × maxSegmentRuns)
 	// per row. Prompts and table fragments are far shorter than this.
 	maxSegmentRuns = 64
-
-	segmentHashOffset = 14695981039346656037
-	segmentHashPrime  = 1099511628211
 )
 
 func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
@@ -80,7 +77,7 @@ func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
 	for k, run := range row.Runs {
 		m.runHash[k] = segmentRunHash(run)
 		if k > 0 {
-			m.gapHash[k] = mixSegmentHash(segmentHashOffset, run.StartCol-row.Runs[k-1].StartCol)
+			m.gapHash[k] = mixHash(hashOffset, run.StartCol-row.Runs[k-1].StartCol)
 		}
 	}
 	m.spans = rw.backgroundSpans(row)
@@ -151,7 +148,7 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 				elements++
 			}
 		}
-		sb.WriteString(segmentUseMarkup(minify, use.def.id, use.dx, use.dy))
+		sb.WriteString(useMarkup(minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
@@ -163,36 +160,6 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 		}
 	}
 	return sb.String(), elements, inline
-}
-
-func segmentUseMarkup(minify bool, id string, dx, dy int) string {
-	var sb strings.Builder
-	sb.WriteString(`<use href="#`)
-	sb.WriteString(id)
-	sb.WriteByte('"')
-	if dx != 0 {
-		sb.WriteString(` x="`)
-		sb.WriteString(formatInt(dx, minify))
-		sb.WriteByte('"')
-	}
-	if dy != 0 {
-		sb.WriteString(` y="`)
-		sb.WriteString(formatInt(dy, minify))
-		sb.WriteByte('"')
-	}
-	sb.WriteString(`/>`)
-	return sb.String()
-}
-
-func segmentUseBytes(minify bool, idLen, dx, dy int) int {
-	bytes := len(`<use href="#`) + idLen + len(`"/>`)
-	if dx != 0 {
-		bytes += len(` x=""`) + len(formatInt(dx, minify))
-	}
-	if dy != 0 {
-		bytes += len(` y=""`) + len(formatInt(dy, minify))
-	}
-	return bytes
 }
 
 func segmentDefinitionOverhead(idLen, elements int) int {
@@ -211,30 +178,19 @@ func normalizedSegmentRuns(runs []ir.TextRun) []ir.TextRun {
 	return out
 }
 
-func mixSegmentHash(h uint64, value int) uint64 {
-	//nolint:gosec // convert signed values to stable two's-complement hash words.
-	return (h ^ uint64(value)) * segmentHashPrime
-}
-
 // segmentRunHash hashes a run independently of its absolute position. The
 // distance to the preceding run is mixed in separately while extending a
 // candidate, so equal run sequences hash equally wherever they occur.
 func segmentRunHash(run ir.TextRun) uint64 {
-	h := uint64(segmentHashOffset)
+	h := uint64(hashOffset)
 	for i := range len(run.Text) {
-		h = (h ^ uint64(run.Text[i])) * segmentHashPrime
+		h = (h ^ uint64(run.Text[i])) * hashPrime
 	}
-	h = mixSegmentHash(h, len(run.Text))
-	h = mixSegmentHash(h, runEndCol(run)-run.StartCol)
-	h = mixSegmentHash(h, int(run.Attrs.FG))
-	h = mixSegmentHash(h, int(run.Attrs.BG))
-	flags := 0
-	for i, set := range []bool{run.Attrs.Bold, run.Attrs.Italic, run.Attrs.Underline, run.Attrs.Dim} {
-		if set {
-			flags |= 1 << i
-		}
-	}
-	return mixSegmentHash(h, flags)
+	h = mixHash(h, len(run.Text))
+	h = mixHash(h, runEndCol(run)-run.StartCol)
+	h = mixHash(h, int(run.Attrs.FG))
+	h = mixHash(h, int(run.Attrs.BG))
+	return mixHash(h, attrBits(run.Attrs))
 }
 
 // shareRowSegments selects profitable segment definitions for the unique rows
@@ -316,12 +272,12 @@ func visitSegmentRanges(markup []rowMarkup, visitor func(row, start, end int, ha
 			if !m.boundary[start] {
 				continue
 			}
-			h := uint64(segmentHashOffset)
+			h := uint64(hashOffset)
 			for end := start + 1; end <= len(m.row.Runs) && end-start <= maxSegmentRuns; end++ {
 				if end-1 > start {
-					h = (h ^ m.gapHash[end-1]) * segmentHashPrime
+					h = (h ^ m.gapHash[end-1]) * hashPrime
 				}
-				h = (h ^ m.runHash[end-1]) * segmentHashPrime
+				h = (h ^ m.runHash[end-1]) * hashPrime
 				if !m.boundary[end] {
 					continue
 				}
@@ -392,7 +348,8 @@ func selectSegments(
 			continue
 		}
 		chooseSegmentAnchor(markup, candidate, users)
-		idLen := len(compactXMLID(len(accepted)))
+		next := xmlIDAllocator{next: len(accepted)}
+		idLen := len(next.allocate())
 		if segmentSavings(minify, markup, candidate, users, idLen) <= 0 {
 			release()
 			continue
@@ -471,7 +428,7 @@ func segmentSavings(
 	savings := -(candidate.inlineBytes + segmentDefinitionOverhead(idLen, candidate.elements))
 	for _, user := range users {
 		dx, dy := (user.col-candidate.anchorCol)*ColWidth, (user.y-candidate.anchorY)*RowHeight
-		savings += markup[user.row].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
+		savings += markup[user.row].bytes(user.start, user.end) - useBytes(minify, idLen, dx, dy)
 	}
 	return savings
 }
