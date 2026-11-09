@@ -86,8 +86,12 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 	}
 	wantBounds := image.Rect(0, 0, r.paddedWidth(rec.Width), r.paddedHeight(rec.Height))
 	for i, f := range frames {
-		if f.Index != i || f.Delay != time.Duration(10*(i+1))*time.Millisecond {
-			t.Errorf("frame %d: index=%d delay=%v", i, f.Index, f.Delay)
+		want := time.Duration(10*(i+1)) * time.Millisecond
+		if i == len(frames)-1 {
+			want = lastFrameHold // the last frame is held so it can be read
+		}
+		if f.Index != i || f.Delay != want {
+			t.Errorf("frame %d: index=%d delay=%v, want %v", i, f.Index, f.Delay, want)
 		}
 		if f.Image == nil || f.Image.Bounds() != wantBounds {
 			t.Fatalf("frame %d bounds = %v, want %v", i, f.Image.Bounds(), wantBounds)

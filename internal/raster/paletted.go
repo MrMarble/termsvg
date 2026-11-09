@@ -63,7 +63,7 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 			}
 
 			for idx := range jobs {
-				results[idx] = fr.renderSingleFrame(idx, frames[idx], frames[idx].Delay, baseImg, face)
+				results[idx] = fr.renderSingleFrame(idx, frames[idx], displayDelay(frames, idx), baseImg, face)
 
 				// Send progress update
 				if fr.rasterizer.config.ProgressCh != nil {

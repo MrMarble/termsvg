@@ -86,6 +86,11 @@ const (
 	HeaderSize = 2  // multiplier for header area (window buttons)
 )
 
+// lastFrameHold is the least time the last frame stays on screen. A recording
+// ends at its last event, so that frame would otherwise flash by, and a looping
+// GIF or video would restart before the final screen could be read.
+const lastFrameHold = 2 * time.Second
+
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
@@ -98,6 +103,16 @@ func DefaultConfig() Config {
 		Padding:    Padding,
 		HeaderSize: HeaderSize,
 	}
+}
+
+// displayDelay is how long frame idx of frames stays on screen.
+func displayDelay(frames []ir.Frame, idx int) time.Duration {
+	delay := frames[idx].Delay
+	if idx == len(frames)-1 {
+		delay = max(delay, lastFrameHold)
+	}
+
+	return delay
 }
 
 // New creates a new Rasterizer with the given configuration.

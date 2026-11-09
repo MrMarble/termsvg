@@ -2,6 +2,7 @@ package export
 
 import (
 	"bytes"
+	"image/gif"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -393,4 +394,62 @@ func TestCmd_Run_SystemFontsOnlyApplyToRasterFormats(t *testing.T) {
 			t.Error("--system-fonts changed the output of a recording the embedded fonts fully cover")
 		}
 	})
+}
+
+func TestCmd_Run_GIFShowsEachStateWhenItsEventHappens(t *testing.T) {
+	dir := t.TempDir()
+	// A appears at 0.5s, B at 3.5s, C at 5.5s. Each stays on screen until the
+	// next appears; the last one is held a little so it can be read.
+	in := writeRunFile(t, dir, "timing.cast", `{"version":2,"width":12,"height":2}
+[0.5,"o","A"]
+[3.5,"o","B"]
+[5.5,"o","C"]
+`)
+	out := filepath.Join(dir, "timing.gif")
+	if err := newCmd(in, out, "gif").Run(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(out) //nolint:gosec // test temp file
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	g, err := gif.DecodeAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Delays are in hundredths of a second.
+	if want := []int{300, 200, 200}; len(g.Delay) != len(want) || g.Delay[0] != want[0] || g.Delay[1] != want[1] ||
+		g.Delay[2] < want[2] {
+		t.Errorf("GIF frame delays = %v, want A shown for 3.00s, AB for 2.00s and ABC held (>= 2.00s)", g.Delay)
+	}
+}
+
+func TestCmd_Run_SVGAndGIFAgreeWhenNothingVisibleChanges(t *testing.T) {
+	dir := t.TempDir()
+	// Events 2 and 4 change nothing. A must still be on screen from 0.5s until B
+	// appears at 4.0s, and the recording must still end at 6.0s.
+	in := writeRunFile(t, dir, "dup.cast", `{"version":2,"width":12,"height":2}
+[0.5,"o","A"]
+[2.0,"o","\u001b[0m"]
+[4.0,"o","B"]
+[6.0,"o","\u001b[0m"]
+`)
+	out := filepath.Join(dir, "dup.gif")
+	if err := newCmd(in, out, "gif").Run(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(out) //nolint:gosec // test temp file
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	g, err := gif.DecodeAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Delay) != 2 || g.Delay[0] != 350 || g.Delay[1] != 200 {
+		t.Errorf("GIF frame delays = %v, want [350 200]: A for 3.50s, then AB for the remaining 2.00s", g.Delay)
+	}
 }

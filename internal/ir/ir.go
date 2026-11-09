@@ -48,10 +48,13 @@ type Cursor struct {
 
 // Frame represents terminal state at a specific point in time.
 type Frame struct {
-	// Time is the absolute timestamp from recording start
+	// Time is when the frame first appears, as an offset from the start of the
+	// recording. Consecutive identical states are one frame, which keeps the
+	// time of the first of them.
 	Time time.Duration
 
-	// Delay is the time since the previous frame (useful for animation)
+	// Delay is how long the frame stays on screen: until the next frame
+	// appears or, for the last frame, until the recording ends.
 	Delay time.Duration
 
 	// Index is the frame number (0-indexed)
