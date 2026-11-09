@@ -87,7 +87,7 @@ func (c *canvas) legacyStylePlan() stylePlan {
 func (c *canvas) countPaintOccurrences(content *preparedContent) paintOccurrences {
 	counts := paintOccurrences{texts: make(map[textStyleKey]int), backgrounds: make(map[color.ID]int)}
 	visit := func(row ir.Row) {
-		for _, span := range c.backgroundSpans(row) {
+		for _, span := range c.rows().backgroundSpans(row) {
 			counts.backgrounds[span.colorID]++
 		}
 		for _, run := range row.Runs {

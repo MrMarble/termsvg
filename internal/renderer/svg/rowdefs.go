@@ -130,7 +130,7 @@ func (c *canvas) collectRowsWithHash(
 	// the markup that will actually be serialized.
 	markup := make([]rowMarkup, len(ordered))
 	for i, entry := range ordered {
-		markup[i] = c.buildRowMarkup(entry.row)
+		markup[i] = c.rows().buildRowMarkup(entry.row)
 	}
 	ids := &xmlIDAllocator{}
 	uses, defs := c.shareRowSegments(markup, ids)
@@ -258,7 +258,7 @@ func elementIDPrefix(svg string) string {
 }
 
 func (c *canvas) rowElementCount(row ir.Row) int {
-	count := len(c.backgroundSpans(row))
+	count := len(c.rows().backgroundSpans(row))
 	for _, run := range row.Runs {
 		if _, _, ok := compactTextRun(run); ok {
 			count++

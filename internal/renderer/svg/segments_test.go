@@ -229,7 +229,7 @@ func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
 	}
 	prefix := defs[0]
 	var expected strings.Builder
-	c.writeRow(&expected, prefix.row)
+	c.rows().writeRow(&expected, prefix.row)
 	if prefix.svg != expected.String() || prefix.definition != `<g id="a">`+prefix.svg+`</g>` {
 		t.Fatalf("definition markup = %q; want anchored row %q", prefix.definition, expected.String())
 	}

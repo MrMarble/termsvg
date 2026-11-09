@@ -76,7 +76,7 @@ func (c *canvas) render(ctx context.Context, content *preparedContent) error {
 
 	c.writeStyles(content)
 	for _, row := range c.plan.staticRows {
-		c.writeRow(c.w, row)
+		c.rows().writeRow(c.w, row)
 	}
 	c.writeLayers(c.w)
 	c.writeContent(content)
@@ -227,6 +227,12 @@ func (c *canvas) generateKeyframes(frames []keyframePoint[int]) string {
 
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// rows returns a rowWriter that reads the canvas's current recording, colour
+// classes and style plan.
+func (c *canvas) rows() rowWriter {
+	return rowWriter{rec: c.rec, classNames: c.classNames, style: &c.style, minify: c.config.Minify}
 }
 
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }

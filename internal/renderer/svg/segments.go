@@ -70,7 +70,7 @@ const (
 	segmentHashPrime  = 1099511628211
 )
 
-func (c *canvas) buildRowMarkup(row ir.Row) rowMarkup {
+func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
 	n := len(row.Runs)
 	m := rowMarkup{
 		row: row, texts: make([]string, n), boundary: make([]bool, n+1),
@@ -83,7 +83,7 @@ func (c *canvas) buildRowMarkup(row ir.Row) rowMarkup {
 			m.gapHash[k] = mixSegmentHash(segmentHashOffset, run.StartCol-row.Runs[k-1].StartCol)
 		}
 	}
-	m.spans = c.backgroundSpans(row)
+	m.spans = rw.backgroundSpans(row)
 	m.rects = make([]string, len(m.spans))
 	for i := range m.boundary {
 		m.boundary[i] = true
@@ -91,9 +91,9 @@ func (c *canvas) buildRowMarkup(row ir.Row) rowMarkup {
 	var sb strings.Builder
 	for i, span := range m.spans {
 		sb.Reset()
-		c.writeBackgroundSpan(&sb, row.Y, span)
+		rw.writeBackgroundSpan(&sb, row.Y, span)
 		m.rects[i] = sb.String()
-		m.byteAt[span.firstRun] += finalSVGBytes(m.rects[i], c.config.Minify)
+		m.byteAt[span.firstRun] += finalSVGBytes(m.rects[i], rw.minify)
 		m.elemAt[span.firstRun]++
 		// A merged background rectangle must not be split across a segment
 		// boundary: it would change both paint order and rectangle count.
@@ -103,10 +103,10 @@ func (c *canvas) buildRowMarkup(row ir.Row) rowMarkup {
 	}
 	for k, run := range row.Runs {
 		sb.Reset()
-		c.writeTextRun(&sb, run, row.Y)
+		rw.writeTextRun(&sb, run, row.Y)
 		m.texts[k] = sb.String()
 		if m.texts[k] != "" {
-			m.byteAt[k] += finalSVGBytes(m.texts[k], c.config.Minify)
+			m.byteAt[k] += finalSVGBytes(m.texts[k], rw.minify)
 			m.elemAt[k]++
 		}
 	}
@@ -499,7 +499,7 @@ func (c *canvas) segmentDefinition(candidate *segmentCandidate) *renderedRow {
 		row.Runs[i].EndCol += candidate.anchorCol
 	}
 	var sb strings.Builder
-	c.writeRow(&sb, row)
+	c.rows().writeRow(&sb, row)
 	def := candidate.def
 	def.row = row
 	def.svg = sb.String()
