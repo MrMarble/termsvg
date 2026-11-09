@@ -44,9 +44,9 @@ This table tracks size changes between the first release of the example and the 
 | htop.gif | 1 | 158.63kB | 158.63kB | 0.0000% |
 | rgb.gif | 1 | 136.76kB | 136.76kB | 0.0000% |
 | session.gif | 1 | 480.20kB | 480.20kB | 0.0000% |
-| htop.webm | 1 | 367.87kB | 367.87kB | 0.0000% |
-| rgb.webm | 1 | 20.28kB | 20.28kB | 0.0000% |
-| session.webm | 1 | 753.98kB | 753.98kB | 0.0000% |
+| htop.webm | 2 | 367.87kB | 102.12kB | 72.2415% |
+| rgb.webm | 2 | 20.28kB | 11.40kB | 43.7830% |
+| session.webm | 2 | 753.98kB | 122.19kB | 83.7943% |
 
 <!--SIZES_END-->
 

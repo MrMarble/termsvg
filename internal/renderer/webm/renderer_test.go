@@ -309,7 +309,7 @@ func TestRenderer_EncodeToWebM_RejectsUnusableFrames(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := r.encodeToWebM(tt.frames, &bytes.Buffer{}); err == nil {
+			if err := r.encodeToWebM(context.Background(), tt.frames, &bytes.Buffer{}); err == nil {
 				t.Fatal("expected an error")
 			}
 		})
