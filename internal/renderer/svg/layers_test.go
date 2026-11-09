@@ -235,17 +235,17 @@ func TestCellsToRowBridgesShortInertGaps(t *testing.T) {
 
 func TestLayerVisibilityKeyframes(t *testing.T) {
 	c := canvas{plan: renderPlan{duration: 10 * time.Second}}
-	frames := c.layerVisibility(intervalLayer{from: time.Second, to: 9 * time.Second})
+	frames := c.plan.layerVisibility(intervalLayer{from: time.Second, to: 9 * time.Second})
 	if len(frames) != 4 || frames[0].state || !frames[1].state || frames[2].state ||
 		frames[1].selector != "10%" || frames[2].selector != "90%" {
 		t.Fatalf("bounded layer keyframes = %#v", frames)
 	}
-	frames = c.layerVisibility(intervalLayer{from: time.Second, to: 10 * time.Second, open: true})
+	frames = c.plan.layerVisibility(intervalLayer{from: time.Second, to: 10 * time.Second, open: true})
 	if len(frames) != 3 || frames[0].state || !frames[1].state || !frames[2].state || frames[2].selector != "100%" {
 		t.Fatalf("open layer keyframes = %#v", frames)
 	}
 	// A state that starts exactly at the duration still hides the layer there.
-	frames = c.layerVisibility(intervalLayer{from: time.Second, to: 10 * time.Second})
+	frames = c.plan.layerVisibility(intervalLayer{from: time.Second, to: 10 * time.Second})
 	if len(frames) != 3 || frames[2].state || frames[2].selector != "100%" {
 		t.Fatalf("layer ending at the duration keyframes = %#v", frames)
 	}

@@ -12,7 +12,15 @@ import (
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
-// canvas holds rendering state
+// canvas is the state of rendering one candidate: the recording, its plan, the
+// options and config, and the colour classes and style plan chosen for it.
+//
+// It writes the document (w is nil while only preparing or measuring) and
+// prepares content, which measures candidates by serializing them through probe
+// copies of the canvas, so the two phases stay together. Everything that needs
+// only part of this state lives in a narrower collaborator built on demand:
+// rows() for row markup, styles() for style planning, collector() for shared
+// row definitions and smil() for SMIL animation elements.
 type canvas struct {
 	w          io.Writer
 	rec        *ir.Recording
@@ -153,7 +161,7 @@ func (c *canvas) writeStyles(content *preparedContent) {
 		} else if len(content.frameKeyframes) > 1 {
 			sb.WriteString(c.generateKeyframes(content.frameKeyframes))
 		}
-		if len(c.cursorKeyframes()) > 1 {
+		if len(c.plan.cursorKeyframes()) > 1 {
 			sb.WriteString(c.generateCursorKeyframes())
 		}
 		for index := range c.plan.layers {
@@ -186,7 +194,7 @@ func (c *canvas) writePaintStyles(sb *strings.Builder) {
 
 	if c.style.scheme == "" || c.style.scheme == styleLegacy {
 		// Color classes
-		for _, id := range c.visibleColorIDs() {
+		for _, id := range c.plan.usedColors {
 			rgba := c.rec.Colors.Resolved(id)
 			className := c.classNames[id]
 			hex := color.RGBAtoHex(rgba)
@@ -211,10 +219,6 @@ func (c *canvas) writePaintStyles(sb *strings.Builder) {
 			fmt.Fprintf(sb, ".%s{%s}", rule.class, rule.declarations)
 		}
 	}
-}
-
-func (c *canvas) visibleColorIDs() []color.ID {
-	return c.plan.usedColors
 }
 
 func (c *canvas) generateKeyframes(frames []keyframePoint[int]) string {

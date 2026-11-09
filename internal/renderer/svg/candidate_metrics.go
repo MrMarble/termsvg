@@ -151,7 +151,7 @@ func addStructuralMetrics(metrics *CandidateMetrics, c *canvas, content *prepare
 	layerAnimations := 0
 	for i := range c.plan.layers {
 		addMetric(metrics, false, "g", 1)
-		if len(c.layerVisibility(c.plan.layers[i])) > 1 {
+		if len(c.plan.layerVisibility(c.plan.layers[i])) > 1 {
 			layerAnimations++
 			if c.options.Animation == AnimationSMIL {
 				addMetric(metrics, false, "animation", 1)
@@ -189,11 +189,11 @@ func addStructuralMetrics(metrics *CandidateMetrics, c *canvas, content *prepare
 		addMetric(metrics, false, "g", 1)
 		addMetric(metrics, false, "rect", 1)
 		animations++ // The cursor rect always has the CSS blink animation.
-		if c.options.Animation == AnimationCSS && len(c.cursorKeyframes()) > 1 {
+		if c.options.Animation == AnimationCSS && len(c.plan.cursorKeyframes()) > 1 {
 			animations++
 		}
-		if c.options.Animation == AnimationSMIL && len(c.cursorKeyframes()) > 1 {
-			cursorAnimations := cursorAnimationCount(c.cursorKeyframes())
+		if c.options.Animation == AnimationSMIL && len(c.plan.cursorKeyframes()) > 1 {
+			cursorAnimations := cursorAnimationCount(c.plan.cursorKeyframes())
 			addMetric(metrics, false, "animation", cursorAnimations)
 			if cursorAnimations > 0 {
 				animations++

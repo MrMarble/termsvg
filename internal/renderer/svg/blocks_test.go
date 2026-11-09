@@ -241,7 +241,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 	rec := boxRecording(states)
 	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
 	c.plan = buildRenderPlan(rec, false)
-	_, contentStates := c.contentKeyframes()
+	_, contentStates := c.plan.contentKeyframes()
 	frames, defs := c.collector().collectRows(contentStates)
 	block := defs[len(defs)-1]
 	if len(block.items) != 3 || len(block.rows) != 3 || block.elements != 3 || len(block.uses) != 3 ||

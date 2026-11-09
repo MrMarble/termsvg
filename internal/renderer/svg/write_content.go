@@ -193,7 +193,7 @@ func (c *canvas) writeCursor() {
 	}
 	point := c.plan.cursor.points[len(c.plan.cursor.points)-1]
 	style := ""
-	frames := c.cursorKeyframes()
+	frames := c.plan.cursorKeyframes()
 	if len(frames) > 0 {
 		point.state = frames[0].state
 	}

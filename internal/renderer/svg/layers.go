@@ -465,17 +465,6 @@ func (p *renderPlan) layerRowsAt(at time.Duration) []ir.Row {
 	return rows
 }
 
-func (c *canvas) layerVisibility(layer intervalLayer) []keyframePoint[bool] {
-	points := []timelinePoint[bool]{{time: 0, state: layer.from == 0}}
-	if layer.from > 0 {
-		points = append(points, timelinePoint[bool]{time: layer.from, state: true})
-	}
-	if !layer.open {
-		points = append(points, timelinePoint[bool]{time: layer.to, state: false})
-	}
-	return normalizeTimeline(c.plan.duration, points, func(a, b bool) bool { return a == b }).keyframes()
-}
-
 func layerVisibilityValue(visible bool) string {
 	if visible {
 		return "visible"
@@ -493,7 +482,7 @@ func (c *canvas) writeLayers(w io.Writer) {
 
 func (c *canvas) writeLayer(w io.Writer, index int) {
 	layer := &c.plan.layers[index]
-	frames := c.layerVisibility(*layer)
+	frames := c.plan.layerVisibility(*layer)
 	initial := ""
 	if len(frames) > 0 && !frames[0].state {
 		initial = ` visibility="hidden"`
@@ -522,7 +511,7 @@ func (c *canvas) writeLayer(w io.Writer, index int) {
 }
 
 func (c *canvas) generateLayerKeyframes(index int) string {
-	frames := c.layerVisibility(c.plan.layers[index])
+	frames := c.plan.layerVisibility(c.plan.layers[index])
 	if len(frames) <= 1 {
 		return ""
 	}
