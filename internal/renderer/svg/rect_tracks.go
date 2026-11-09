@@ -141,7 +141,7 @@ func writeRetainedRectAnimation[T any](
 	for i, point := range points {
 		values[i] = format(point.state)
 	}
-	c.writeSMILAnimation(w, "animate", []smilAttribute{
+	c.smil().writeSMILAnimation(w, "animate", []smilAttribute{
 		{name: "attributeName", value: name},
 		{name: "values", value: strings.Join(values, ";")},
 		{name: "keyTimes", value: smilKeyTimes(points)},

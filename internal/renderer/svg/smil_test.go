@@ -51,7 +51,7 @@ func TestSMILKeyTimesRetainSelectorsAndEndpoints(t *testing.T) {
 func TestSMILRepeatCountMatchesRendererLoopSemantics(t *testing.T) {
 	for loopCount, want := range map[int]string{-1: "1", 0: "indefinite", 1: "1", 3: "3"} {
 		c := canvas{config: renderer.Config{LoopCount: loopCount}}
-		if got := c.smilRepeatCount(); got != want {
+		if got := c.smil().smilRepeatCount(); got != want {
 			t.Errorf("LoopCount %d = %q, want %q", loopCount, got, want)
 		}
 	}
@@ -71,7 +71,7 @@ func TestSMILTranslateValuesAndKeyTimesHaveMatchingLengths(t *testing.T) {
 		{selector: "50%", state: 1},
 		{selector: "100%", state: 1},
 	}
-	c.writeSMILTranslate(&out, frames, c.contentWidth())
+	c.smil().writeSMILTranslate(&out, frames, c.contentWidth())
 	got := out.String()
 	if !strings.Contains(got, `values="0;-120;-120"`) ||
 		!strings.Contains(got, `keyTimes="0;.5;1"`) {

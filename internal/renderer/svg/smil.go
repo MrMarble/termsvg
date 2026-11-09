@@ -10,17 +10,24 @@ import (
 	"github.com/mrmarble/termsvg/internal/ir"
 )
 
+// smilWriter writes SMIL animation elements. Every animation in a document
+// shares the loop count and total duration, which are all it needs.
+type smilWriter struct {
+	loopCount int
+	duration  time.Duration
+}
+
 type smilAttribute struct {
 	name  string
 	value string
 }
 
-func (c *canvas) writeSMILTranslate(w io.Writer, frames []keyframePoint[int], width int) {
+func (sw smilWriter) writeSMILTranslate(w io.Writer, frames []keyframePoint[int], width int) {
 	values := make([]string, len(frames))
 	for i, frame := range frames {
 		values[i] = strconv.Itoa(-width * frame.state)
 	}
-	c.writeSMILAnimation(w, "animateTransform", []smilAttribute{
+	sw.writeSMILAnimation(w, "animateTransform", []smilAttribute{
 		{name: "attributeName", value: "transform"},
 		{name: "type", value: string(FrameSwitchTranslate)},
 		{name: "values", value: strings.Join(values, ";")},
@@ -28,12 +35,12 @@ func (c *canvas) writeSMILTranslate(w io.Writer, frames []keyframePoint[int], wi
 	})
 }
 
-func (c *canvas) writeSMILVerticalTranslate(w io.Writer, frames []keyframePoint[int]) {
+func (sw smilWriter) writeSMILVerticalTranslate(w io.Writer, frames []keyframePoint[int]) {
 	values := make([]string, len(frames))
 	for i, frame := range frames {
 		values[i] = "0 " + strconv.Itoa(-RowHeight*frame.state)
 	}
-	c.writeSMILAnimation(w, "animateTransform", []smilAttribute{
+	sw.writeSMILAnimation(w, "animateTransform", []smilAttribute{
 		{name: "attributeName", value: "transform"},
 		{name: "type", value: string(FrameSwitchTranslate)},
 		{name: "values", value: strings.Join(values, ";")},
@@ -41,7 +48,7 @@ func (c *canvas) writeSMILVerticalTranslate(w io.Writer, frames []keyframePoint[
 	})
 }
 
-func (c *canvas) writeSMILHref(w io.Writer, frames []keyframePoint[int], ids []string) {
+func (sw smilWriter) writeSMILHref(w io.Writer, frames []keyframePoint[int], ids []string) {
 	values := make([]string, len(frames))
 	for i, frame := range frames {
 		if frame.state < 0 || frame.state >= len(ids) {
@@ -49,14 +56,14 @@ func (c *canvas) writeSMILHref(w io.Writer, frames []keyframePoint[int], ids []s
 		}
 		values[i] = "#" + ids[frame.state]
 	}
-	c.writeSMILAnimation(w, "animate", []smilAttribute{
+	sw.writeSMILAnimation(w, "animate", []smilAttribute{
 		{name: "attributeName", value: "href"},
 		{name: "values", value: strings.Join(values, ";")},
 		{name: "keyTimes", value: smilKeyTimes(frames)},
 	})
 }
 
-func (c *canvas) writeSMILCursor(w io.Writer, frames []keyframePoint[ir.Cursor]) {
+func (sw smilWriter) writeSMILCursor(w io.Writer, frames []keyframePoint[ir.Cursor]) {
 	positionChanges := false
 	visibilityChanges := false
 	for i := 1; i < len(frames); i++ {
@@ -70,7 +77,7 @@ func (c *canvas) writeSMILCursor(w io.Writer, frames []keyframePoint[ir.Cursor])
 		for i, frame := range frames {
 			values[i] = fmt.Sprintf("%d %d", frame.state.Col*ColWidth, frame.state.Row*RowHeight)
 		}
-		c.writeSMILAnimation(w, "animateTransform", []smilAttribute{
+		sw.writeSMILAnimation(w, "animateTransform", []smilAttribute{
 			{name: "attributeName", value: "transform"},
 			{name: "type", value: "translate"},
 			{name: "values", value: strings.Join(values, ";")},
@@ -82,7 +89,7 @@ func (c *canvas) writeSMILCursor(w io.Writer, frames []keyframePoint[ir.Cursor])
 		for i, frame := range frames {
 			values[i] = cursorVisibility(frame.state)
 		}
-		c.writeSMILAnimation(w, "animate", []smilAttribute{
+		sw.writeSMILAnimation(w, "animate", []smilAttribute{
 			{name: "attributeName", value: "visibility"},
 			{name: "values", value: strings.Join(values, ";")},
 			{name: "keyTimes", value: smilKeyTimes(frames)},
@@ -90,17 +97,17 @@ func (c *canvas) writeSMILCursor(w io.Writer, frames []keyframePoint[ir.Cursor])
 	}
 }
 
-func (c *canvas) writeSMILAnimation(w io.Writer, element string, attributes []smilAttribute) {
+func (sw smilWriter) writeSMILAnimation(w io.Writer, element string, attributes []smilAttribute) {
 	fmt.Fprintf(w, "<%s", element)
 	for _, attribute := range attributes {
 		fmt.Fprintf(w, ` %s="%s"`, attribute.name, attribute.value)
 	}
 	fill := ""
-	if !infiniteLoop(c.config.LoopCount) {
+	if !infiniteLoop(sw.loopCount) {
 		fill = ` fill="freeze"`
 	}
 	fmt.Fprintf(w, ` calcMode="discrete" dur="%s" repeatCount="%s"%s/>`,
-		smilAnimationDuration(c.plan.duration), c.smilRepeatCount(), fill)
+		smilAnimationDuration(sw.duration), sw.smilRepeatCount(), fill)
 }
 
 func smilAnimationDuration(duration time.Duration) string {
@@ -152,12 +159,12 @@ func percentageToUnitInterval(selector string) string {
 	return value
 }
 
-func (c *canvas) smilRepeatCount() string {
-	if c.config.LoopCount == -1 {
+func (sw smilWriter) smilRepeatCount() string {
+	if sw.loopCount == -1 {
 		return "1"
 	}
-	if c.config.LoopCount > 0 {
-		return strconv.Itoa(c.config.LoopCount)
+	if sw.loopCount > 0 {
+		return strconv.Itoa(sw.loopCount)
 	}
 	return "indefinite"
 }

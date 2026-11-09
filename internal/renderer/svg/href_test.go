@@ -33,7 +33,7 @@ func TestWriteSMILHrefUsesOneDiscreteReferenceTimeline(t *testing.T) {
 		{selector: "100%", state: 0},
 	}
 
-	c.writeSMILHref(&out, frames, []string{"_f0", "_f1"})
+	c.smil().writeSMILHref(&out, frames, []string{"_f0", "_f1"})
 
 	got := out.String()
 	for _, want := range []string{
