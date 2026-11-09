@@ -97,10 +97,6 @@ func xmlIDIndexAfter(count int) int {
 	return next
 }
 
-func (c *canvas) contentKeyframes() ([]keyframePoint[int], [][]ir.Row) {
-	return contentKeyframesFor(c.plan.content)
-}
-
 func (rc rowCollector) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
 	return rc.collectRowsWithHash(contentStates, semanticRowHash)
 }

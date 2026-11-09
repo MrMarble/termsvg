@@ -226,16 +226,12 @@ func (c *canvas) loopCount() string {
 func (c *canvas) generateCursorKeyframes() string {
 	var sb strings.Builder
 	sb.WriteString("@keyframes cursor{")
-	for _, point := range c.cursorKeyframes() {
+	for _, point := range c.plan.cursorKeyframes() {
 		fmt.Fprintf(&sb, "%s{transform:translate(%dpx,%dpx);visibility:%s}", point.selector,
 			point.state.Col*ColWidth, point.state.Row*RowHeight, cursorVisibility(point.state))
 	}
 	sb.WriteString("}")
 	return sb.String()
-}
-
-func (c *canvas) cursorKeyframes() []keyframePoint[ir.Cursor] {
-	return c.plan.cursor.keyframes(cursorStatesEqual)
 }
 
 func cursorStatesEqual(a, b ir.Cursor) bool { return a == b }

@@ -60,7 +60,7 @@ func (c *canvas) prepareContentContext(ctx context.Context) (preparedContent, er
 	if c.options.Layout == LayoutScroll {
 		return c.prepareScroll(ctx)
 	}
-	keyframes, states := c.contentKeyframes()
+	keyframes, states := c.plan.contentKeyframes()
 	if err := contextErr(ctx); err != nil {
 		return preparedContent{}, err
 	}

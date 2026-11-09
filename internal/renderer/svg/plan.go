@@ -204,3 +204,22 @@ func usedColorIDs(rec *ir.Recording, staticRows []ir.Row, points []timelinePoint
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
 }
+
+func (p *semanticPlan) contentKeyframes() ([]keyframePoint[int], [][]ir.Row) {
+	return contentKeyframesFor(p.content)
+}
+
+func (p *semanticPlan) cursorKeyframes() []keyframePoint[ir.Cursor] {
+	return p.cursor.keyframes(cursorStatesEqual)
+}
+
+func (p *semanticPlan) layerVisibility(layer intervalLayer) []keyframePoint[bool] {
+	points := []timelinePoint[bool]{{time: 0, state: layer.from == 0}}
+	if layer.from > 0 {
+		points = append(points, timelinePoint[bool]{time: layer.from, state: true})
+	}
+	if !layer.open {
+		points = append(points, timelinePoint[bool]{time: layer.to, state: false})
+	}
+	return normalizeTimeline(p.duration, points, func(a, b bool) bool { return a == b }).keyframes()
+}

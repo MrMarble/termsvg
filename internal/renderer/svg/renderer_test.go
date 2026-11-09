@@ -926,7 +926,7 @@ func TestCollectRows_InlinesAtExactByteCost(t *testing.T) {
 
 	plan := buildRenderPlan(rec, false)
 	c.plan = plan
-	_, states := c.contentKeyframes()
+	_, states := c.plan.contentKeyframes()
 	frames, defs := c.collector().collectRows(states)
 	if len(frames) != 3 || frames[0][0].id != "" || len(defs) != 0 {
 		t.Fatalf("row at exact definition cost was reused: markup=%d id=%q defs=%d",
@@ -963,7 +963,7 @@ func TestCollectRows_AccountsForAAIDLength(t *testing.T) {
 
 	plan := buildRenderPlan(rec, false)
 	c.plan = plan
-	_, states := c.contentKeyframes()
+	_, states := c.plan.contentKeyframes()
 	frames, defs := c.collector().collectRows(states)
 	if len(defs) != 26 || frames[0][25].id != "z" || frames[0][26].id != "" {
 		t.Fatalf("aa-length row was reused without a byte saving: markup=%d id=%q defs=%d",
