@@ -203,36 +203,28 @@ func (cmd *Cmd) Run() error {
 
 	selectedTheme := cmd.selectTheme(cast)
 
-	reporter, progressCh := progress.New()
-	reporter.Start()
-	exported := false
-	defer func() {
-		close(progressCh)
-		reporter.Wait()
-		if exported {
-			fmt.Printf("\nExported: %s\n", output)
+	err = progress.Run(func(progressCh chan<- progress.Update) error {
+		rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), &selectedTheme, progressCh)).Process(cast)
+		if err != nil {
+			return err
 		}
-	}()
 
-	rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), &selectedTheme, progressCh)).Process(cast)
+		rdr, err := newRenderer(format, cmd.rendererConfig(&selectedTheme, progressCh), &svgOptions)
+		if err != nil {
+			return err
+		}
+
+		outFile, err := os.Create(output) //nolint:gosec // output path is from user CLI input
+		if err != nil {
+			return err
+		}
+
+		return writeOutputFile(context.Background(), rdr, rec, outFile)
+	})
 	if err != nil {
 		return err
 	}
 
-	rdr, err := newRenderer(format, cmd.rendererConfig(&selectedTheme, progressCh), &svgOptions)
-	if err != nil {
-		return err
-	}
-
-	outFile, err := os.Create(output) //nolint:gosec // output path is from user CLI input
-	if err != nil {
-		return err
-	}
-
-	if err := writeOutputFile(context.Background(), rdr, rec, outFile); err != nil {
-		return err
-	}
-
-	exported = true
+	fmt.Printf("\nExported: %s\n", output)
 	return nil
 }

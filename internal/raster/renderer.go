@@ -35,7 +35,7 @@ func renderFrames[I draw.Image](r *Rasterizer, rec *ir.Recording, base I, clone 
 
 	report := func(done int) {
 		if r.config.ProgressCh != nil {
-			r.config.ProgressCh <- progress.Update{Phase: "Rasterizing", Current: done, Total: len(frames)}
+			r.config.ProgressCh <- progress.Update{Phase: progress.PhaseRasterize, Current: done, Total: len(frames)}
 		}
 	}
 	report(0)

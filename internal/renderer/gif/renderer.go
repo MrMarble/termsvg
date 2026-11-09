@@ -85,7 +85,7 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 func (r *Renderer) sendProgress(current, total int) {
 	if r.config.ProgressCh != nil {
 		r.config.ProgressCh <- progress.Update{
-			Phase:   "Encoding",
+			Phase:   progress.PhaseEncode,
 			Current: current,
 			Total:   total,
 		}

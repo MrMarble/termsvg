@@ -80,7 +80,7 @@ func writeFrameFiles(
 
 	report := func(done int) {
 		if progressCh != nil {
-			progressCh <- progress.Update{Phase: "Encoding", Current: done, Total: len(frames)}
+			progressCh <- progress.Update{Phase: progress.PhaseEncode, Current: done, Total: len(frames)}
 		}
 	}
 	report(0)

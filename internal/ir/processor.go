@@ -55,7 +55,7 @@ func NewProcessor(config *ProcessorConfig) *Processor {
 // sendProgress reports IR processing progress when a progress channel is set.
 func (p *Processor) sendProgress(current, total int) {
 	if p.config.ProgressCh != nil {
-		p.config.ProgressCh <- progress.Update{Phase: "IR Processing", Current: current, Total: total}
+		p.config.ProgressCh <- progress.Update{Phase: progress.PhaseIR, Current: current, Total: total}
 	}
 }
 
