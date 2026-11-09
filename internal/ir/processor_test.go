@@ -97,7 +97,7 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  Stats // only the fields set by styling
+		want  Stats
 	}{
 		{name: "bold", input: esc + "1mA", want: Stats{HasBold: true}},
 		{name: "italic", input: esc + "3mA", want: Stats{HasItalic: true}},
@@ -115,7 +115,6 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := rec.Stats
-			got.MaxRunsPerRow = 0
 			if got != tt.want {
 				t.Errorf("stats = %+v, want %+v", got, tt.want)
 			}

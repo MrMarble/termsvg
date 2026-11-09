@@ -1,47 +1,36 @@
-// Package raster transforms terminal recordings (IR) into RGBA images.
-// It provides parallel frame rendering with IR-level deduplication,
-// supporting both window chrome and plain terminal output.
+// Package raster transforms terminal recordings (IR) into RGBA or paletted
+// images. It renders frames in parallel, with or without window chrome.
 package raster
 
 import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/renderer"
-	"golang.org/x/image/font"
 )
 
-// RasterFrame is a rendered RGBA frame with its display time.
+// RasterFrame is a rendered RGBA frame and how long it is shown.
 //
 //nolint:revive // RasterFrame naming is intentional to distinguish from IR frames
 type RasterFrame struct {
 	Image *image.RGBA
 	Delay time.Duration
-
-	// Index is the frame number (0-indexed, sequential after deduplication)
-	Index int
 }
 
-// Rasterizer transforms IR recordings into RGBA images.
+// PalettedFrame is a rendered paletted frame and how long it is shown.
+type PalettedFrame struct {
+	Image *image.Paletted
+	Delay time.Duration
+}
+
+// Rasterizer transforms IR recordings into images.
 type Rasterizer struct {
 	config   renderer.Config
-	fontFace font.Face
 	sysFonts *systemFonts // nil unless config.SystemFonts
-}
-
-// PalettedFrame represents a single rendered frame as a paletted image with timing metadata.
-type PalettedFrame struct {
-	// Image is the rendered paletted image for this frame
-	Image *image.Paletted
-
-	// Delay is the time to display this frame
-	Delay time.Duration
-
-	// Index is the frame number (0-indexed, sequential after deduplication)
-	Index int
 }
 
 // displayDelay is how long frame idx of frames stays on screen.
@@ -62,55 +51,64 @@ func New(config *renderer.Config) (*Rasterizer, error) {
 		sys = newSystemFonts(preferred, dirs)
 	}
 
+	// Fail here, rather than in a worker, when the font cannot be loaded.
 	face, err := loadFontFace(float64(config.FontSize), sys)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load font: %w", err)
 	}
+	_ = face.Close()
 
-	return &Rasterizer{
-		config:   *config,
-		fontFace: face,
-		sysFonts: sys,
-	}, nil
+	return &Rasterizer{config: *config, sysFonts: sys}, nil
 }
 
-// Close releases resources held by the rasterizer.
-func (r *Rasterizer) Close() error {
-	// font.Face doesn't have a Close method
-	// Resource cleanup can be added here if needed in the future
-	return nil
-}
-
-// Rasterize transforms a terminal recording into a series of RGBA images.
-// It performs IR-level deduplication to avoid rendering identical frames.
-// The returned slice contains all frames with their timing metadata.
+// Rasterize renders a recording as RGBA images, one per frame.
 func (r *Rasterizer) Rasterize(rec *ir.Recording) ([]RasterFrame, error) {
 	if len(rec.Frames) == 0 {
 		return nil, fmt.Errorf("recording has no frames")
 	}
 
-	renderer := &frameRenderer{
-		rasterizer: r,
-		rec:        rec,
+	images, err := renderFrames(r, rec, r.baseImage(rec), func(base *image.RGBA) *image.RGBA {
+		img := image.NewRGBA(base.Bounds())
+		copy(img.Pix, base.Pix)
+		return img
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return renderer.render()
+	frames := make([]RasterFrame, len(images))
+	for i, img := range images {
+		frames[i] = RasterFrame{Image: img, Delay: displayDelay(rec.Frames, i)}
+	}
+
+	return frames, nil
 }
 
-// RasterizeWithPalette transforms a terminal recording into a series of paletted images.
-// It renders directly to paletted images using the provided palette, avoiding the
-// expensive RGBA to Paletted conversion step. This is optimal for GIF generation.
-// It performs IR-level deduplication to avoid rendering identical frames.
+// RasterizeWithPalette renders a recording as paletted images, one per frame,
+// drawing straight into the palette rather than converting RGBA images. This is
+// what makes GIF rendering fast.
 func (r *Rasterizer) RasterizeWithPalette(rec *ir.Recording, palette color.Palette) ([]PalettedFrame, error) {
 	if len(rec.Frames) == 0 {
 		return nil, fmt.Errorf("recording has no frames")
 	}
 
-	renderer := &palettedFrameRenderer{
-		rasterizer: r,
-		rec:        rec,
-		palette:    palette,
+	rgba := r.baseImage(rec)
+	base := image.NewPaletted(rgba.Bounds(), palette)
+	draw.Draw(base, rgba.Bounds(), rgba, image.Point{}, draw.Src)
+
+	images, err := renderFrames(r, rec, base, func(base *image.Paletted) *image.Paletted {
+		img := image.NewPaletted(base.Bounds(), palette)
+		copy(img.Pix, base.Pix)
+		return img
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return renderer.render()
+	frames := make([]PalettedFrame, len(images))
+	for i, img := range images {
+		frames[i] = PalettedFrame{Image: img, Delay: displayDelay(rec.Frames, i)}
+	}
+
+	return frames, nil
 }

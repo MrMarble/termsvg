@@ -13,7 +13,7 @@ import (
 // smilWriter writes SMIL animation elements. Every animation in a document
 // shares the loop count and total duration, which are all it needs.
 type smilWriter struct {
-	loopCount int
+	loopCount loopCount
 	duration  time.Duration
 }
 
@@ -103,11 +103,11 @@ func (sw smilWriter) writeSMILAnimation(w io.Writer, element string, attributes 
 		fmt.Fprintf(w, ` %s="%s"`, attribute.name, attribute.value)
 	}
 	fill := ""
-	if !infiniteLoop(sw.loopCount) {
+	if !sw.loopCount.infinite() {
 		fill = ` fill="freeze"`
 	}
 	fmt.Fprintf(w, ` calcMode="discrete" dur="%s" repeatCount="%s"%s/>`,
-		smilAnimationDuration(sw.duration), sw.smilRepeatCount(), fill)
+		smilAnimationDuration(sw.duration), sw.loopCount.smil(), fill)
 }
 
 func smilAnimationDuration(duration time.Duration) string {
@@ -157,14 +157,4 @@ func percentageToUnitInterval(selector string) string {
 	value := digits[:pivot] + "." + digits[pivot:]
 	value = strings.TrimRight(strings.TrimRight(value, "0"), ".")
 	return value
-}
-
-func (sw smilWriter) smilRepeatCount() string {
-	if sw.loopCount == -1 {
-		return "1"
-	}
-	if sw.loopCount > 0 {
-		return strconv.Itoa(sw.loopCount)
-	}
-	return "indefinite"
 }

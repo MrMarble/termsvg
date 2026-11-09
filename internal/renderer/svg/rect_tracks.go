@@ -112,7 +112,7 @@ func (c *canvas) writeRetainedRect(track *retainedRectTrack) {
 		x = ` x="` + c.xmlInt(initialX) + `"`
 	}
 	paint := ` class="` + c.classNames[initialFill] + `"`
-	if c.style.scheme != "" && c.style.scheme != styleLegacy {
+	if !c.style.legacy() {
 		paint = styleAttributes(c.style.backgrounds[initialFill])
 	}
 	fmt.Fprintf(c.w, `<rect%s%s y="0" width="%s" height="%s">`, paint, x, c.xmlInt(initialWidth), c.xmlInt(RowHeight))

@@ -240,7 +240,6 @@ func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
 
 	rec := &ir.Recording{
 		Width: 8, Height: 2,
@@ -450,7 +449,6 @@ func TestRasterizer_SystemFontsAreOptIn(t *testing.T) {
 		if (r.sysFonts != nil) != enabled {
 			t.Errorf("SystemFonts=%v but the rasterizer's system fonts are %v", enabled, r.sysFonts)
 		}
-		_ = r.Close()
 	}
 }
 
@@ -463,7 +461,6 @@ func TestRasterize_WithSystemFontsIsSafeAcrossWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
 
 	frames := make([]ir.Frame, 24)
 	for i := range frames {

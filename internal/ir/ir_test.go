@@ -328,26 +328,6 @@ func TestTextRunsEqual_IncludesEndCol(t *testing.T) {
 	}
 }
 
-func TestTextRun_ExplicitWideCellExtent(t *testing.T) {
-	run := TextRun{Text: "界", StartCol: 3, EndCol: 5}
-	if got, want := run.EndCol-run.StartCol, 2; got != want {
-		t.Errorf("cell extent = %d, want %d", got, want)
-	}
-}
-
-func TestAttrsEqual(t *testing.T) {
-	a := CellAttrs{FG: 1, BG: 2, Bold: true}
-	b := CellAttrs{FG: 1, BG: 2, Bold: true}
-	c := CellAttrs{FG: 1, BG: 2, Bold: false}
-
-	if !attrsEqual(a, b) {
-		t.Error("Same attrs should be equal")
-	}
-	if attrsEqual(a, c) {
-		t.Error("Different attrs should not be equal")
-	}
-}
-
 func TestFramesEqual_CursorChange(t *testing.T) {
 	rows := []Row{{Y: 0, Runs: []TextRun{{Text: "same"}}}}
 	base := Frame{Rows: rows, Cursor: Cursor{Col: 4, Row: 0, Visible: true}}

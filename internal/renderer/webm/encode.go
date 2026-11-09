@@ -72,15 +72,12 @@ func writeFrameFiles(
 	var last string
 
 	report := func(done int) {
-		progress.Send(progressCh, "Encoding", done, len(frames))
+		progress.Send(progressCh, progress.PhaseEncode, done, len(frames))
 	}
 	report(0)
 
 	written := 0
 	for _, frame := range frames {
-		if frame.Image == nil {
-			continue
-		}
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
@@ -93,9 +90,6 @@ func writeFrameFiles(
 		last = name
 		written++
 		report(written)
-	}
-	if written == 0 {
-		return "", fmt.Errorf("no valid frames to encode")
 	}
 	// The concat demuxer ignores the duration of the final entry unless the
 	// file is listed once more.

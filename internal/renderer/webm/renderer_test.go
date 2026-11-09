@@ -6,6 +6,10 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"log"
+	"os"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,30 +18,6 @@ import (
 	"github.com/mrmarble/termsvg/internal/raster"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
-
-func TestRenderer_Format(t *testing.T) {
-	r, err := New(renderer.DefaultConfig())
-	if err != nil {
-		// FFmpeg might not be installed, skip test
-		t.Skipf("FFmpeg not installed: %v", err)
-	}
-
-	if got := r.Format(); got != "webm" {
-		t.Errorf("Format() = %v, want %v", got, "webm")
-	}
-}
-
-func TestRenderer_FileExtension(t *testing.T) {
-	r, err := New(renderer.DefaultConfig())
-	if err != nil {
-		// FFmpeg might not be installed, skip test
-		t.Skipf("FFmpeg not installed: %v", err)
-	}
-
-	if got := r.FileExtension(); got != ".webm" {
-		t.Errorf("FileExtension() = %v, want %v", got, ".webm")
-	}
-}
 
 func TestRenderer_Render_EmptyRecording(t *testing.T) {
 	r, err := New(renderer.DefaultConfig())
@@ -173,7 +153,12 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 	}
 }
 
-func TestRenderer_Render_WithDebug(t *testing.T) {
+func TestRenderer_Render_DebugLogsSummary(t *testing.T) {
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	log.SetFlags(0)
+	t.Cleanup(func() { log.SetOutput(os.Stderr); log.SetFlags(log.LstdFlags) })
+
 	config := renderer.DefaultConfig()
 	config.Debug = true
 
@@ -210,8 +195,8 @@ func TestRenderer_Render_WithDebug(t *testing.T) {
 		t.Fatalf("Render() error = %v", err)
 	}
 
-	if buf.Len() == 0 {
-		t.Error("expected non-empty output")
+	if want := "[WebM] 1 frames"; !strings.Contains(logs.String(), want) {
+		t.Errorf("debug log = %q, want it to contain %q", logs.String(), want)
 	}
 }
 
@@ -240,70 +225,42 @@ func newUnprobedRenderer(t *testing.T) *Renderer {
 	return &Renderer{config: *cfg, rasterizer: rasterizer}
 }
 
-func TestRenderer_FilterFrames(t *testing.T) {
+func TestFilterFrames(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	ms := time.Millisecond
 	tests := []struct {
 		name       string
 		in         []raster.RasterFrame
 		wantDelays []time.Duration
-		wantIndex  []int
 	}{
 		{
 			name:       "long frames are kept",
-			in:         []raster.RasterFrame{{Image: img, Delay: 100 * ms, Index: 0}, {Image: img, Delay: 50 * ms, Index: 1}},
-			wantDelays: []time.Duration{100 * ms, 50 * ms}, wantIndex: []int{0, 1},
+			in:         []raster.RasterFrame{{Image: img, Delay: 100 * ms}, {Image: img, Delay: 50 * ms}},
+			wantDelays: []time.Duration{100 * ms, 50 * ms},
 		},
 		{
 			name: "rapid frames fold into the next one",
 			in: []raster.RasterFrame{
-				{Image: img, Delay: 10 * ms, Index: 0},
-				{Image: img, Delay: 10 * ms, Index: 1},
-				{Image: img, Delay: 100 * ms, Index: 2},
+				{Image: img, Delay: 10 * ms},
+				{Image: img, Delay: 10 * ms},
+				{Image: img, Delay: 100 * ms},
 			},
-			wantDelays: []time.Duration{120 * ms}, wantIndex: []int{2},
+			wantDelays: []time.Duration{120 * ms},
 		},
 		{
 			name:       "a rapid last frame is still kept",
-			in:         []raster.RasterFrame{{Image: img, Delay: 100 * ms, Index: 0}, {Image: img, Delay: 5 * ms, Index: 1}},
-			wantDelays: []time.Duration{100 * ms, 5 * ms}, wantIndex: []int{0, 1},
+			in:         []raster.RasterFrame{{Image: img, Delay: 100 * ms}, {Image: img, Delay: 5 * ms}},
+			wantDelays: []time.Duration{100 * ms, 5 * ms},
 		},
-		{
-			name:       "nil frames donate their delay",
-			in:         []raster.RasterFrame{{Delay: 40 * ms, Index: 0}, {Image: img, Delay: 10 * ms, Index: 1}},
-			wantDelays: []time.Duration{50 * ms}, wantIndex: []int{1},
-		},
-		{name: "empty input", in: nil},
-	}
-	r := &Renderer{}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := r.filterFrames(tt.in)
-			if len(got) != len(tt.wantDelays) {
-				t.Fatalf("frames = %d, want %d", len(got), len(tt.wantDelays))
-			}
-			for i, f := range got {
-				if f.Delay != tt.wantDelays[i] || f.Index != tt.wantIndex[i] {
-					t.Errorf("frame %d: delay=%v index=%d, want %v/%d", i, f.Delay, f.Index, tt.wantDelays[i], tt.wantIndex[i])
-				}
-			}
-		})
-	}
-}
-
-func TestRenderer_EncodeToWebM_RejectsUnusableFrames(t *testing.T) {
-	r := &Renderer{}
-	tests := []struct {
-		name   string
-		frames []raster.RasterFrame
-	}{
-		{name: "no frames", frames: nil},
-		{name: "only nil images", frames: []raster.RasterFrame{{Delay: time.Second}, {Delay: time.Second}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := r.encodeToWebM(context.Background(), tt.frames, &bytes.Buffer{}); err == nil {
-				t.Fatal("expected an error")
+			var got []time.Duration
+			for _, f := range filterFrames(tt.in) {
+				got = append(got, f.Delay)
+			}
+			if !slices.Equal(got, tt.wantDelays) {
+				t.Errorf("delays = %v, want %v", got, tt.wantDelays)
 			}
 		})
 	}

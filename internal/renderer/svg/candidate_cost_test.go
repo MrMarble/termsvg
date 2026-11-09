@@ -111,10 +111,7 @@ func assertCandidateCostExact(t *testing.T, rec *ir.Recording, config *renderer.
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := costPreparedCandidate(context.Background(), rec, config, candidate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := candidate.cost.finalBytes
 	var out bytes.Buffer
 	r := &Renderer{config: *config}
 	serialize := func(w io.Writer) error { return r.serializeCandidate(context.Background(), rec, w, candidate) }
@@ -156,34 +153,6 @@ func TestUseMetricArithmeticSaturates(t *testing.T) {
 	}
 }
 
-func TestCandidateComparisonDoesNotWalkSerializationFragments(t *testing.T) {
-	rec := experimentalRecording()
-	config := renderer.DefaultConfig()
-	plan, err := buildSemanticPlan(context.Background(), rec, config.ShowCursor, 0, config.LoopCount)
-	if err != nil {
-		t.Fatal(err)
-	}
-	options := DefaultOptions()
-	candidate, err := prepareCandidate(context.Background(), rec, &plan, config, &options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	walks := candidate.cost.fragmentWalks
-	if _, err := costPreparedCandidate(context.Background(), rec, config, candidate); err != nil {
-		t.Fatal(err)
-	}
-	if candidate.cost.fragmentWalks != walks {
-		t.Fatalf("comparison fragment walks = %d; want cached %d", candidate.cost.fragmentWalks, walks)
-	}
-	contentWalks := candidate.content.cost.fragmentWalks
-	if _, err := costPreparedContent(context.Background(), &canvas{}, &candidate.content); err != nil {
-		t.Fatal(err)
-	}
-	if candidate.content.cost.fragmentWalks != contentWalks {
-		t.Fatalf("region comparison fragment walks = %d; want cached %d", candidate.content.cost.fragmentWalks, contentWalks)
-	}
-}
-
 func TestUseExpansionMetricsValues(t *testing.T) {
 	small := &renderedRow{id: "r0", svg: `<text y="20">x</text>`, row: ir.Row{Runs: []ir.TextRun{{Text: "x", EndCol: 1}}}}
 	large := &renderedRow{
@@ -210,7 +179,7 @@ func TestUseExpansionMetricsValues(t *testing.T) {
 	metrics := CandidateMetrics{XMLNodes: 10, ActiveNodes: 5, DefinitionNodes: 5}
 	c := canvas{
 		rec:     parityRecording(2, 1, nil),
-		plan:    renderPlan{duration: time.Second},
+		plan:    semanticPlan{duration: time.Second},
 		options: Options{Layout: LayoutBands, FrameSwitch: FrameSwitchHref},
 	}
 	if err := addUseExpansionMetrics(&metrics, &c, &content); err != nil {
@@ -244,7 +213,7 @@ func TestUseExpansionMetricsCountRetainedStateWrappers(t *testing.T) {
 			metrics := CandidateMetrics{XMLNodes: 10, ActiveNodes: 4, DefinitionNodes: 6}
 			c := canvas{
 				rec:     parityRecording(2, 1, nil),
-				plan:    renderPlan{duration: time.Second},
+				plan:    semanticPlan{duration: time.Second},
 				options: Options{Layout: layout, FrameSwitch: FrameSwitchHref},
 			}
 			if err := addUseExpansionMetrics(&metrics, &c, &content); err != nil {

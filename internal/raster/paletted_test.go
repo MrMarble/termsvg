@@ -53,7 +53,6 @@ func newTestRasterizer(t *testing.T, mutate func(*renderer.Config)) (*Rasterizer
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = r.Close() })
 	return r, &cfg
 }
 
@@ -92,8 +91,8 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 		if i == len(frames)-1 {
 			want = LastFrameHold // the last frame is held so it can be read
 		}
-		if f.Index != i || f.Delay != want {
-			t.Errorf("frame %d: index=%d delay=%v, want %v", i, f.Index, f.Delay, want)
+		if f.Delay != want {
+			t.Errorf("frame %d: delay=%v, want %v", i, f.Delay, want)
 		}
 		if f.Image == nil || f.Image.Bounds() != wantBounds {
 			t.Fatalf("frame %d bounds = %v, want %v", i, f.Image.Bounds(), wantBounds)

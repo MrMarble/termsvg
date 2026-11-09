@@ -1,7 +1,6 @@
 package svg
 
 import (
-	"slices"
 	"strings"
 	"unicode"
 
@@ -28,7 +27,6 @@ type visualRow struct {
 	cells     []visualCell
 	glyphs    []visualGlyph
 	supported bool
-	fallback  ir.Row
 }
 
 type visualGrid struct {
@@ -47,9 +45,7 @@ func buildVisualGrid(width, height int, rows []ir.Row, colors *color.Catalog) vi
 }
 
 func buildVisualRow(row ir.Row, width int, colors *color.Catalog) visualRow {
-	fallback := row
-	fallback.Runs = slices.Clone(row.Runs)
-	result := visualRow{cells: make([]visualCell, max(0, width)), supported: width >= 0, fallback: fallback}
+	result := visualRow{cells: make([]visualCell, max(0, width)), supported: width >= 0}
 	for i := range result.cells {
 		result.cells[i].glyphIndex = -1
 	}
@@ -74,7 +70,7 @@ func buildVisualRow(row ir.Row, width int, colors *color.Catalog) visualRow {
 			}
 			index := len(result.glyphs)
 			result.glyphs = append(result.glyphs, glyph)
-			visible := glyph.text != " " || glyph.attrs.Underline || !colors.IsDefault(glyph.attrs.BG)
+			visible := glyphVisible(glyph.text == " ", glyph.attrs, colors)
 			for offset := range glyph.width {
 				result.cells[glyph.startCol+offset] = visualCell{
 					glyphIndex: index, glyphOffset: offset, visible: visible, attrs: glyph.attrs,

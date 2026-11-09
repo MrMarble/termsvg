@@ -88,7 +88,7 @@ func TestPaintOccurrencesCountOnlySerializedRows(t *testing.T) {
 	}
 	c := canvas{
 		rec:  experimentalRecording(),
-		plan: renderPlan{staticRows: []ir.Row{{Runs: []ir.TextRun{{Text: "s", EndCol: 1}}}}},
+		plan: semanticPlan{staticRows: []ir.Row{{Runs: []ir.TextRun{{Text: "s", EndCol: 1}}}}},
 	}
 	counts := c.styles().countPaintOccurrences(&content)
 	if counts.texts[textStyleKey{}] != 2 || counts.texts[textStyleKey{bold: true}] != 2 {
@@ -99,7 +99,7 @@ func TestPaintOccurrencesCountOnlySerializedRows(t *testing.T) {
 func TestPreparedStylePlanContainsCandidateScopedRules(t *testing.T) {
 	rec := experimentalRecording()
 	c := canvas{
-		rec: rec, plan: renderPlan{cursorEverVisible: true}, config: *renderer.DefaultConfig(),
+		rec: rec, plan: semanticPlan{cursorEverVisible: true}, config: *renderer.DefaultConfig(),
 	}
 	counts := paintOccurrences{
 		texts:       map[textStyleKey]int{{bold: true}: 4},

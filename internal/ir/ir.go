@@ -9,30 +9,24 @@ import (
 	"github.com/mrmarble/termsvg/internal/color"
 )
 
-// Recording represents the complete intermediate representation of a terminal recording.
-// This is the main output of processing and input for all renderers.
+// Recording is a processed terminal recording, the input of every renderer.
 type Recording struct {
-	// Metadata from the original cast
 	Width    int
 	Height   int
 	Duration time.Duration
 
-	// Processed data
 	Frames []Frame
 	Colors *color.Catalog
 
-	// Statistics for renderer optimization
 	Stats Stats
 }
 
-// Stats holds aggregate information about the recording.
-// Renderers can use this to skip generating unused CSS classes.
+// Stats tells renderers which text styles occur, so they can skip the unused ones.
 type Stats struct {
-	MaxRunsPerRow int // Helps renderers pre-allocate
-	HasBold       bool
-	HasItalic     bool
-	HasUnderline  bool
-	HasDim        bool
+	HasBold      bool
+	HasItalic    bool
+	HasUnderline bool
+	HasDim       bool
 }
 
 // Cursor represents the cursor state at a point in time.

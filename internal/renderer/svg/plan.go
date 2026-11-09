@@ -22,27 +22,12 @@ type semanticPlan struct {
 	usedColors        []color.ID
 }
 
-type renderPlan = semanticPlan
-
-func buildRenderPlan(rec *ir.Recording, showCursor bool) renderPlan {
-	options := DefaultOptions()
-	return buildRenderPlanWithOptions(rec, showCursor, &options)
-}
-
-func buildRenderPlanWithOptions(rec *ir.Recording, showCursor bool, options *Options) renderPlan {
-	plan, err := buildSemanticPlan(context.Background(), rec, showCursor, options.MaxFPS, 1)
-	if err != nil {
-		return renderPlan{}
-	}
-	return plan
-}
-
 func buildSemanticPlan(
 	ctx context.Context,
 	rec *ir.Recording,
 	showCursor bool,
 	maxFPS int,
-	loopCount int,
+	loops int,
 ) (semanticPlan, error) {
 	if err := contextErr(ctx); err != nil {
 		return semanticPlan{}, err
@@ -85,7 +70,7 @@ func buildSemanticPlan(
 	if err := contextErr(ctx); err != nil {
 		return semanticPlan{}, err
 	}
-	plan.pruneZeroDwellCursorEndpoint(loopCount)
+	plan.pruneZeroDwellCursorEndpoint(loopCount(loops))
 	plan.usedColors = usedColorIDs(rec, plan.staticRows, plan.content.points)
 	return plan, contextErr(ctx)
 }
@@ -99,8 +84,8 @@ func contextErr(ctx context.Context) error {
 	}
 }
 
-func (p *renderPlan) pruneZeroDwellCursorEndpoint(loopCount int) {
-	if !infiniteLoop(loopCount) || len(p.cursor.points) < 2 {
+func (p *semanticPlan) pruneZeroDwellCursorEndpoint(loops loopCount) {
+	if !loops.infinite() || len(p.cursor.points) < 2 {
 		return
 	}
 	last := p.cursor.points[len(p.cursor.points)-1]
@@ -116,11 +101,7 @@ func (p *renderPlan) pruneZeroDwellCursorEndpoint(loopCount int) {
 	p.refreshCursorVisibility()
 }
 
-func infiniteLoop(loopCount int) bool {
-	return loopCount == 0 || loopCount < -1
-}
-
-func (p *renderPlan) refreshCursorVisibility() {
+func (p *semanticPlan) refreshCursorVisibility() {
 	effective := p.cursor.keyframes(cursorStatesEqual)
 	if len(effective) == 0 && len(p.cursor.points) > 0 {
 		effective = []keyframePoint[ir.Cursor]{{state: p.cursor.points[len(p.cursor.points)-1].state}}
@@ -133,7 +114,7 @@ func (p *renderPlan) refreshCursorVisibility() {
 	}
 }
 
-func (p *renderPlan) hoistStaticRows(height int) {
+func (p *semanticPlan) hoistStaticRows(height int) {
 	if len(p.content.points) == 0 {
 		return
 	}

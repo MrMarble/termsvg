@@ -17,4 +17,9 @@ const (
 
 	// MinVideoDelay is the shortest video frame: one frame of a 30 FPS video.
 	MinVideoDelay = time.Second / 30
+
+	// VideoMergeBelow is the display time below which a video frame is merged
+	// into the next one. It is rounded down from a 30 FPS frame period, unlike
+	// MinVideoDelay.
+	VideoMergeBelow = 33 * time.Millisecond
 )

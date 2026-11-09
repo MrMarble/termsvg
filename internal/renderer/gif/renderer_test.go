@@ -6,6 +6,7 @@ import (
 	"errors"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/gif"
 	"log"
 	"os"
@@ -21,28 +22,6 @@ import (
 )
 
 type errWriter struct{ err error }
-
-func TestRenderer_Format(t *testing.T) {
-	r, err := New(renderer.DefaultConfig())
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	if got := r.Format(); got != "gif" {
-		t.Errorf("Format() = %v, want %v", got, "gif")
-	}
-}
-
-func TestRenderer_FileExtension(t *testing.T) {
-	r, err := New(renderer.DefaultConfig())
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	if got := r.FileExtension(); got != ".gif" {
-		t.Errorf("FileExtension() = %v, want %v", got, ".gif")
-	}
-}
 
 func TestRenderer_Render_EmptyRecording(t *testing.T) {
 	r, err := New(renderer.DefaultConfig())
@@ -370,7 +349,7 @@ func TestRenderer_Render_ReportsProgress(t *testing.T) {
 	}
 }
 
-func TestRenderer_Render_DebugLogsPhases(t *testing.T) {
+func TestRenderer_Render_DebugLogsSummary(t *testing.T) {
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
 	log.SetFlags(0)
@@ -387,10 +366,8 @@ func TestRenderer_Render_DebugLogsPhases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, want := range []string{"Phase 1", "Phase 2", "Phase 3", "framesEqual", "computeDelta", "Total time"} {
-		if !strings.Contains(logs.String(), want) {
-			t.Errorf("debug log missing %q:\n%s", want, logs.String())
-		}
+	if want := "[GIF] 2 frames"; !strings.Contains(logs.String(), want) {
+		t.Errorf("debug log = %q, want it to contain %q", logs.String(), want)
 	}
 }
 
@@ -406,88 +383,98 @@ func TestRenderer_Render_PropagatesWriteError(t *testing.T) {
 	}
 }
 
-func TestGIFDelay(t *testing.T) {
-	tests := []struct {
-		name         string
-		delay        time.Duration
-		wantGIFUnits int
-	}{
-		{name: "regular delay in 10ms units", delay: 250 * time.Millisecond, wantGIFUnits: 25},
-		{name: "short delay is raised to the minimum", delay: 10 * time.Millisecond, wantGIFUnits: 2},
-		{name: "zero delay is raised to the minimum", delay: 0, wantGIFUnits: 2},
+func decodeRender(t *testing.T, r *Renderer, rec *ir.Recording) *gif.GIF {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := r.Render(context.Background(), rec, &buf); err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := gifDelay(tt.delay); got != tt.wantGIFUnits {
-				t.Errorf("gifDelay() = %d, want %d", got, tt.wantGIFUnits)
+	g, err := gif.DecodeAll(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return g
+}
+
+func TestRenderer_Render_RaisesShortDelaysToTheBrowserMinimum(t *testing.T) {
+	r, err := New(renderer.DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := gifTestRecording(
+		textFrame("a", 10*time.Millisecond),
+		textFrame("b", 0),
+		textFrame("c", 250*time.Millisecond),
+		textFrame("d", 0),
+	)
+
+	g := decodeRender(t, r, rec)
+
+	// Browsers show delays under 20ms for 100ms, so those are raised to 20ms
+	// (2 units of 10ms). The last frame is held instead.
+	if want := []int{2, 2, 25, 200}; !slices.Equal(g.Delay, want) {
+		t.Errorf("delays = %v, want %v", g.Delay, want)
+	}
+}
+
+func TestRenderer_Render_FramesPaintedOverEachOtherReproduceTheRecording(t *testing.T) {
+	r, err := New(renderer.DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := gifTestRecording(
+		textFrame("first", 100*time.Millisecond),
+		textFrame("first and more", 100*time.Millisecond),
+		textFrame("second", 100*time.Millisecond),
+	)
+	want, err := r.rasterizer.RasterizeWithPalette(rec, r.buildPalette(rec))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	g := decodeRender(t, r, rec)
+
+	if len(g.Image) != len(want) {
+		t.Fatalf("images = %d, want %d", len(g.Image), len(want))
+	}
+	canvas := image.NewRGBA(g.Image[0].Bounds())
+	for i, frame := range g.Image {
+		draw.Draw(canvas, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+		for y := 0; y < canvas.Bounds().Dy(); y++ {
+			for x := 0; x < canvas.Bounds().Dx(); x++ {
+				if got, w := canvas.RGBAAt(x, y), want[i].Image.At(x, y); color.Color(got) != w {
+					t.Fatalf("frame %d pixel (%d,%d) = %v, want %v", i, x, y, got, w)
+				}
 			}
-		})
+		}
 	}
 }
 
-func TestFramesEqual(t *testing.T) {
-	pal := color.Palette{color.RGBA{A: 255}, color.RGBA{R: 255, A: 255}}
-	base := image.NewPaletted(image.Rect(0, 0, 4, 4), pal)
-
-	same := image.NewPaletted(base.Bounds(), pal)
-	if !framesEqual(base, same) {
-		t.Error("identical images reported as different")
-	}
-
-	changed := image.NewPaletted(base.Bounds(), pal)
-	changed.SetColorIndex(2, 3, 1)
-	if framesEqual(base, changed) {
-		t.Error("images with a differing pixel reported as equal")
-	}
-
-	other := image.NewPaletted(image.Rect(0, 0, 5, 4), pal)
-	if framesEqual(base, other) {
-		t.Error("images with different bounds reported as equal")
-	}
-}
-
-func TestComputeDelta(t *testing.T) {
-	pal := color.Palette{color.RGBA{}, color.RGBA{R: 255, A: 255}, color.RGBA{G: 255, A: 255}}
-	prev := image.NewPaletted(image.Rect(0, 0, 3, 1), pal)
-	curr := image.NewPaletted(image.Rect(0, 0, 3, 1), pal)
-	prev.Pix = []uint8{1, 1, 1}
-	curr.Pix = []uint8{1, 2, 1}
-
-	delta := computeDelta(prev, curr, 0)
-	if want := []uint8{0, 2, 0}; !bytes.Equal(delta.Pix, want) {
-		t.Errorf("delta pixels = %v, want %v (unchanged -> transparent index)", delta.Pix, want)
-	}
+func decodedPalette(t *testing.T, r *Renderer, rec *ir.Recording) color.Palette {
+	t.Helper()
+	return decodeRender(t, r, rec).Image[0].Palette
 }
 
 func paletteContains(p color.Palette, c color.RGBA) bool {
-	for _, pc := range p {
-		if pc == color.Color(c) {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p, color.Color(c))
 }
 
-func newPaletteRenderer(t *testing.T) (*Renderer, *renderer.Config) {
-	t.Helper()
+func TestRenderer_Render_PaletteHoldsThemeAndRecordingColors(t *testing.T) {
 	cfg := renderer.DefaultConfig()
 	r, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return r, cfg
-}
+	rec := gifTestRecording(textFrame("a", 50*time.Millisecond))
+	used := rec.Colors.Register(termcolor.FromRGB(1, 2, 3), &cfg.Theme.Palette)
 
-func TestRenderer_buildPalette_IncludesTransparentThemeAndCatalogColors(t *testing.T) {
-	r, cfg := newPaletteRenderer(t)
-	rec := gifTestRecording()
-	pal := r.buildPalette(rec)
-	if pal[0] != color.Color(color.RGBA{}) {
-		t.Errorf("first entry = %v, want transparent", pal[0])
-	}
+	pal := decodedPalette(t, r, rec)
+
 	for _, c := range []color.RGBA{
 		cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
 		cfg.Theme.WindowButtons[0], rec.Colors.DefaultForeground(), rec.Colors.DefaultBackground(),
+		rec.Colors.Resolved(used),
 	} {
 		if !paletteContains(pal, c) {
 			t.Errorf("palette missing %v", c)
@@ -495,56 +482,24 @@ func TestRenderer_buildPalette_IncludesTransparentThemeAndCatalogColors(t *testi
 	}
 }
 
-func TestRenderer_buildPalette_CappedAt256(t *testing.T) {
-	r, cfg := newPaletteRenderer(t)
-	rec := gifTestRecording()
-	for i := range 300 {
-		rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>1), uint8(i%7)), &cfg.Theme.Palette)
+func TestRenderer_Render_PaletteOverflowKeepsThemeAndDropsNewestColors(t *testing.T) {
+	cfg := renderer.DefaultConfig()
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := len(r.buildPalette(rec)); got != 256 {
-		t.Errorf("palette size = %d, want 256", got)
-	}
-}
-
-func TestRenderer_buildPalette_IsDeterministic(t *testing.T) {
-	r, cfg := newPaletteRenderer(t)
-	rec := gifTestRecording()
-	for i := range 40 {
-		rec.Colors.Register(termcolor.FromRGB(uint8(i*5), uint8(255-i), uint8(i*3)), &cfg.Theme.Palette)
-	}
-	first := r.buildPalette(rec)
-	for range 20 {
-		if got := r.buildPalette(rec); !slices.Equal(got, first) {
-			t.Fatal("palette differs between calls")
-		}
-	}
-}
-
-func TestRenderer_buildPalette_HasNoDuplicates(t *testing.T) {
-	r, cfg := newPaletteRenderer(t)
-	rec := gifTestRecording()
-	// A catalog colour equal to a theme colour must not add a second entry.
-	fg := cfg.Theme.Foreground
-	rec.Colors.Register(termcolor.FromRGB(fg.R, fg.G, fg.B), &cfg.Theme.Palette)
-	seen := map[color.Color]bool{}
-	for _, c := range r.buildPalette(rec) {
-		if seen[c] {
-			t.Fatalf("duplicate palette entry %v", c)
-		}
-		seen[c] = true
-	}
-}
-
-func TestRenderer_buildPalette_OverflowKeepsThemeAndDropsNewestColors(t *testing.T) {
-	r, cfg := newPaletteRenderer(t)
-	rec := gifTestRecording()
+	rec := gifTestRecording(textFrame("a", 50*time.Millisecond))
 	first := rec.Colors.Register(termcolor.FromRGB(0, 0, 77), &cfg.Theme.Palette)
 	var last termcolor.ID
 	for i := 1; i < 400; i++ {
 		last = rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>8), 77), &cfg.Theme.Palette)
 	}
 
-	pal := r.buildPalette(rec)
+	pal := decodedPalette(t, r, rec)
+
+	if len(pal) > 256 {
+		t.Errorf("palette has %d colors, a GIF holds 256", len(pal))
+	}
 	for _, c := range []color.RGBA{
 		cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
 		cfg.Theme.WindowButtons[0], cfg.Theme.WindowButtons[2],
@@ -558,5 +513,27 @@ func TestRenderer_buildPalette_OverflowKeepsThemeAndDropsNewestColors(t *testing
 	}
 	if paletteContains(pal, rec.Colors.Resolved(last)) {
 		t.Error("the most recently introduced colour survived while 256 were already taken")
+	}
+}
+
+func TestRenderer_Render_IsDeterministic(t *testing.T) {
+	cfg := renderer.DefaultConfig()
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := gifTestRecording(textFrame("a", 50*time.Millisecond), textFrame("b", 50*time.Millisecond))
+	for i := range 300 {
+		rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(255-i), uint8(i*3)), &cfg.Theme.Palette)
+	}
+
+	var first, second bytes.Buffer
+	for _, buf := range []*bytes.Buffer{&first, &second} {
+		if err := r.Render(context.Background(), rec, buf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !bytes.Equal(first.Bytes(), second.Bytes()) {
+		t.Error("rendering the same recording twice gave different GIFs")
 	}
 }

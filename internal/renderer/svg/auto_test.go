@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/mrmarble/termsvg/internal/ir"
@@ -175,11 +174,11 @@ func TestRuntimeSelectionRejectsMeasuredHrefExpansion(t *testing.T) {
 	// The staircase recurs as row blocks, which makes the frames layout the
 	// smaller one; the fixture exposes href expansion without them.
 	withoutBlocks := func(o *Options) { o.withoutBlockSharing = true }
-	frameMetrics, err := New(config, WithLayout(LayoutFrames), WithAnimation(AnimationSMIL), WithFrameSwitch(FrameSwitchHref), withoutBlocks).MeasureCandidate(context.Background(), rec)
+	frameMetrics, err := New(config, WithLayout(LayoutFrames), WithAnimation(AnimationSMIL), WithFrameSwitch(FrameSwitchHref), withoutBlocks).measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bandMetrics, err := New(config, WithLayout(LayoutBands), WithAnimation(AnimationSMIL), WithFrameSwitch(FrameSwitchHref), withoutBlocks).MeasureCandidate(context.Background(), rec)
+	bandMetrics, err := New(config, WithLayout(LayoutBands), WithAnimation(AnimationSMIL), WithFrameSwitch(FrameSwitchHref), withoutBlocks).measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +251,7 @@ func TestAutoSerializesSmallestPreparedCandidate(t *testing.T) {
 			t.Fatal(err)
 		}
 		outputs[layout] = out.Bytes()
-		measured, err := r.MeasureCandidate(context.Background(), rec)
+		measured, err := r.measureBest(context.Background(), rec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -304,32 +303,6 @@ func TestRuntimeSelectionIsDeterministicForFiniteAndInfiniteLoops(t *testing.T) 
 			}
 			selected = candidate.options.Layout
 		}
-	}
-}
-
-func TestAutoRenderBuildsSemanticPlanOnce(t *testing.T) {
-	r := New(renderer.DefaultConfig(), WithLayout(LayoutAuto))
-	var builds atomic.Int64
-	r.onSemanticPlanBuild = func() { builds.Add(1) }
-
-	if err := r.Render(context.Background(), experimentalRecording(), io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	if got := builds.Load(); got != 1 {
-		t.Fatalf("semantic plan builds = %d; want 1", got)
-	}
-}
-
-func TestAutoRenderSerializesOnlySelectedCandidate(t *testing.T) {
-	r := New(renderer.DefaultConfig(), WithLayout(LayoutAuto))
-	plans, serializations := 0, 0
-	r.onSemanticPlanBuild = func() { plans++ }
-	r.onCandidateSerialize = func() { serializations++ }
-	if err := r.Render(context.Background(), experimentalRecording(), io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	if plans != 1 || serializations != 1 {
-		t.Fatalf("semantic plans/serializations = %d/%d; want 1/1", plans, serializations)
 	}
 }
 

@@ -9,11 +9,9 @@ import (
 	"github.com/mrmarble/termsvg/internal/theme"
 )
 
-// Renderer defines the interface for output formats
+// Renderer writes a recording in one output format.
 type Renderer interface {
 	Render(ctx context.Context, rec *ir.Recording, w io.Writer) error
-	Format() string
-	FileExtension() string
 }
 
 // Config holds renderer options
@@ -30,9 +28,7 @@ type Config struct {
 	Minify      bool
 	Debug       bool // Enable debug logging
 
-	// Video encoding options (for WebM/MP4 formats)
-	VideoBitrate int // Video bitrate in kbps (0 = use default)
-	FrameRate    int // Target frame rate in FPS (0 = auto-calculate)
+	VideoBitrate int // Video bitrate cap in kbps for WebM (0 = no cap)
 
 	// ProgressCh is an optional channel for progress updates
 	ProgressCh chan<- progress.Update

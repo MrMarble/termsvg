@@ -8,15 +8,13 @@ import (
 	"strings"
 )
 
-// Load loads a theme by name (built-in) or path (file).
-// It checks if the input is a file path (contains "/" or ends with ".json")
-// and dispatches to the appropriate loader.
+// Load loads a theme from a file when the argument contains "/" or ends with
+// ".json", and a built-in theme by name otherwise.
 func Load(nameOrPath string) (Theme, error) {
-	// Check if it's a file path
 	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".json") {
 		return LoadFromFile(nameOrPath)
 	}
-	// Otherwise load built-in theme
+
 	return LoadBuiltin(nameOrPath)
 }
 
@@ -25,12 +23,10 @@ func Load(nameOrPath string) (Theme, error) {
 // 1. Direct path (absolute or relative)
 // 2. TERMSVG_THEME_PATH environment variable directories
 func LoadFromFile(path string) (Theme, error) {
-	// Try direct path first
 	if _, err := os.Stat(path); err == nil {
 		return loadThemeFile(path)
 	}
 
-	// Try TERMSVG_THEME_PATH directories
 	themePath := os.Getenv("TERMSVG_THEME_PATH")
 	if themePath != "" {
 		dirs := strings.SplitSeq(themePath, string(os.PathListSeparator))
@@ -39,7 +35,6 @@ func LoadFromFile(path string) (Theme, error) {
 			if _, err := os.Stat(fullPath); err == nil {
 				return loadThemeFile(fullPath)
 			}
-			// Also try with .json extension
 			if !strings.HasSuffix(path, ".json") {
 				fullPath = filepath.Join(dir, path+".json")
 				if _, err := os.Stat(fullPath); err == nil {
@@ -69,37 +64,17 @@ func loadThemeFile(path string) (Theme, error) {
 		return Theme{}, fmt.Errorf("failed to parse theme file: %w", err)
 	}
 
-	// Use filename as theme name (without extension)
 	name := strings.TrimSuffix(filepath.Base(path), ".json")
 
 	return FromAsciinema(name, themeData.Fg, themeData.Bg, themeData.Palette)
 }
 
-// LoadBuiltin loads a built-in theme by name.
+// LoadBuiltin loads a built-in theme by name, ignoring case and treating
+// spaces as dashes.
 func LoadBuiltin(name string) (Theme, error) {
-	// Normalize name (lowercase, replace spaces with dashes)
-	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-
-	// Check if theme exists in built-in registry
-	if theme, ok := builtinThemes[name]; ok {
+	if theme, ok := builtinThemes[strings.ToLower(strings.ReplaceAll(name, " ", "-"))]; ok {
 		return theme, nil
 	}
 
 	return Theme{}, fmt.Errorf("built-in theme not found: %s", name)
-}
-
-// IsBuiltin checks if a theme name is a built-in theme.
-func IsBuiltin(name string) bool {
-	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	_, ok := builtinThemes[name]
-	return ok
-}
-
-// ListBuiltin returns a list of available built-in theme names.
-func ListBuiltin() []string {
-	names := make([]string, 0, len(builtinThemes))
-	for name := range builtinThemes {
-		names = append(names, name)
-	}
-	return names
 }

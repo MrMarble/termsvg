@@ -1,61 +1,72 @@
 package raster
 
 import (
+	"fmt"
 	"image"
+	"image/draw"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/progress"
-	"golang.org/x/image/font"
 )
 
-// frameRenderer handles the parallel rendering of frames.
-type frameRenderer struct {
-	rasterizer *Rasterizer
-	rec        *ir.Recording
+// baseImage draws what every frame shares: the window chrome or plain
+// background, and the terminal area. The terminal area uses the theme's
+// WindowBackground, which is opaque and matches the chrome, so GIF delta
+// encoding sees only the pixels that change.
+func (r *Rasterizer) baseImage(rec *ir.Recording) *image.RGBA {
+	contentWidth, contentHeight := rec.Width*layout.ColWidth, rec.Height*layout.RowHeight
+	img := image.NewRGBA(image.Rect(0, 0, layout.PaddedWidth(contentWidth), layout.PaddedHeight(contentHeight, r.config.ShowWindow)))
+
+	if r.config.ShowWindow {
+		r.drawWindow(img)
+	} else {
+		r.drawBackground(img)
+	}
+	r.drawTerminalBackground(img, contentWidth, contentHeight)
+
+	return img
 }
 
-// render performs parallel frame rendering using a worker pool.
-// Note: IR-level deduplication is handled during IR generation, not here.
-//
-//nolint:dupl // render methods for RGBA and Paletted are similar but use different types
-func (fr *frameRenderer) render() ([]RasterFrame, error) {
-	frames := fr.rec.Frames
-	results := make([]RasterFrame, len(frames))
-	totalFrames := len(frames)
+// renderFrames draws every frame of rec on a clone of base, using one worker per CPU.
+func renderFrames[I draw.Image](r *Rasterizer, rec *ir.Recording, base I, clone func(I) I) ([]I, error) {
+	frames := rec.Frames
+	images := make([]I, len(frames))
 
-	contentWidth := fr.rec.Width * layout.ColWidth
-	contentHeight := fr.rec.Height * layout.RowHeight
-	width := layout.PaddedWidth(contentWidth)
-	height := layout.PaddedHeight(contentHeight, fr.rasterizer.config.ShowWindow)
+	report := func(done int) {
+		progress.Send(r.config.ProgressCh, progress.PhaseRasterize, done, len(frames))
+	}
+	report(0)
 
-	// Pre-render the static base image (window chrome + terminal background)
-	baseImg := fr.createBaseImage(width, height, contentWidth, contentHeight)
-
-	progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", 0, totalFrames)
-
-	// Worker pool setup
-	numWorkers := runtime.NumCPU()
-	jobs := make(chan int, totalFrames)
+	jobs := make(chan int, len(frames))
+	errs := make(chan error, runtime.NumCPU())
 	var wg sync.WaitGroup
 
-	// Start workers - each worker creates its own font face
-	for range numWorkers {
+	for range runtime.NumCPU() {
 		wg.Go(func() {
-			// Create own font face for this worker
-			face, err := loadFontFace(float64(fr.rasterizer.config.FontSize), fr.rasterizer.sysFonts)
+			// A font face is not safe for concurrent use.
+			face, err := loadFontFace(float64(r.config.FontSize), r.sysFonts)
 			if err != nil {
-				// If font loading fails, use the shared one as fallback
-				face = fr.rasterizer.fontFace
+				errs <- fmt.Errorf("failed to load font: %w", err)
+				return
 			}
+			defer face.Close()
 
 			for idx := range jobs {
-				results[idx] = fr.renderSingleFrame(idx, frames[idx], displayDelay(frames, idx), baseImg, face)
+				img := clone(base)
+				for _, row := range frames[idx].Rows {
+					for _, run := range row.Runs {
+						r.drawTextRun(img, run, row.Y, face, rec.Colors)
+					}
+				}
+				if r.config.ShowCursor && frames[idx].Cursor.Visible {
+					r.drawCursor(img, frames[idx].Cursor, rec.Colors)
+				}
+				images[idx] = img
 
-				progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", idx+1, totalFrames)
+				report(idx + 1)
 			}
 		})
 	}
@@ -64,70 +75,12 @@ func (fr *frameRenderer) render() ([]RasterFrame, error) {
 		jobs <- i
 	}
 	close(jobs)
-
 	wg.Wait()
+	close(errs)
 
-	return results, nil
-}
-
-// renderSingleFrame renders a single frame to an RGBA image.
-func (fr *frameRenderer) renderSingleFrame(
-	idx int,
-	frame ir.Frame,
-	delay time.Duration,
-	baseImg *image.RGBA,
-	face font.Face,
-) RasterFrame {
-	img := fr.copyBaseImage(baseImg)
-
-	fr.drawFrameContent(img, frame, face)
-
-	return RasterFrame{
-		Image: img,
-		Delay: delay,
-		Index: idx,
-	}
-}
-
-// createBaseImage creates the static base image with window chrome and terminal background.
-// Uses WindowBackground color for the terminal area to match window chrome,
-// ensuring full opacity for optimal GIF delta encoding performance.
-func (fr *frameRenderer) createBaseImage(width, height, contentWidth, contentHeight int) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	// Draw window chrome or plain background
-	if fr.rasterizer.config.ShowWindow {
-		fr.rasterizer.drawWindow(img)
-	} else {
-		fr.rasterizer.drawBackground(img)
+	if err := <-errs; err != nil {
+		return nil, err
 	}
 
-	// Draw terminal content background using WindowBackground color
-	// This ensures full opacity for GIF delta encoding while maintaining
-	// visual consistency with the window chrome
-	fr.rasterizer.drawTerminalBackground(img, contentWidth, contentHeight)
-
-	return img
-}
-
-// copyBaseImage returns a copy of the base image.
-func (fr *frameRenderer) copyBaseImage(base *image.RGBA) *image.RGBA {
-	bounds := base.Bounds()
-	img := image.NewRGBA(bounds)
-	copy(img.Pix, base.Pix)
-	return img
-}
-
-// drawFrameContent draws the dynamic content (text runs and cursor) to an image.
-func (fr *frameRenderer) drawFrameContent(img *image.RGBA, frame ir.Frame, face font.Face) {
-	for _, row := range frame.Rows {
-		for _, run := range row.Runs {
-			fr.rasterizer.drawTextRunWithFace(img, run, row.Y, face, fr.rec.Colors)
-		}
-	}
-
-	// Draw cursor if visible and cursor rendering is enabled
-	if fr.rasterizer.config.ShowCursor && frame.Cursor.Visible {
-		fr.rasterizer.drawCursor(img, frame.Cursor, fr.rec.Colors)
-	}
+	return images, nil
 }

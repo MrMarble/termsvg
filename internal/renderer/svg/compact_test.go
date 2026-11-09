@@ -46,8 +46,8 @@ func TestCompactXMLIDUsesShortDeterministicNames(t *testing.T) {
 		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n",
 		"o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "aa", "ab",
 	} {
-		if got := compactXMLID(index); got != want {
-			t.Fatalf("compactXMLID(%d) = %q; want %q", index, got, want)
+		if got := compactXMLIDAt(index); got != want {
+			t.Fatalf("compactXMLIDAt(%d) = %q; want %q", index, got, want)
 		}
 	}
 }

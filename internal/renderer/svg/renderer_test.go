@@ -17,8 +17,6 @@ import (
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/renderer"
-	"github.com/tdewolff/minify/v2"
-	msvg "github.com/tdewolff/minify/v2/svg"
 )
 
 type writeCountingWriter struct {
@@ -541,15 +539,6 @@ func TestRender_HoistsTextWhitespaceAndEscapesTextNodes(t *testing.T) {
 				t.Fatalf("Render() error = %v", err)
 			}
 			svg := buf.String()
-			if isMinified {
-				m := minify.New()
-				m.AddFunc("image/svg+xml", msvg.Minify)
-				var output bytes.Buffer
-				if err := m.Minify("image/svg+xml", &output, &buf); err != nil {
-					t.Fatalf("Minify() error = %v", err)
-				}
-				svg = strings.ReplaceAll(output.String(), "\u00a0", " ")
-			}
 			if !isMinified && (strings.Count(svg, `xml:space="preserve"`) != 1 ||
 				!strings.Contains(svg, `<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve"`)) {
 				t.Fatalf("xml:space was not inherited from the root SVG: %s", svg)
@@ -811,8 +800,8 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	// Verify multiple color classes were generated (256 color demo should have many)
-	if rec.Colors.Count() < 10 {
-		t.Errorf("Expected many unique colors for 256color demo, got %d", rec.Colors.Count())
+	if len(rec.Colors.Colors()) < 10 {
+		t.Errorf("Expected many unique colors for 256color demo, got %d", len(rec.Colors.Colors()))
 	}
 
 	if !strings.Contains(svg, `<rect class="`) {
@@ -825,7 +814,7 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	t.Logf("Generated SVG: %d bytes, %d frames, %d unique colors",
-		len(svg), len(rec.Frames), rec.Colors.Count())
+		len(svg), len(rec.Frames), len(rec.Colors.Colors()))
 
 	outPath := filepath.Join(t.TempDir(), "256colors.svg")
 	//nolint:gosec // test output file needs to be readable

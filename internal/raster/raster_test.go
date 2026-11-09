@@ -7,10 +7,7 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
-	"github.com/mrmarble/termsvg/internal/renderer"
 )
-
-func testConfig() renderer.Config { return *renderer.DefaultConfig() }
 
 func TestNew(t *testing.T) {
 	config := testConfig()
@@ -18,13 +15,9 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	if r.config.FontSize != config.FontSize {
 		t.Errorf("FontSize = %v, want %v", r.config.FontSize, config.FontSize)
-	}
-	if r.fontFace == nil {
-		t.Error("fontFace is nil")
 	}
 }
 
@@ -34,7 +27,6 @@ func TestRasterize_EmptyRecording(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	rec := &ir.Recording{
 		Frames: []ir.Frame{},
@@ -53,7 +45,6 @@ func TestRasterize_SingleFrame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -104,10 +95,6 @@ func TestRasterize_SingleFrame(t *testing.T) {
 		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, LastFrameHold)
 	}
 
-	if frames[0].Index != 0 {
-		t.Errorf("Index = %v, want 0", frames[0].Index)
-	}
-
 	// Verify image dimensions
 	// 80x24 cells: 960x600 content, 20px padding, 40px header
 	expectedWidth, expectedHeight := 1000, 660
@@ -126,7 +113,6 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -173,13 +159,6 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, LastFrameHold)
 	}
 
-	// Check indices
-	if frames[0].Index != 0 {
-		t.Errorf("frame 0 index = %v, want 0", frames[0].Index)
-	}
-	if frames[1].Index != 1 {
-		t.Errorf("frame 1 index = %v, want 1", frames[1].Index)
-	}
 }
 
 func TestRasterize_WithWindow(t *testing.T) {
@@ -190,7 +169,6 @@ func TestRasterize_WithWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -216,8 +194,12 @@ func TestRasterize_WithWindow(t *testing.T) {
 		t.Fatalf("Rasterize() error = %v", err)
 	}
 
-	// 10 rows are 250px; the window adds a 40px header and 20px bottom padding.
-	expectedHeight := 310
+	// With window: height = content + header + padding
+	// content = 10 * 25 = 250
+	// header = 20 * 2 = 40
+	// padding = 20
+	// total = 310
+	expectedHeight := 310 // 250px of rows, 40px header, 20px bottom padding
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -232,7 +214,6 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -258,8 +239,8 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 		t.Fatalf("Rasterize() error = %v", err)
 	}
 
-	// 10 rows are 250px, with 20px padding above and below.
-	expectedHeight := 290
+	// Without window: height = content + 2*padding
+	expectedHeight := 290 // 250px of rows, 20px padding above and below
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -273,7 +254,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -334,9 +314,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 		if frame.Image == nil {
 			t.Errorf("frame %d image should not be nil", i)
 		}
-		if frame.Index != i {
-			t.Errorf("frame %d index = %d, want %d", i, frame.Index, i)
-		}
 	}
 }
 
@@ -347,7 +324,6 @@ func TestRasterize_WithStyling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -415,7 +391,6 @@ func TestRasterize_WithCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -459,7 +434,6 @@ func TestRasterize_MultipleRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer r.Close()
 
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -577,7 +551,6 @@ func TestRasterize_FramesLastAsLongAsTheyAreOnScreen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
 	want := []time.Duration{3 * time.Second, 2 * time.Second, LastFrameHold}
 
 	rgba, err := r.Rasterize(rasterTestRecording())

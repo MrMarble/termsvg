@@ -2,25 +2,12 @@ package svgoutput
 
 import (
 	"bytes"
+	"encoding/xml"
 	"errors"
 	"io"
 	"strings"
 	"testing"
 )
-
-type failWriter struct{ n int }
-
-type shortWriter struct{}
-
-func (f *failWriter) Write(p []byte) (int, error) {
-	if f.n == 0 {
-		return 0, errors.New("write failed")
-	}
-	f.n--
-	return len(p), nil
-}
-
-func (shortWriter) Write([]byte) (int, error) { return 0, nil }
 
 func TestWrite_MinifiesAndRestoresSpaces(t *testing.T) {
 	var out bytes.Buffer
@@ -42,14 +29,6 @@ func TestWrite_MinifiesAndRestoresSpaces(t *testing.T) {
 	}
 }
 
-func TestWrite_PropagatesRenderError(t *testing.T) {
-	want := errors.New("boom")
-	err := Write(io.Discard, func(io.Writer) error { return want })
-	if !errors.Is(err, want) {
-		t.Errorf("error = %v, want %v", err, want)
-	}
-}
-
 func TestNBSPWriter(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -65,7 +44,7 @@ func TestNBSPWriter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out bytes.Buffer
-			w := NewNBSPWriter(&out)
+			w := newNBSPWriter(&out)
 			for _, c := range tt.chunks {
 				n, err := w.Write([]byte(c))
 				if err != nil || n != len(c) {
@@ -82,31 +61,259 @@ func TestNBSPWriter(t *testing.T) {
 	}
 }
 
-func TestNBSPWriter_Errors(t *testing.T) {
-	t.Run("underlying error", func(t *testing.T) {
-		w := NewNBSPWriter(&failWriter{})
-		if _, err := w.Write([]byte("x")); err == nil {
-			t.Error("expected error")
-		}
+type rendererFunc func(io.Writer) error
+
+type writeResult struct {
+	n   int
+	err error
+}
+
+type scriptedWriter struct {
+	writes []writeResult
+	output bytes.Buffer
+}
+
+type errorWriter struct{ err error }
+
+type countingErrorWriter struct {
+	err    error
+	writes int
+}
+
+func (w errorWriter) Write([]byte) (int, error) { return 0, w.err }
+
+func (w *countingErrorWriter) Write([]byte) (int, error) {
+	w.writes++
+	return 0, w.err
+}
+
+func TestWrite_MinifiesValidSVGAndRestoresSpaces(t *testing.T) {
+	var dst bytes.Buffer
+	rdr := rendererFunc(func(w io.Writer) error {
+		_, err := io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg"> <text>a  </text> </svg>`)
+		return err
 	})
-	t.Run("short write", func(t *testing.T) {
-		w := NewNBSPWriter(shortWriter{})
-		if _, err := w.Write([]byte("x")); !errors.Is(err, io.ErrShortWrite) {
-			t.Errorf("error = %v", err)
-		}
+
+	if err := Write(&dst, rdr); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if strings.Contains(dst.String(), " ") {
+		t.Fatalf("Write() retained NBSP: %q", dst.String())
+	}
+	if !strings.Contains(dst.String(), ">a  </text>") {
+		t.Fatalf("Write() lost terminal spaces: %q", dst.String())
+	}
+	if err := xml.Unmarshal(dst.Bytes(), new(any)); err != nil {
+		t.Fatalf("Write() produced invalid XML: %v\n%s", err, dst.String())
+	}
+}
+
+func TestWrite_PropagatesDestinationError(t *testing.T) {
+	wantErr := errors.New("destination failed")
+	rdr := rendererFunc(func(w io.Writer) error {
+		_, err := io.WriteString(w,
+			`<svg xmlns="http://www.w3.org/2000/svg"><text>`+strings.Repeat("x", 8192)+`</text></svg>`)
+		return err
 	})
-	t.Run("close flush error", func(t *testing.T) {
-		w := NewNBSPWriter(&failWriter{n: 0})
-		_, _ = w.Write([]byte("\xc2"))
-		if err := w.Close(); err == nil {
-			t.Error("expected error")
-		}
+
+	err := Write(errorWriter{err: wantErr}, rdr)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Write() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWrite_PropagatesBufferedFlushError(t *testing.T) {
+	wantErr := errors.New("flush failed")
+	dst := &countingErrorWriter{err: wantErr}
+	rdr := rendererFunc(func(w io.Writer) error {
+		_, err := io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg"/>`)
+		return err
 	})
-	t.Run("pending byte then failing write", func(t *testing.T) {
-		w := NewNBSPWriter(&failWriter{})
-		_, _ = w.Write([]byte("\xc2"))
-		if _, err := w.Write([]byte("a")); err == nil {
-			t.Error("expected error")
+
+	err := Write(dst, rdr)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Write() error = %v, want %v", err, wantErr)
+	}
+	if dst.writes != 1 {
+		t.Fatalf("destination writes = %d, want 1 flush write", dst.writes)
+	}
+}
+
+func TestWrite_PropagatesRenderError(t *testing.T) {
+	wantErr := errors.New("render failed")
+	rdr := rendererFunc(func(io.Writer) error { return wantErr })
+
+	err := Write(io.Discard, rdr)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("Write() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWrite_StreamsLargeSVG(t *testing.T) {
+	wantErr := errors.New("renderer received whole-file buffer")
+	rdr := rendererFunc(func(w io.Writer) error {
+		if _, ok := w.(*bytes.Buffer); ok {
+			return wantErr
 		}
+		if _, err := io.WriteString(w, `<svg xmlns="http://www.w3.org/2000/svg">`); err != nil {
+			return err
+		}
+		for range 100_000 {
+			if _, err := io.WriteString(w, `<text>x</text>`); err != nil {
+				return err
+			}
+		}
+		_, err := io.WriteString(w, `</svg>`)
+		return err
 	})
+
+	if err := Write(io.Discard, rdr); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+}
+
+func TestNBSPWriterPropagatesShortWrite(t *testing.T) {
+	dst := &scriptedWriter{writes: []writeResult{{0, nil}, {1, nil}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte("x")); n != 0 || !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("Write() = (%d, %v), want (0, %v)", n, err, io.ErrShortWrite)
+	}
+	if n, err := w.Write([]byte("x")); n != 1 || err != nil {
+		t.Fatalf("retry Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if got := dst.output.String(); got != "x" {
+		t.Fatalf("output = %q, want %q", got, "x")
+	}
+}
+
+func TestNBSPWriterCountsPartiallyWrittenInput(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{1, wantErr}, {1, nil}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte("ab")); n != 1 || !errors.Is(err, wantErr) {
+		t.Fatalf("Write() = (%d, %v), want (1, %v)", n, err, wantErr)
+	}
+	if n, err := w.Write([]byte("b")); n != 1 || err != nil {
+		t.Fatalf("retry Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if got := dst.output.String(); got != "ab" {
+		t.Fatalf("output = %q, want %q", got, "ab")
+	}
+}
+
+func TestNBSPWriterDoesNotDuplicateCompletedSplitSequence(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{1, wantErr}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte{0xc2}); n != 1 || err != nil {
+		t.Fatalf("first Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if n, err := w.Write([]byte{0xa0}); n != 1 || !errors.Is(err, wantErr) {
+		t.Fatalf("second Write() = (%d, %v), want (1, %v)", n, err, wantErr)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if got := dst.output.String(); got != " " {
+		t.Fatalf("output = %q, want one space", got)
+	}
+}
+
+func TestNBSPWriterRetriesPendingC2WithoutLosingNextByte(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{1, wantErr}, {1, nil}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte{0xc2}); n != 1 || err != nil {
+		t.Fatalf("first Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if n, err := w.Write([]byte{'x'}); n != 0 || !errors.Is(err, wantErr) {
+		t.Fatalf("second Write() = (%d, %v), want (0, %v)", n, err, wantErr)
+	}
+	if n, err := w.Write([]byte{'x'}); n != 1 || err != nil {
+		t.Fatalf("retry Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if got := dst.output.String(); got != "\xc2x" {
+		t.Fatalf("output = %q, want %q", got, "\xc2x")
+	}
+}
+
+func TestNBSPWriterRetriesPendingC2OnClose(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{0, wantErr}, {1, nil}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte{0xc2}); n != 1 || err != nil {
+		t.Fatalf("Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if err := w.Close(); !errors.Is(err, wantErr) {
+		t.Fatalf("Close() error = %v, want %v", err, wantErr)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("retry Close() error = %v", err)
+	}
+	if got := dst.output.String(); got != "\xc2" {
+		t.Fatalf("output = %q, want %q", got, "\xc2")
+	}
+}
+
+func TestNBSPWriterPreservesStandaloneA0(t *testing.T) {
+	var dst bytes.Buffer
+	w := newNBSPWriter(&dst)
+
+	if n, err := w.Write([]byte{0xa0}); n != 1 || err != nil {
+		t.Fatalf("Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if got := dst.Bytes(); !bytes.Equal(got, []byte{0xa0}) {
+		t.Fatalf("output = %x, want a0", got)
+	}
+}
+
+func TestNBSPWriterCountsCompletedPendingByteOnError(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{1, wantErr}}}
+	w := newNBSPWriter(dst)
+
+	if n, err := w.Write([]byte{0xc2, 'x'}); n != 1 || !errors.Is(err, wantErr) {
+		t.Fatalf("Write() = (%d, %v), want (1, %v)", n, err, wantErr)
+	}
+	if n, err := w.Write([]byte{'x'}); n != 1 || err != nil {
+		t.Fatalf("retry Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if got := dst.output.String(); got != "\xc2x" {
+		t.Fatalf("output = %q, want %q", got, "\xc2x")
+	}
+}
+
+func (w *scriptedWriter) Write(p []byte) (int, error) {
+	if len(w.writes) == 0 {
+		return w.output.Write(p)
+	}
+	result := w.writes[0]
+	w.writes = w.writes[1:]
+	if result.n > len(p) {
+		result.n = len(p)
+	}
+	_, _ = w.output.Write(p[:result.n])
+	return result.n, result.err
+}
+
+func TestNBSPWriterCloseCountsCompletedByteOnError(t *testing.T) {
+	wantErr := errors.New("write failed")
+	dst := &scriptedWriter{writes: []writeResult{{1, wantErr}}}
+	w := newNBSPWriter(dst)
+
+	_, _ = w.Write([]byte{0xc2})
+	if err := w.Close(); !errors.Is(err, wantErr) {
+		t.Fatalf("Close() error = %v, want %v", err, wantErr)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("retry Close() error = %v", err)
+	}
+	if got := dst.output.String(); got != "\xc2" {
+		t.Fatalf("output = %q, want %q", got, "\xc2")
+	}
 }
