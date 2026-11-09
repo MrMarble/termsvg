@@ -236,3 +236,40 @@ func TestCmd_Run_RejectsUnusableHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestCmd_Run_UsesRecordingIdleTimeLimit(t *testing.T) {
+	dir := t.TempDir()
+	events := "[0.5,\"o\",\"a\"]\n[10.5,\"o\",\"b\"]\n[20.5,\"o\",\"c\"]\n"
+	limited := writeRunFile(t, dir, "limited.cast",
+		`{"version":2,"width":20,"height":3,"idle_time_limit":1}`+"\n"+events)
+	plain := writeRunFile(t, dir, "plain.cast", `{"version":2,"width":20,"height":3}`+"\n"+events)
+
+	render := func(in string, idle time.Duration) []byte {
+		t.Helper()
+		out := filepath.Join(dir, filepath.Base(in)+idle.String()+".svg")
+		cmd := newCmd(in, out, "svg")
+		cmd.MaxIdle = idle
+		if err := cmd.Run(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+
+	t.Run("header limit applies by default", func(t *testing.T) {
+		if !bytes.Equal(render(limited, 0), render(plain, time.Second)) {
+			t.Error("a recording with idle_time_limit=1 should export like -i 1s")
+		}
+		if bytes.Equal(render(limited, 0), render(plain, 0)) {
+			t.Error("the header limit had no effect")
+		}
+	})
+	t.Run("explicit -i overrides the header", func(t *testing.T) {
+		if !bytes.Equal(render(limited, 3*time.Second), render(plain, 3*time.Second)) {
+			t.Error("-i 3s should win over the recording's idle_time_limit")
+		}
+	})
+}

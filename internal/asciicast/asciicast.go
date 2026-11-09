@@ -142,6 +142,20 @@ func Unmarshal(data []byte) (*Cast, error) {
 	return &cast, nil
 }
 
+// IdleLimit returns the longest pause to keep between events. An explicit
+// override wins; otherwise the recording's own idle_time_limit header applies.
+// Zero means no limit.
+func (c *Cast) IdleLimit(override time.Duration) time.Duration {
+	if override > 0 {
+		return override
+	}
+	if c.Header.IdleTimeLimit > 0 {
+		return time.Duration(c.Header.IdleTimeLimit * float64(time.Second))
+	}
+
+	return 0
+}
+
 // ToRelativeTime converts event time to the difference between each event.
 func (c *Cast) ToRelativeTime() {
 	prev := 0.

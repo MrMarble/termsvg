@@ -132,3 +132,26 @@ func TestCmd_Run(t *testing.T) {
 		})
 	}
 }
+
+func TestCmd_Run_UsesRecordingIdleTimeLimit(t *testing.T) {
+	dir := t.TempDir()
+	in := filepath.Join(dir, "idle.cast")
+	content := `{"version":2,"width":20,"height":3,"idle_time_limit":0.02}` + "\n" +
+		`[0.01,"o","a"]` + "\n" + `[2.01,"o","b"]` + "\n"
+	if err := os.WriteFile(in, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	var err error
+	out := captureStdout(t, func() { err = (&Cmd{File: in, Speed: 1}).Run() })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "ab" {
+		t.Errorf("output = %q", out)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("playback took %v; the 2s pause should have been capped by the header", elapsed)
+	}
+}
