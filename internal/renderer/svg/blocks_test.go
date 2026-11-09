@@ -242,7 +242,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
 	c.plan = buildRenderPlan(rec, false)
 	_, contentStates := c.contentKeyframes()
-	frames, defs := c.collectRows(contentStates)
+	frames, defs := c.collector().collectRows(contentStates)
 	block := defs[len(defs)-1]
 	if len(block.items) != 3 || len(block.rows) != 3 || block.elements != 3 || len(block.uses) != 3 ||
 		block.count != states || !rowEqual(block.row, block.rows[0]) {
@@ -282,7 +282,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 		if len(item.paintRows()) != 0 || len(item.paintRow().Runs) != 0 {
 			t.Fatalf("state %d block reference paints rows itself", i)
 		}
-		if c.stateNeedsWrapper(rows) || c.stateElementCount(rows) != 1 {
+		if c.rows().stateNeedsWrapper(rows) || c.rows().stateElementCount(rows) != 1 {
 			t.Fatalf("state %d made of one block reference needs a wrapper", i)
 		}
 	}

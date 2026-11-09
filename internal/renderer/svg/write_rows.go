@@ -156,3 +156,57 @@ func (rw rowWriter) writeTextRun(w io.Writer, run ir.TextRun, rowY int) {
 
 	fmt.Fprintf(w, `<text%s y="%s"%s>%s</text>`, xAttr, rw.xmlInt(y), classAttr, svgTextEscaper.Replace(text))
 }
+
+func (rw rowWriter) rowElementCount(row ir.Row) int {
+	count := len(rw.backgroundSpans(row))
+	for _, run := range row.Runs {
+		if _, _, ok := compactTextRun(run); ok {
+			count++
+		}
+	}
+	return count
+}
+
+// renderedElementCount reports the XML elements a rendered row serializes.
+// Rows produced by collectRows carry an exact count; rows constructed directly
+// from IR fall back to counting their runs.
+func (rw rowWriter) renderedElementCount(row *renderedRow) int {
+	if row.elements > 0 {
+		return row.elements
+	}
+	return rw.rowElementCount(row.paintRow()) + len(row.uses)
+}
+
+func (rw rowWriter) rowDefinition(row *renderedRow, id string) string {
+	if rw.renderedElementCount(row) == 1 {
+		return addElementID(row.svg, id)
+	}
+	return `<g id="` + id + `">` + row.svg + `</g>`
+}
+
+func (rw rowWriter) stateElementCount(rows []*renderedRow) int {
+	count := 0
+	for _, row := range rows {
+		if row.id != "" {
+			count++
+		} else {
+			count += rw.renderedElementCount(row)
+		}
+	}
+	return count
+}
+
+func (rw rowWriter) stateNeedsWrapper(rows []*renderedRow) bool {
+	if rw.stateElementCount(rows) != 1 {
+		return true
+	}
+	for _, row := range rows {
+		if row.id != "" {
+			return false
+		}
+		if rw.renderedElementCount(row) == 1 {
+			return elementIDPrefix(row.svg) == ""
+		}
+	}
+	return true
+}

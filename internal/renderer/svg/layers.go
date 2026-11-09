@@ -354,7 +354,7 @@ func (c *canvas) rankLayerCandidates(set *layerCandidateSet) []*layerCandidate {
 		states[i] = point.state
 	}
 	ranker := layerRanker{c: c, set: set}
-	ranker.frames, _ = c.collectRows(states)
+	ranker.frames, _ = c.collector().collectRows(states)
 	ranked := make([]*layerCandidate, 0, len(set.candidates))
 	for _, candidate := range set.candidates {
 		candidate.estimate = -layerAnimationBytes

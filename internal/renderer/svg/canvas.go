@@ -240,6 +240,11 @@ func (c *canvas) styles() stylePlanner {
 	return stylePlanner{rec: c.rec, config: &c.config, plan: &c.plan}
 }
 
+// collector returns a rowCollector over the canvas's row writer and options.
+func (c *canvas) collector() rowCollector {
+	return rowCollector{rows: c.rows(), withoutBlockSharing: c.options.withoutBlockSharing}
+}
+
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }
 
 // formatInt formats an integer attribute value, using scientific notation when

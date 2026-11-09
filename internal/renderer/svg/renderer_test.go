@@ -927,7 +927,7 @@ func TestCollectRows_InlinesAtExactByteCost(t *testing.T) {
 	plan := buildRenderPlan(rec, false)
 	c.plan = plan
 	_, states := c.contentKeyframes()
-	frames, defs := c.collectRows(states)
+	frames, defs := c.collector().collectRows(states)
 	if len(frames) != 3 || frames[0][0].id != "" || len(defs) != 0 {
 		t.Fatalf("row at exact definition cost was reused: markup=%d id=%q defs=%d",
 			len(frames[0][0].svg), frames[0][0].id, len(defs))
@@ -964,7 +964,7 @@ func TestCollectRows_AccountsForAAIDLength(t *testing.T) {
 	plan := buildRenderPlan(rec, false)
 	c.plan = plan
 	_, states := c.contentKeyframes()
-	frames, defs := c.collectRows(states)
+	frames, defs := c.collector().collectRows(states)
 	if len(defs) != 26 || frames[0][25].id != "z" || frames[0][26].id != "" {
 		t.Fatalf("aa-length row was reused without a byte saving: markup=%d id=%q defs=%d",
 			len(frames[0][26].svg), frames[0][26].id, len(defs))
@@ -980,7 +980,7 @@ func TestCollectRows_ResolvesHashCollisionsSemantically(t *testing.T) {
 		{Y: 0, Runs: []ir.TextRun{{Text: strings.Repeat("a", 96)}}},
 	}}
 
-	frames, _ := c.collectRowsWithHash(states, func(ir.Row) uint64 { return 0 })
+	frames, _ := c.collector().collectRowsWithHash(states, func(ir.Row) uint64 { return 0 })
 	if frames[0][0] == frames[0][1] {
 		t.Fatal("unequal rows sharing a hash were interned together")
 	}

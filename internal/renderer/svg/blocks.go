@@ -78,29 +78,29 @@ func (s *blockState) elements(start, end int) int { return s.prefixElems[end] - 
 // lists, appends them to the definitions, and replaces every covered row group
 // by one block reference. It must run after whole-row interning so the bytes
 // it compares are the ones that would otherwise be serialized.
-func (c *canvas) shareRowBlocks(
+func (rc rowCollector) shareRowBlocks(
 	states [][]*renderedRow,
 	definitions []*renderedRow,
 	ids *xmlIDAllocator,
 ) (frames [][]*renderedRow, defs []*renderedRow) {
 	frames, defs = states, definitions
-	blockStates := c.buildBlockStates(frames)
+	blockStates := rc.buildBlockStates(frames)
 	candidates := collectBlockCandidates(blockStates)
 	if len(candidates) == 0 {
 		return frames, defs
 	}
-	selected := selectBlocks(c.config.Minify, blockStates, candidates, ids)
-	accepted := finalizeBlockIDs(c.config.Minify, blockStates, selected, ids)
+	selected := selectBlocks(rc.rows.minify, blockStates, candidates, ids)
+	accepted := finalizeBlockIDs(rc.rows.minify, blockStates, selected, ids)
 	if len(accepted) == 0 {
 		return frames, defs
 	}
 	replacements := make([][]blockReplacement, len(frames))
 	for _, candidate := range accepted {
-		def := c.blockDefinition(blockStates, candidate)
+		def := rc.blockDefinition(blockStates, candidate)
 		defs = append(defs, def)
 		for _, user := range candidate.users {
 			replacements[user.state] = append(replacements[user.state], blockReplacement{
-				start: user.start, end: user.end, item: blockReference(c.config.Minify, blockStates, candidate, def, user),
+				start: user.start, end: user.end, item: blockReference(rc.rows.minify, blockStates, candidate, def, user),
 			})
 		}
 	}
@@ -121,7 +121,7 @@ func (c *canvas) shareRowBlocks(
 	return frames, defs
 }
 
-func (c *canvas) buildBlockStates(frames [][]*renderedRow) []blockState {
+func (rc rowCollector) buildBlockStates(frames [][]*renderedRow) []blockState {
 	states := make([]blockState, len(frames))
 	keys := make(map[*renderedRow]blockRowKey)
 	for i, rows := range frames {
@@ -137,8 +137,8 @@ func (c *canvas) buildBlockStates(frames [][]*renderedRow) []blockState {
 				keys[row] = key
 			}
 			state.hashes[k], state.cols[k] = key.hash, key.col
-			state.prefixBytes[k+1] = state.prefixBytes[k] + renderedRowBytes(c.config.Minify, row)
-			state.prefixElems[k+1] = state.prefixElems[k] + c.renderedRowItems(row)
+			state.prefixBytes[k+1] = state.prefixBytes[k] + renderedRowBytes(rc.rows.minify, row)
+			state.prefixElems[k+1] = state.prefixElems[k] + rc.renderedRowItems(row)
 		}
 		states[i] = state
 	}
@@ -156,11 +156,11 @@ func renderedRowBytes(minify bool, row *renderedRow) int {
 
 // renderedRowItems is the number of XML elements a row contributes to a
 // state today: one for a reference, its rendered elements otherwise.
-func (c *canvas) renderedRowItems(row *renderedRow) int {
+func (rc rowCollector) renderedRowItems(row *renderedRow) int {
 	if row.id != "" {
 		return 1
 	}
-	return c.renderedElementCount(row)
+	return rc.rows.renderedElementCount(row)
 }
 
 // blockRowHash hashes a row independently of its absolute position.
@@ -408,7 +408,7 @@ func blockSavings(minify bool, states []blockState, candidate *blockCandidate, u
 
 // blockDefinition serializes the anchor rows as they are serialized today,
 // references included, into one definition.
-func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate) *renderedRow {
+func (rc rowCollector) blockDefinition(states []blockState, candidate *blockCandidate) *renderedRow {
 	anchor := candidate.anchor
 	items := slices.Clone(states[anchor.state].items[anchor.start:anchor.end])
 	def := &renderedRow{
@@ -418,7 +418,7 @@ func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate)
 	var sb strings.Builder
 	for _, item := range items {
 		if item.id != "" {
-			sb.WriteString(segmentUseMarkup(c.config.Minify, item.id, 0, 0))
+			sb.WriteString(segmentUseMarkup(rc.rows.minify, item.id, 0, 0))
 			def.uses = append(def.uses, item.id)
 			continue
 		}
@@ -426,7 +426,7 @@ func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate)
 		def.uses = append(def.uses, item.uses...)
 	}
 	def.svg = sb.String()
-	def.definition = c.rowDefinition(def, def.id)
+	def.definition = rc.rows.rowDefinition(def, def.id)
 	return def
 }
 

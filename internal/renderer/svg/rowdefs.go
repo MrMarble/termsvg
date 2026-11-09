@@ -33,6 +33,14 @@ type renderedRow struct {
 
 // xmlIDAllocator hands out compact XML identifiers in order, skipping the
 // reserved clip path identifier.
+// rowCollector deduplicates rendered rows into shared definitions: whole rows,
+// recurring segments and multi-row blocks. It needs only the row writer and
+// whether block sharing is disabled.
+type rowCollector struct {
+	rows                rowWriter
+	withoutBlockSharing bool
+}
+
 type xmlIDAllocator struct{ next int }
 
 // paintRow returns the runs whose paint is serialized by this row itself,
@@ -93,12 +101,12 @@ func (c *canvas) contentKeyframes() ([]keyframePoint[int], [][]ir.Row) {
 	return contentKeyframesFor(c.plan.content)
 }
 
-func (c *canvas) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
-	return c.collectRowsWithHash(contentStates, semanticRowHash)
+func (rc rowCollector) collectRows(contentStates [][]ir.Row) (frames [][]*renderedRow, defs []*renderedRow) {
+	return rc.collectRowsWithHash(contentStates, semanticRowHash)
 }
 
 //nolint:funlen // each sharing stage measures the markup chosen by the one before
-func (c *canvas) collectRowsWithHash(
+func (rc rowCollector) collectRowsWithHash(
 	contentStates [][]ir.Row,
 	hash func(ir.Row) uint64,
 ) (frames [][]*renderedRow, defs []*renderedRow) {
@@ -130,12 +138,12 @@ func (c *canvas) collectRowsWithHash(
 	// the markup that will actually be serialized.
 	markup := make([]rowMarkup, len(ordered))
 	for i, entry := range ordered {
-		markup[i] = c.rows().buildRowMarkup(entry.row)
+		markup[i] = rc.rows.buildRowMarkup(entry.row)
 	}
 	ids := &xmlIDAllocator{}
-	uses, defs := c.shareRowSegments(markup, ids)
+	uses, defs := rc.shareRowSegments(markup, ids)
 	for i, entry := range ordered {
-		entry.svg, entry.elements, entry.inline = markup[i].render(c, uses[i])
+		entry.svg, entry.elements, entry.inline = markup[i].render(rc.rows.minify, uses[i])
 		for _, use := range uses[i] {
 			entry.uses = append(entry.uses, use.def.id)
 		}
@@ -157,11 +165,11 @@ func (c *canvas) collectRowsWithHash(
 		}
 		probe := *ids
 		id := probe.allocate()
-		definition := c.rowDefinition(entry, id)
+		definition := rc.rows.rowDefinition(entry, id)
 		use := `<use href="#` + id + `"/>`
-		inlineBytes := entry.count * finalSVGBytes(entry.svg, c.config.Minify)
-		definitionBytes := finalSVGBytes(definition, c.config.Minify) +
-			entry.count*finalSVGBytes(use, c.config.Minify)
+		inlineBytes := entry.count * finalSVGBytes(entry.svg, rc.rows.minify)
+		definitionBytes := finalSVGBytes(definition, rc.rows.minify) +
+			entry.count*finalSVGBytes(use, rc.rows.minify)
 		if definitionBytes < inlineBytes {
 			*ids = probe
 			entry.id = id
@@ -172,8 +180,8 @@ func (c *canvas) collectRowsWithHash(
 
 	// Recurring groups of consecutive rows are shared last, measured against
 	// the references and markup chosen above.
-	if !c.options.withoutBlockSharing {
-		frames, defs = c.shareRowBlocks(frames, defs, ids)
+	if !rc.withoutBlockSharing {
+		frames, defs = rc.shareRowBlocks(frames, defs, ids)
 	}
 	return frames, defs
 }
@@ -213,23 +221,6 @@ func finalSVGBytes(value string, minified bool) int {
 	return bytes
 }
 
-func (c *canvas) rowDefinition(row *renderedRow, id string) string {
-	if c.renderedElementCount(row) == 1 {
-		return addElementID(row.svg, id)
-	}
-	return `<g id="` + id + `">` + row.svg + `</g>`
-}
-
-// renderedElementCount reports the XML elements a rendered row serializes.
-// Rows produced by collectRows carry an exact count; rows constructed directly
-// from IR fall back to counting their runs.
-func (c *canvas) renderedElementCount(row *renderedRow) int {
-	if row.elements > 0 {
-		return row.elements
-	}
-	return c.rowElementCount(row.paintRow()) + len(row.uses)
-}
-
 func addElementID(svg, id string) string {
 	prefix := elementIDPrefix(svg)
 	if prefix == "" {
@@ -255,16 +246,6 @@ func elementIDPrefix(svg string) string {
 		}
 	}
 	return ""
-}
-
-func (c *canvas) rowElementCount(row ir.Row) int {
-	count := len(c.rows().backgroundSpans(row))
-	for _, run := range row.Runs {
-		if _, _, ok := compactTextRun(run); ok {
-			count++
-		}
-	}
-	return count
 }
 
 func semanticRowHash(row ir.Row) uint64 {
@@ -336,7 +317,7 @@ func (c *canvas) writeStateDefs(content *preparedContent) {
 }
 
 func (c *canvas) writeStateDefinition(id string, rows []*renderedRow) {
-	if !c.stateNeedsWrapper(rows) {
+	if !c.rows().stateNeedsWrapper(rows) {
 		var body strings.Builder
 		writer := c.w
 		c.w = &body
@@ -345,38 +326,11 @@ func (c *canvas) writeStateDefinition(id string, rows []*renderedRow) {
 		fmt.Fprint(c.w, addElementID(body.String(), id))
 		return
 	}
-	if c.stateElementCount(rows) == 0 && c.config.Minify {
+	if c.rows().stateElementCount(rows) == 0 && c.config.Minify {
 		fmt.Fprintf(c.w, `<g id="%s"/>`, id)
 		return
 	}
 	fmt.Fprintf(c.w, `<g id="%s">`, id)
 	c.writeFrameRows(rows)
 	fmt.Fprint(c.w, `</g>`)
-}
-
-func (c *canvas) stateNeedsWrapper(rows []*renderedRow) bool {
-	if c.stateElementCount(rows) != 1 {
-		return true
-	}
-	for _, row := range rows {
-		if row.id != "" {
-			return false
-		}
-		if c.renderedElementCount(row) == 1 {
-			return elementIDPrefix(row.svg) == ""
-		}
-	}
-	return true
-}
-
-func (c *canvas) stateElementCount(rows []*renderedRow) int {
-	count := 0
-	for _, row := range rows {
-		if row.id != "" {
-			count++
-		} else {
-			count += c.renderedElementCount(row)
-		}
-	}
-	return count
 }

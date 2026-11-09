@@ -125,7 +125,7 @@ func (m *rowMarkup) elements(start, end int) int {
 // render serializes the row with the accepted segment references. Rectangles
 // of the inline runs keep their place before every text element, so a row
 // without references is byte-identical to the plain serialization.
-func (m *rowMarkup) render(c *canvas, uses []rowSegmentUse) (svg string, elements int, inline ir.Row) {
+func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, elements int, inline ir.Row) {
 	var sb strings.Builder
 	inline = ir.Row{Y: m.row.Y}
 	covered := func(run int) bool {
@@ -151,7 +151,7 @@ func (m *rowMarkup) render(c *canvas, uses []rowSegmentUse) (svg string, element
 				elements++
 			}
 		}
-		sb.WriteString(segmentUseMarkup(c.config.Minify, use.def.id, use.dx, use.dy))
+		sb.WriteString(segmentUseMarkup(minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
@@ -240,7 +240,7 @@ func segmentRunHash(run ir.TextRun) uint64 {
 // shareRowSegments selects profitable segment definitions for the unique rows
 // and returns the references each row should emit together with the
 // definitions in identifier order.
-func (c *canvas) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]rowSegmentUse, []*renderedRow) {
+func (rc rowCollector) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]rowSegmentUse, []*renderedRow) {
 	candidates := collectSegmentCandidates(markup)
 	if len(candidates) == 0 {
 		return make([][]rowSegmentUse, len(markup)), nil
@@ -249,13 +249,13 @@ func (c *canvas) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]
 	for i := range markup {
 		claimed[i] = make([]bool, len(markup[i].row.Runs))
 	}
-	accepted := selectSegments(c.config.Minify, markup, candidates, claimed)
-	accepted = finalizeSegmentIDs(c.config.Minify, markup, accepted, claimed, ids)
+	accepted := selectSegments(rc.rows.minify, markup, candidates, claimed)
+	accepted = finalizeSegmentIDs(rc.rows.minify, markup, accepted, claimed, ids)
 
 	uses := make([][]rowSegmentUse, len(markup))
 	defs := make([]*renderedRow, 0, len(accepted))
 	for _, candidate := range accepted {
-		candidate.def = c.segmentDefinition(candidate)
+		candidate.def = rc.segmentDefinition(candidate)
 		defs = append(defs, candidate.def)
 		for _, user := range candidate.users {
 			uses[user.row] = append(uses[user.row], rowSegmentUse{
@@ -491,7 +491,7 @@ func markSegmentRuns(claimed []bool, start, end int, value bool) {
 	}
 }
 
-func (c *canvas) segmentDefinition(candidate *segmentCandidate) *renderedRow {
+func (rc rowCollector) segmentDefinition(candidate *segmentCandidate) *renderedRow {
 	row := ir.Row{Y: candidate.anchorY, Runs: make([]ir.TextRun, len(candidate.runs))}
 	for i, run := range candidate.runs {
 		row.Runs[i] = run
@@ -499,12 +499,12 @@ func (c *canvas) segmentDefinition(candidate *segmentCandidate) *renderedRow {
 		row.Runs[i].EndCol += candidate.anchorCol
 	}
 	var sb strings.Builder
-	c.rows().writeRow(&sb, row)
+	rc.rows.writeRow(&sb, row)
 	def := candidate.def
 	def.row = row
 	def.svg = sb.String()
 	def.elements = candidate.elements
 	def.count = len(candidate.users)
-	def.definition = c.rowDefinition(def, def.id)
+	def.definition = rc.rows.rowDefinition(def, def.id)
 	return def
 }
