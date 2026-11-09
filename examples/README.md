@@ -14,6 +14,20 @@ It's intended to be used as a demonstration of features and also to track the fi
 
 > Files are not embedded here to alleviate loading
 
+### GIF and WebM
+
+The same recordings exported as raster images with `termsvg export -f gif` and `termsvg export -f webm`
+(WebM needs `ffmpeg` with `libvpx-vp9`).
+
+| Example                  | GIF                | WebM                 |
+| ------------------------ | ------------------ | -------------------- |
+| [htop](htop.svg)         | [htop.gif](htop.gif)       | [htop.webm](htop.webm)       |
+| [rgb](rgb.svg)           | [rgb.gif](rgb.gif)         | [rgb.webm](rgb.webm)         |
+| [session](session.svg)   | [session.gif](session.gif) | [session.webm](session.webm) |
+
+`256colors` and `444816` are not exported to these formats to keep the repository small
+(their GIFs are about 0.9 MB and 4 MB).
+
 ## Sizes
 
 This table tracks size changes between the first release of the example and the last one as examples are updated on each code change to reflect new features and optimizations.
@@ -30,4 +44,6 @@ This table tracks size changes between the first release of the example and the 
 
 <!--SIZES_END-->
 
-> Table generated using [update-filesize.sh](/scripts/update-filesize.sh) script
+> Table generated using [update-filesize.sh](/scripts/update-filesize.sh) script. Regenerate the examples
+> and the table with `task examples` (or `task examples:svg`, `examples:gif`, `examples:webm` individually).
+> GIF output is fully reproducible; WebM output is reproducible for a given ffmpeg/libvpx version.
