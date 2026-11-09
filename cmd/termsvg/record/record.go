@@ -1,12 +1,12 @@
 package record
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -88,15 +88,14 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 	}
 	defer ptmx.Close()
 
-	// Handle PTY size changes
-	ch := handlePtySize(ptmx)
-	defer func() {
-		signal.Stop(ch)
-		close(ch)
-	}()
+	stdin := os.Stdin
+
+	// Handle PTY size changes. stopResize waits for the resize goroutine, so it
+	// must run before ptmx is closed (defers run last-in first-out).
+	stopResize := handlePtySize(stdin, ptmx)
+	defer stopResize()
 
 	// Set stdin to raw mode
-	stdin := os.Stdin
 	oldState, err := term.MakeRaw(int(stdin.Fd()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set raw mode: %w", err)
@@ -164,38 +163,54 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 			pauseStartTime = 0
 		}
 
-		// Skip first line if requested
+		// Skip first line if requested: drop everything up to and including the
+		// first newline, and record whatever follows it in the same read.
+		chunk := p[:n]
 		if !startTriggered {
-			if strings.Contains(string(p[:n]), "\n") {
-				startTriggered = true
-				baseTime = time.Now().UnixMicro()
+			_, rest, found := bytes.Cut(chunk, []byte("\n"))
+			if !found {
+				continue
 			}
-			continue
+			startTriggered = true
+			baseTime = time.Now().UnixMicro()
+			if len(rest) == 0 {
+				continue
+			}
+			chunk = rest
 		}
 
 		// Record event
 		events = append(events, asciicast.Event{
 			Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
 			EventType: asciicast.Output,
-			EventData: string(p[:n]),
+			EventData: string(chunk),
 		})
 	}
 
 	return events, nil
 }
 
-func handlePtySize(ptmx *os.File) chan os.Signal {
+// handlePtySize keeps the PTY size in sync with stdin on SIGWINCH. The returned
+// function stops the watcher and waits for it to exit, so the caller can safely
+// close ptmx afterwards.
+func handlePtySize(stdin, ptmx *os.File) (stop func()) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGWINCH)
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for range ch {
-			_ = pty.InheritSize(os.Stdin, ptmx)
+			_ = pty.InheritSize(stdin, ptmx)
 		}
 	}()
 
 	// Initial resize
 	ch <- syscall.SIGWINCH
 
-	return ch
+	return func() {
+		signal.Stop(ch)
+		close(ch)
+		<-done
+	}
 }
