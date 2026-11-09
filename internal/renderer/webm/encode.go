@@ -23,6 +23,10 @@ const (
 
 	// minFrameDuration is the least a frame is shown: one frame of a 30 FPS video.
 	minFrameDuration = time.Second / 30
+
+	// minFilterDelay is the display time below which a frame is merged into the
+	// next one. It is rounded down from a 30 FPS frame period, unlike minFrameDuration.
+	minFilterDelay = 33 * time.Millisecond
 )
 
 // ffmpegArgs returns the ffmpeg arguments that encode the frames listed in the
@@ -83,9 +87,6 @@ func writeFrameFiles(
 
 	written := 0
 	for _, frame := range frames {
-		if frame.Image == nil {
-			continue
-		}
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
@@ -94,15 +95,11 @@ func writeFrameFiles(
 		if err := writePNG(&encoder, filepath.Join(dir, name), frame); err != nil {
 			return "", err
 		}
-		// The last frame has no next frame to be replaced by, so it still gets
-		// a frame's worth of time even when its delay is zero.
+		// The last frame can have a zero delay and still gets a frame's worth of time.
 		fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", name, max(frame.Delay, minFrameDuration).Seconds())
 		last = name
 		written++
 		report(written)
-	}
-	if written == 0 {
-		return "", fmt.Errorf("no valid frames to encode")
 	}
 	// The concat demuxer ignores the duration of the final entry unless the
 	// file is listed once more.

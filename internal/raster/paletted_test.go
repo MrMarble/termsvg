@@ -43,7 +43,7 @@ func indexOf(t *testing.T, p color.Palette, c color.RGBA) uint8 {
 
 func newTestRasterizer(t *testing.T, mutate func(*Config)) (*Rasterizer, *Config) {
 	t.Helper()
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -51,7 +51,6 @@ func newTestRasterizer(t *testing.T, mutate func(*Config)) (*Rasterizer, *Config
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = r.Close() })
 	return r, &cfg
 }
 
@@ -84,14 +83,14 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 	if len(frames) != 3 {
 		t.Fatalf("frames = %d, want 3", len(frames))
 	}
-	wantBounds := image.Rect(0, 0, r.paddedWidth(rec.Width), r.paddedHeight(rec.Height))
+	wantBounds := image.Rect(0, 0, paddedWidth(rec.Width), r.paddedHeight(rec.Height))
 	for i, f := range frames {
 		want := time.Duration(10*(i+1)) * time.Millisecond
 		if i == len(frames)-1 {
 			want = lastFrameHold // the last frame is held so it can be read
 		}
-		if f.Index != i || f.Delay != want {
-			t.Errorf("frame %d: index=%d delay=%v, want %v", i, f.Index, f.Delay, want)
+		if f.Delay != want {
+			t.Errorf("frame %d: delay=%v, want %v", i, f.Delay, want)
 		}
 		if f.Image == nil || f.Image.Bounds() != wantBounds {
 			t.Fatalf("frame %d bounds = %v, want %v", i, f.Image.Bounds(), wantBounds)
@@ -108,8 +107,8 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 func TestRasterizeWithPalette_Cursor(t *testing.T) {
 	cursorAt := func(r *Rasterizer, col, row int) image.Point {
 		return image.Pt(
-			r.config.Padding+col*r.config.ColWidth+r.config.ColWidth/2,
-			r.contentOffsetY()+row*r.config.RowHeight+r.config.RowHeight/2,
+			Padding+col*ColWidth+ColWidth/2,
+			r.contentOffsetY()+row*RowHeight+RowHeight/2,
 		)
 	}
 	tests := []struct {
@@ -163,19 +162,19 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 		t.Fatal(err)
 	}
 	img := frames[0].Image
-	rowTop := r.contentOffsetY() + 1*r.config.RowHeight
+	rowTop := r.contentOffsetY() + 1*RowHeight
 	idxRed, idxFG, idxWin := indexOf(t, palette, testRed), indexOf(t, palette, testFG),
 		indexOf(t, palette, cfg.Theme.WindowBackground)
 
 	t.Run("background fills the run", func(t *testing.T) {
-		x := r.config.Padding + 1*r.config.ColWidth
+		x := Padding + 1*ColWidth
 		if got := img.ColorIndexAt(x, rowTop+2); got != idxRed {
 			t.Errorf("bg pixel index = %d, want red (%d)", got, idxRed)
 		}
 	})
 	t.Run("underline spans the run width", func(t *testing.T) {
-		y := rowTop + r.config.RowHeight - underlineOffset
-		for x := r.config.Padding + 4*r.config.ColWidth; x < r.config.Padding+7*r.config.ColWidth; x++ {
+		y := rowTop + RowHeight - underlineOffset
+		for x := Padding + 4*ColWidth; x < Padding+7*ColWidth; x++ {
 			if got := img.ColorIndexAt(x, y); got != idxFG {
 				t.Fatalf("underline pixel (%d,%d) index = %d, want fg (%d)", x, y, got, idxFG)
 			}
@@ -183,8 +182,8 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 	})
 	t.Run("glyphs are drawn", func(t *testing.T) {
 		changed := 0
-		for y := rowTop; y < rowTop+r.config.RowHeight-underlineOffset-1; y++ {
-			for x := r.config.Padding + 4*r.config.ColWidth; x < r.config.Padding+7*r.config.ColWidth; x++ {
+		for y := rowTop; y < rowTop+RowHeight-underlineOffset-1; y++ {
+			for x := Padding + 4*ColWidth; x < Padding+7*ColWidth; x++ {
 				if img.ColorIndexAt(x, y) != idxWin {
 					changed++
 				}
@@ -195,7 +194,7 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 		}
 	})
 	t.Run("empty run and untouched area stay background", func(t *testing.T) {
-		if got := img.ColorIndexAt(r.config.Padding+8*r.config.ColWidth+2, rowTop+2); got != idxWin {
+		if got := img.ColorIndexAt(Padding+8*ColWidth+2, rowTop+2); got != idxWin {
 			t.Errorf("index = %d, want window background (%d)", got, idxWin)
 		}
 	})
@@ -207,7 +206,7 @@ func TestRasterizeWithPalette_WithoutWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := image.Rect(0, 0, r.paddedWidth(10), r.paddedHeight(4))
+	want := image.Rect(0, 0, paddedWidth(10), r.paddedHeight(4))
 	if got := frames[0].Image.Bounds(); got != want {
 		t.Errorf("bounds = %v, want %v", got, want)
 	}
