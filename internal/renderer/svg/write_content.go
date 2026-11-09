@@ -186,3 +186,29 @@ func renderedRowsHaveOutput(rows []*renderedRow) bool {
 	}
 	return false
 }
+
+func (c *canvas) writeCursor() {
+	if !c.plan.cursorEverVisible {
+		return
+	}
+	point := c.plan.cursor.points[len(c.plan.cursor.points)-1]
+	style := ""
+	frames := c.cursorKeyframes()
+	if len(frames) > 0 {
+		point.state = frames[0].state
+	}
+	if len(frames) > 1 && c.options.Animation == AnimationCSS {
+		style = fmt.Sprintf(` style="animation:cursor %s %s step-end%s"`,
+			animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
+	}
+	fmt.Fprintf(c.w, `<g transform="translate(%s,%s)" visibility="%s"%s>`,
+		c.xmlInt(point.state.Col*ColWidth), c.xmlInt(point.state.Row*RowHeight), cursorVisibility(point.state), style)
+	if len(frames) > 1 && c.options.Animation == AnimationSMIL {
+		c.writeSMILCursor(c.w, frames)
+	}
+	cursorClass := "cursor"
+	if c.style.scheme != "" && c.style.scheme != styleLegacy {
+		cursorClass = c.style.cursorClass
+	}
+	fmt.Fprintf(c.w, `<rect class="%s" width="%s" height="%s"/></g>`, cursorClass, c.xmlInt(ColWidth), c.xmlInt(RowHeight))
+}

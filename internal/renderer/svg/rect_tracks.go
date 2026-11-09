@@ -30,7 +30,7 @@ func (c *canvas) retainedRectCandidate(band rowBand) (retainedRectTrack, timelin
 		if len(state) == 1 {
 			row = state[0]
 		}
-		backgrounds := c.backgroundSpans(row)
+		backgrounds := c.rows().backgroundSpans(row)
 		if len(backgrounds) > 1 {
 			return retainedRectTrack{}, timeline[[]ir.Row]{}, false
 		}

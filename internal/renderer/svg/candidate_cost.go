@@ -78,7 +78,7 @@ func buildPreparedCandidateCost(c *canvas, candidate *preparedCandidate) prepare
 	ledger.addBytes(candidate.content.cost.styles)
 	for _, row := range c.plan.staticRows {
 		row := row
-		ledger.add(func(w io.Writer) { c.writeRow(w, row) })
+		ledger.add(func(w io.Writer) { c.rows().writeRow(w, row) })
 	}
 	for index := range c.plan.layers {
 		ledger.add(func(w io.Writer) { c.writeLayer(w, index) })

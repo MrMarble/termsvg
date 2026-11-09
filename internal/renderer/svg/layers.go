@@ -406,7 +406,7 @@ func (r *layerRanker) rowCost(state, y int) int {
 
 func (r *layerRanker) markup(row ir.Row) int {
 	r.sb.Reset()
-	r.c.writeRow(&r.sb, row)
+	r.c.rows().writeRow(&r.sb, row)
 	return finalSVGBytes(r.sb.String(), r.c.config.Minify)
 }
 
@@ -516,7 +516,7 @@ func (c *canvas) writeLayer(w io.Writer, index int) {
 		})
 	}
 	for _, row := range layer.rows {
-		c.writeRow(w, row)
+		c.rows().writeRow(w, row)
 	}
 	fmt.Fprint(w, `</g>`)
 }

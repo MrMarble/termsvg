@@ -477,7 +477,7 @@ func addRowMetrics(metrics *CandidateMetrics, c *canvas, definition bool, render
 	}
 	addMetric(metrics, definition, "use", len(rendered.uses))
 	for _, row := range rendered.paintRows() {
-		addMetric(metrics, definition, "rect", len(c.backgroundSpans(row)))
+		addMetric(metrics, definition, "rect", len(c.rows().backgroundSpans(row)))
 		for _, run := range row.Runs {
 			if shouldRenderText(run) {
 				addMetric(metrics, definition, "text", 1)
