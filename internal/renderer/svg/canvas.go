@@ -229,9 +229,13 @@ func (c *canvas) generateKeyframes(frames []keyframePoint[int]) string {
 	return sb.String()
 }
 
-func (c *canvas) xmlInt(value int) string {
+func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }
+
+// formatInt formats an integer attribute value, using scientific notation when
+// that is shorter and the output is minified.
+func formatInt(value int, minify bool) string {
 	plain := strconv.Itoa(value)
-	if !c.config.Minify || value == 0 {
+	if !minify || value == 0 {
 		return plain
 	}
 	sign, digits := "", plain
