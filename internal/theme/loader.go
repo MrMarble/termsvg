@@ -75,31 +75,12 @@ func loadThemeFile(path string) (Theme, error) {
 	return FromAsciinema(name, themeData.Fg, themeData.Bg, themeData.Palette)
 }
 
-// LoadBuiltin loads a built-in theme by name.
+// LoadBuiltin loads a built-in theme by name, ignoring case and treating
+// spaces as dashes.
 func LoadBuiltin(name string) (Theme, error) {
-	// Normalize name (lowercase, replace spaces with dashes)
-	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-
-	// Check if theme exists in built-in registry
-	if theme, ok := builtinThemes[name]; ok {
+	if theme, ok := builtinThemes[strings.ToLower(strings.ReplaceAll(name, " ", "-"))]; ok {
 		return theme, nil
 	}
 
 	return Theme{}, fmt.Errorf("built-in theme not found: %s", name)
-}
-
-// IsBuiltin checks if a theme name is a built-in theme.
-func IsBuiltin(name string) bool {
-	name = strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	_, ok := builtinThemes[name]
-	return ok
-}
-
-// ListBuiltin returns a list of available built-in theme names.
-func ListBuiltin() []string {
-	names := make([]string, 0, len(builtinThemes))
-	for name := range builtinThemes {
-		names = append(names, name)
-	}
-	return names
 }
