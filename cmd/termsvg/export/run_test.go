@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -196,7 +198,7 @@ func TestCmd_Run_AsciicastV3MatchesV2(t *testing.T) {
 # a comment between events
 [0.5,"m","chapter"]
 [0.25,"o","\r\n\u001b[31mred\u001b[0m"]
-[0.125,"r","90x30"]
+[0.125,"r","20x4"]
 [0.625,"o","\r\nbye"]
 [0.5,"x","0"]
 `)
@@ -234,5 +236,110 @@ func TestCmd_Run_RejectsUnusableHeaders(t *testing.T) {
 				t.Fatal("expected an error, not a crash")
 			}
 		})
+	}
+}
+
+func TestCmd_Run_UsesRecordingIdleTimeLimit(t *testing.T) {
+	dir := t.TempDir()
+	events := "[0.5,\"o\",\"a\"]\n[10.5,\"o\",\"b\"]\n[20.5,\"o\",\"c\"]\n"
+	limited := writeRunFile(t, dir, "limited.cast",
+		`{"version":2,"width":20,"height":3,"idle_time_limit":1}`+"\n"+events)
+	plain := writeRunFile(t, dir, "plain.cast", `{"version":2,"width":20,"height":3}`+"\n"+events)
+
+	render := func(in string, idle time.Duration) []byte {
+		t.Helper()
+		out := filepath.Join(dir, filepath.Base(in)+idle.String()+".svg")
+		cmd := newCmd(in, out, "svg")
+		cmd.MaxIdle = idle
+		if err := cmd.Run(); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+
+	t.Run("header limit applies by default", func(t *testing.T) {
+		if !bytes.Equal(render(limited, 0), render(plain, time.Second)) {
+			t.Error("a recording with idle_time_limit=1 should export like -i 1s")
+		}
+		if bytes.Equal(render(limited, 0), render(plain, 0)) {
+			t.Error("the header limit had no effect")
+		}
+	})
+	t.Run("explicit -i overrides the header", func(t *testing.T) {
+		if !bytes.Equal(render(limited, 3*time.Second), render(plain, 3*time.Second)) {
+			t.Error("-i 3s should win over the recording's idle_time_limit")
+		}
+	})
+}
+
+func TestCmd_Run_EightColorHeaderTheme(t *testing.T) {
+	dir := t.TempDir()
+	in := writeRunFile(t, dir, "eight.cast",
+		`{"version":3,"term":{"cols":20,"rows":3,"theme":{"fg":"#112233","bg":"#445566",`+
+			`"palette":"#000000:#cc0000:#00cc00:#cccc00:#0000cc:#cc00cc:#00cccc:#cccccc"}}}`+"\n"+
+			"[0.1,\"o\",\"\\u001b[31mred\\u001b[0m \\u001b[91mbright\\u001b[0m\"]\n")
+	out := filepath.Join(dir, "eight.svg")
+	if err := newCmd(in, out, "svg").Run(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(out) //nolint:gosec // test temp file
+	if err != nil {
+		t.Fatal(err)
+	}
+	svg := strings.ToLower(string(data))
+	if !strings.Contains(svg, "#445566") {
+		t.Error("the header theme background was not applied")
+	}
+	// Normal red and bright red both map to the theme's red (#cc0000), because
+	// an 8-color palette repeats its colors for the bright half.
+	if !strings.Contains(svg, "#c00") && !strings.Contains(svg, "#cc0000") {
+		t.Error("themed red missing from output")
+	}
+	if strings.Contains(svg, "#ff0000") || strings.Contains(svg, "#f00") {
+		t.Error("the default bright red was used instead of the theme's repeated red")
+	}
+}
+
+func TestCmd_Run_ResizeGrowsTheCanvas(t *testing.T) {
+	dir := t.TempDir()
+	fixed := writeRunFile(t, dir, "fixed.cast", `{"version":3,"term":{"cols":20,"rows":4}}
+[0.25,"o","hello"]
+[0.25,"o","\r\nworld"]
+`)
+	resized := writeRunFile(t, dir, "resized.cast", `{"version":3,"term":{"cols":20,"rows":4}}
+[0.25,"o","hello"]
+[0.125,"r","40x8"]
+[0.125,"o","\r\nworld"]
+`)
+
+	widthOf := func(in string) int {
+		t.Helper()
+		out := filepath.Join(dir, filepath.Base(in)+".svg")
+		cmd := newCmd(in, out, "svg")
+		cmd.NoWindow = true
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("export %s: %v", filepath.Base(in), err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil {
+			t.Fatal(err)
+		}
+		match := regexp.MustCompile(`<svg[^>]*\swidth="(\d+)"`).FindSubmatch(data)
+		if match == nil {
+			t.Fatalf("no width in %.120s", data)
+		}
+		width, err := strconv.Atoi(string(match[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return width
+	}
+
+	if fixedWidth, resizedWidth := widthOf(fixed), widthOf(resized); resizedWidth <= fixedWidth {
+		t.Errorf("canvas width after growing to 40 columns = %d, want more than the fixed %d", resizedWidth, fixedWidth)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 )
 
 const sampleCast = `{"version": 2, "width": 80, "height": 24, "idle_time_limit": 1.5}
@@ -359,5 +360,40 @@ func TestUnmarshal_CommentsOnlySkippedInV3(t *testing.T) {
 	v2 := `{"version":2,"width":5,"height":2}` + "\n# not a comment in v2\n[1,\"o\",\"x\"]"
 	if _, err := Unmarshal([]byte(v2)); err == nil {
 		t.Error("v2 has no comment lines, so '#' should be a parse error")
+	}
+}
+
+func TestCast_IdleLimit(t *testing.T) {
+	withHeader := &Cast{Header: Header{IdleTimeLimit: 1.5}}
+	without := &Cast{}
+	tests := []struct {
+		name     string
+		cast     *Cast
+		override time.Duration
+		want     time.Duration
+	}{
+		{name: "header applies by default", cast: withHeader, want: 1500 * time.Millisecond},
+		{
+			name: "explicit override wins over the header", cast: withHeader, override: 200 * time.Millisecond,
+			want: 200 * time.Millisecond,
+		},
+		{name: "a larger override still wins", cast: withHeader, override: 10 * time.Second, want: 10 * time.Second},
+		{name: "override without a header", cast: without, override: time.Second, want: time.Second},
+		{name: "neither means no limit", cast: without, want: 0},
+		{name: "negative override is ignored", cast: withHeader, override: -time.Second, want: 1500 * time.Millisecond},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cast.IdleLimit(tt.override); got != tt.want {
+				t.Errorf("IdleLimit(%v) = %v, want %v", tt.override, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnmarshal_V3IdleTimeLimitIsUsable(t *testing.T) {
+	c := mustParse(t, sampleCastV3)
+	if got := c.IdleLimit(0); got != 2*time.Second {
+		t.Errorf("IdleLimit(0) = %v, want 2s from the v3 header", got)
 	}
 }

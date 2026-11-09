@@ -12,7 +12,7 @@ import (
 type Cmd struct {
 	File    string        `arg:"" type:"existingfile" help:"Asciicast file to play"`
 	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
+	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = the recording's limit, if any)"`
 }
 
 func (cmd *Cmd) Run() error {
@@ -27,7 +27,7 @@ func (cmd *Cmd) Run() error {
 		return err
 	}
 
-	return playback(cast, cmd.Speed, cmd.MaxIdle)
+	return playback(cast, cmd.Speed, cast.IdleLimit(cmd.MaxIdle))
 }
 
 func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error {
@@ -46,6 +46,12 @@ func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error 
 	startTime := time.Now()
 
 	for _, event := range cast.Events {
+		// Only output is replayed; input, markers, resizes and exit statuses
+		// carry data that is not meant for the terminal.
+		if event.EventType != asciicast.Output {
+			continue
+		}
+
 		targetTime := time.Duration(event.Time * float64(time.Second))
 		elapsed := time.Since(startTime)
 

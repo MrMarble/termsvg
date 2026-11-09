@@ -41,6 +41,12 @@ func (e *Emulator) Write(data []byte) (int, error) {
 	return e.term.Write(data)
 }
 
+// Resize changes the terminal size. Content that still fits is kept; sizes
+// below 1 are ignored.
+func (e *Emulator) Resize(width, height int) {
+	e.term.Resize(width, height)
+}
+
 // Width returns terminal width
 func (e *Emulator) Width() int {
 	w, _ := e.term.Size()

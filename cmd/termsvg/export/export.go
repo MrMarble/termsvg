@@ -31,7 +31,7 @@ type Cmd struct {
 	NoWindow         bool          `short:"n" help:"Don't render terminal window chrome"`
 	NoCursor         bool          `short:"C" help:"Don't render cursor"`
 	Speed            float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle          time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = unlimited)"`
+	MaxIdle          time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = recording's idle_time_limit, if any)"`
 	Cols             int           `short:"c" default:"0" help:"Override columns (0 = use original)"`
 	Rows             int           `short:"r" default:"0" help:"Override rows (0 = use original)"`
 	Debug            bool          `short:"d" help:"Enable debug logging"`
@@ -143,12 +143,13 @@ func (cmd *Cmd) selectTheme(cast *asciicast.Cast) theme.Theme {
 }
 
 func (cmd *Cmd) processorConfig(
+	idleLimit time.Duration,
 	selectedTheme *theme.Theme,
 	progressCh chan<- progress.Update,
 ) *ir.ProcessorConfig {
 	cfg := ir.DefaultProcessorConfig()
 	cfg.Speed = cmd.Speed
-	cfg.IdleTimeLimit = cmd.MaxIdle
+	cfg.IdleTimeLimit = idleLimit
 	cfg.Theme = *selectedTheme
 	cfg.ProgressCh = progressCh
 
@@ -241,7 +242,7 @@ func (cmd *Cmd) Run() error {
 		}
 	}()
 
-	rec, err := ir.NewProcessor(cmd.processorConfig(&selectedTheme, progressCh)).Process(cast)
+	rec, err := ir.NewProcessor(cmd.processorConfig(cast.IdleLimit(cmd.MaxIdle), &selectedTheme, progressCh)).Process(cast)
 	if err != nil {
 		return err
 	}

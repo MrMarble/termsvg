@@ -4,10 +4,14 @@ import (
 	"image/color"
 	"strings"
 	"testing"
+
+	termcolor "github.com/mrmarble/termsvg/internal/color"
 )
 
 const testPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
 	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
+
+const testPalette8 = "#000000:#cc0000:#00cc00:#cccc00:#0000cc:#cc00cc:#00cccc:#cccccc"
 
 func TestDefault(t *testing.T) {
 	th := Default()
@@ -58,5 +62,40 @@ func TestFromAsciinema(t *testing.T) {
 				t.Errorf("Palette[1] = %v", th.Palette[1])
 			}
 		})
+	}
+}
+
+func TestFromAsciinema_EightColorPalette(t *testing.T) {
+	th, err := FromAsciinema("eight", "#fff", "#000", testPalette8)
+	if err != nil {
+		t.Fatalf("FromAsciinema() error = %v", err)
+	}
+	for i := range 8 {
+		if th.Palette[i] != th.Palette[i+8] {
+			t.Errorf("bright color %d = %v, want a copy of color %d (%v)", i+8, th.Palette[i+8], i, th.Palette[i])
+		}
+	}
+	if want := (color.RGBA{R: 0xcc, A: 255}); th.Palette[1] != want || th.Palette[9] != want {
+		t.Errorf("Palette[1]/[9] = %v/%v, want %v", th.Palette[1], th.Palette[9], want)
+	}
+	// Colors beyond the 16 ANSI ones keep the standard 256-color values.
+	if std := termcolor.Standard(); th.Palette[100] != std[100] {
+		t.Errorf("Palette[100] = %v, want the standard %v", th.Palette[100], std[100])
+	}
+}
+
+func TestFromAsciinema_PaletteSizes(t *testing.T) {
+	colors := func(n int) string {
+		return strings.TrimSuffix(strings.Repeat("#112233:", n), ":")
+	}
+	for n := 0; n <= 18; n++ {
+		_, err := FromAsciinema("x", "#fff", "#000", colors(n))
+		valid := n == 8 || n == 16
+		if valid && err != nil {
+			t.Errorf("%d colors: unexpected error %v", n, err)
+		}
+		if !valid && (err == nil || !strings.Contains(err.Error(), "8 or 16 colors")) {
+			t.Errorf("%d colors: error = %v, want '8 or 16 colors'", n, err)
+		}
 	}
 }

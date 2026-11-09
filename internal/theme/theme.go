@@ -36,8 +36,9 @@ func Default() Theme {
 }
 
 // FromAsciinema creates a Theme from asciinema format (fg, bg, palette string).
-// The palette must contain exactly 16 colon-separated hex colors.
-// Returns an error if the palette doesn't have exactly 16 colors.
+// The palette holds 8 or 16 colon-separated hex colors. When only 8 are given,
+// the bright colors (8-15) repeat the normal ones (0-7), as the asciinema
+// player does. Any other size is an error.
 func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 	// Parse foreground and background colors
 	fgColor, err := termcolor.ParseHex(fg)
@@ -50,10 +51,10 @@ func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 		return Theme{}, fmt.Errorf("invalid background color %q: %w", bg, err)
 	}
 
-	// Parse the 16-color palette
+	// Parse the palette: 8 or 16 colors
 	paletteColors := strings.Split(palette, ":")
-	if len(paletteColors) != 16 {
-		return Theme{}, fmt.Errorf("palette must have exactly 16 colors, got %d", len(paletteColors))
+	if n := len(paletteColors); n != 8 && n != 16 {
+		return Theme{}, fmt.Errorf("palette must have 8 or 16 colors, got %d", n)
 	}
 
 	// Build 256-color palette: start with standard, override first 16 colors
@@ -64,6 +65,10 @@ func FromAsciinema(name, fg, bg, palette string) (Theme, error) {
 			return Theme{}, fmt.Errorf("invalid palette color %d %q: %w", i, hex, err)
 		}
 		fullPalette[i] = c
+	}
+	if len(paletteColors) == 8 {
+		// Only the normal colors were given: the bright ones repeat them.
+		copy(fullPalette[8:16], fullPalette[:8])
 	}
 
 	// Start with default theme and override asciinema-specific properties
