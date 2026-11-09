@@ -219,11 +219,11 @@ func TestFallbackFace_MetricsComeFromThePrimaryFont(t *testing.T) {
 // pixel that differs from the background.
 func inkColumns(img *image.RGBA, cols, rowY int, r *Rasterizer, bg color.RGBA) []bool {
 	out := make([]bool, cols)
-	x0 := r.config.Padding
-	y0 := r.contentOffsetY() + rowY*r.config.RowHeight
+	x0 := Padding
+	y0 := r.contentOffsetY() + rowY*RowHeight
 	for col := range cols {
-		for x := x0 + col*r.config.ColWidth; x < x0+(col+1)*r.config.ColWidth; x++ {
-			for y := y0; y < y0+r.config.RowHeight; y++ {
+		for x := x0 + col*ColWidth; x < x0+(col+1)*ColWidth; x++ {
+			for y := y0; y < y0+RowHeight; y++ {
 				if img.RGBAAt(x, y) != bg {
 					out[col] = true
 				}
@@ -234,12 +234,11 @@ func inkColumns(img *image.RGBA, cols, rowY int, r *Rasterizer, bg color.RGBA) [
 }
 
 func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	r, err := New(&cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
 
 	rec := &ir.Recording{
 		Width: 8, Height: 2,
@@ -256,7 +255,7 @@ func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
 	}
 
 	// The terminal background is what an empty cell looks like.
-	bg := frames[0].Image.RGBAAt(r.config.Padding+0, r.contentOffsetY()+r.config.RowHeight*1)
+	bg := frames[0].Image.RGBAAt(Padding+0, r.contentOffsetY()+RowHeight*1)
 	got := inkColumns(frames[0].Image, 8, 0, r, bg)
 	want := []bool{false, false, true, false, true, false, true, false}
 	for col := range want {
@@ -440,7 +439,7 @@ func TestFallbackFace_CloseReleasesSystemFontFiles(t *testing.T) {
 
 func TestRasterizer_SystemFontsAreOptIn(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
-		cfg := DefaultConfig()
+		cfg := testConfig()
 		cfg.SystemFonts = enabled
 		r, err := New(&cfg)
 		if err != nil {
@@ -449,26 +448,24 @@ func TestRasterizer_SystemFontsAreOptIn(t *testing.T) {
 		if (r.sysFonts != nil) != enabled {
 			t.Errorf("SystemFonts=%v but the rasterizer's system fonts are %v", enabled, r.sysFonts)
 		}
-		_ = r.Close()
 	}
 }
 
 func TestRasterize_WithSystemFontsIsSafeAcrossWorkers(t *testing.T) {
 	// Every worker builds its own face over the shared index; run under -race.
 	t.Setenv(fontPathEnv, t.TempDir())
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	cfg.SystemFonts = true
 	r, err := New(&cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
 
 	frames := make([]ir.Frame, 24)
 	for i := range frames {
 		frames[i] = ir.Frame{
-			Index: i, Delay: 10 * time.Millisecond,
-			Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ȧ漢⠿😀" + string(rune('a'+i%26)), StartCol: 0}}}},
+			Delay: 10 * time.Millisecond,
+			Rows:  []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ȧ漢⠿😀" + string(rune('a'+i%26)), StartCol: 0}}}},
 		}
 		frames[i].Time = time.Duration(i) * 10 * time.Millisecond
 	}

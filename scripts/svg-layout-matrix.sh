@@ -80,20 +80,22 @@ for fixture in "${fixtures[@]}"; do
         fixture_name+="-borderless"
     fi
 
+    variant() { render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" "$@"; }
+
     for fps in 0 30; do
         fps_name=lossless
         if ((fps)); then
             fps_name=30fps
         fi
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" frames-css-translate
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" frames-smil-translate --svg-animation=smil
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" frames-smil-href --svg-animation=smil --svg-frame-switch=href
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" bands-css-translate --svg-layout=bands
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" bands-smil-translate --svg-layout=bands --svg-animation=smil
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" bands-smil-href --svg-layout=bands --svg-animation=smil --svg-frame-switch=href
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" regions-css-translate --svg-layout=regions
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" regions-smil-translate --svg-layout=regions --svg-animation=smil
-        render_variant "$fixture_name" "$cast" "$borderless" "$fps_name" "$fps" regions-smil-href --svg-layout=regions --svg-animation=smil --svg-frame-switch=href
+        variant frames-css-translate
+        variant frames-smil-translate --svg-animation=smil
+        variant frames-smil-href --svg-animation=smil --svg-frame-switch=href
+        variant bands-css-translate --svg-layout=bands
+        variant bands-smil-translate --svg-layout=bands --svg-animation=smil
+        variant bands-smil-href --svg-layout=bands --svg-animation=smil --svg-frame-switch=href
+        variant regions-css-translate --svg-layout=regions
+        variant regions-smil-translate --svg-layout=regions --svg-animation=smil
+        variant regions-smil-href --svg-layout=regions --svg-animation=smil --svg-frame-switch=href
     done
 done
 

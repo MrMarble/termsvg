@@ -17,15 +17,15 @@ type nbspWriter struct {
 // Write streams SVG through the production minifier and restores protected spaces.
 func Write(dst io.Writer, render func(io.Writer) error) error {
 	buf := bufio.NewWriter(dst)
-	spaces := NewNBSPWriter(buf)
+	spaces := newNBSPWriter(buf)
 	m := minify.New()
 	m.AddFunc("image/svg+xml", msvg.Minify)
 	minified := m.Writer("image/svg+xml", spaces)
 	return errors.Join(render(minified), minified.Close(), spaces.Close(), buf.Flush())
 }
 
-// NewNBSPWriter restores UTF-8 non-breaking spaces after SVG minification.
-func NewNBSPWriter(w io.Writer) io.WriteCloser { return &nbspWriter{w: w} }
+// newNBSPWriter restores UTF-8 non-breaking spaces after SVG minification.
+func newNBSPWriter(w io.Writer) io.WriteCloser { return &nbspWriter{w: w} }
 
 func (w *nbspWriter) Write(p []byte) (int, error) {
 	accepted := 0

@@ -26,7 +26,7 @@ func TestHrefFrameSwitchRequiresSMIL(t *testing.T) {
 
 func TestWriteSMILHrefUsesOneDiscreteReferenceTimeline(t *testing.T) {
 	var out strings.Builder
-	c := canvas{plan: renderPlan{duration: time.Second}}
+	c := canvas{plan: semanticPlan{duration: time.Second}}
 	frames := []keyframePoint[int]{
 		{selector: "0%", state: 0},
 		{selector: "50%", state: 1},
@@ -54,7 +54,7 @@ func TestWriteSMILHrefUsesOneDiscreteReferenceTimeline(t *testing.T) {
 
 func TestWriteHrefSequenceUsesSingleRuntimeUse(t *testing.T) {
 	var out strings.Builder
-	c := canvas{w: &out, plan: renderPlan{duration: time.Second}}
+	c := canvas{w: &out, plan: semanticPlan{duration: time.Second}}
 	frames := []keyframePoint[int]{{selector: "0%", state: 1}, {selector: "100%", state: 0}}
 
 	c.writeHrefSequence(frames, []string{"_f0", "_f1"}, "")

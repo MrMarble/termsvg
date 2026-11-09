@@ -1,18 +1,19 @@
 package progress
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
 
-func TestReporter_ProcessesPhasesAndFinishes(t *testing.T) {
+func TestReporter_WaitReturnsAfterChannelClose(t *testing.T) {
 	r, ch := New()
 	r.Start()
 
 	for i := 1; i <= 3; i++ {
-		ch <- Update{Phase: "Rasterizing", Current: i, Total: 3}
+		ch <- Update{Phase: PhaseRasterize, Current: i, Total: 3}
 	}
-	ch <- Update{Phase: "Encoding", Current: 1, Total: 1}
+	ch <- Update{Phase: PhaseEncode, Current: 1, Total: 1}
 	close(ch)
 
 	done := make(chan struct{})
@@ -22,14 +23,15 @@ func TestReporter_ProcessesPhasesAndFinishes(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Wait() did not return after channel close")
 	}
-	if r.currentPhase != "Encoding" {
-		t.Errorf("currentPhase = %q, want Encoding", r.currentPhase)
-	}
 }
 
-func TestReporter_NoUpdates(_ *testing.T) {
-	r, ch := New()
-	r.Start()
-	close(ch)
-	r.Wait()
+func TestRun_ReturnsFnErrorAfterDraining(t *testing.T) {
+	want := errors.New("boom")
+	err := Run(func(ch chan<- Update) error {
+		ch <- Update{Phase: PhaseIR, Current: 1, Total: 1}
+		return want
+	})
+	if !errors.Is(err, want) {
+		t.Errorf("Run() = %v, want %v", err, want)
+	}
 }

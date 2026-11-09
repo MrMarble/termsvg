@@ -3,7 +3,6 @@ package theme
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -96,24 +95,6 @@ func TestLoadBuiltin_NormalizesName(t *testing.T) {
 		th, err := LoadBuiltin(name)
 		if err != nil || th.Name != "gruvbox-dark" {
 			t.Errorf("LoadBuiltin(%q) = %q, %v", name, th.Name, err)
-		}
-	}
-}
-
-func TestIsBuiltin(t *testing.T) {
-	if !IsBuiltin("Solarized Dark") || IsBuiltin("nope") {
-		t.Error("IsBuiltin returned unexpected result")
-	}
-}
-
-func TestListBuiltin(t *testing.T) {
-	names := ListBuiltin()
-	if len(names) != len(builtinThemes) || !slices.Contains(names, "nord") {
-		t.Errorf("names = %v", names)
-	}
-	for _, n := range names {
-		if th, err := LoadBuiltin(n); err != nil || th.Name != n {
-			t.Errorf("builtin %q inconsistent: %q, %v", n, th.Name, err)
 		}
 	}
 }

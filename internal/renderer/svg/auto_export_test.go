@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"context"
 	"image/color"
-	"io"
 	"testing"
 	"time"
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/renderer"
-	"github.com/mrmarble/termsvg/internal/svgoutput"
 )
 
 func TestAutoLayoutExportsSmallestMinifiedCandidate(t *testing.T) {
@@ -39,19 +37,10 @@ func TestAutoLayoutExportsSmallestMinifiedCandidate(t *testing.T) {
 	sizes := make(map[LayoutMode]int)
 	for _, layout := range []LayoutMode{LayoutFrames, LayoutBands, LayoutRegions, LayoutAuto} {
 		var out bytes.Buffer
-		rdr := New(config, WithLayout(layout))
-		err := svgoutput.Write(&out, func(w io.Writer) error { return rdr.Render(context.Background(), rec, w) })
-		if err != nil {
-			t.Fatalf("%s export error = %v", layout, err)
+		if err := New(config, WithOptions(Options{Layout: layout})).Render(context.Background(), rec, &out); err != nil {
+			t.Fatalf("%s Render() error = %v", layout, err)
 		}
 		sizes[layout] = out.Len()
-		measured, err := rdr.MeasureCandidate(context.Background(), rec)
-		if err != nil {
-			t.Fatalf("%s MeasureCandidate() error = %v", layout, err)
-		}
-		if measured.FinalBytes != int64(out.Len()) {
-			t.Fatalf("%s measured bytes = %d, exported bytes = %d", layout, measured.FinalBytes, out.Len())
-		}
 	}
 	for _, layout := range []LayoutMode{LayoutFrames, LayoutBands, LayoutRegions} {
 		if sizes[LayoutAuto] > sizes[layout] {

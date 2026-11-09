@@ -9,7 +9,7 @@ import (
 
 func TestPruneZeroDwellCursorEndpointForInfiniteLoop(t *testing.T) {
 	duration := time.Second
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: duration,
 		cursor: timeline[ir.Cursor]{duration: duration, points: []timelinePoint[ir.Cursor]{
 			{time: 0, state: ir.Cursor{Visible: false}},
@@ -34,8 +34,8 @@ func TestPruneZeroDwellCursorEndpointPreservesFiniteLoop(t *testing.T) {
 		{time: 0, state: ir.Cursor{Visible: false}},
 		{time: duration, state: ir.Cursor{Visible: true}},
 	}
-	for _, loopCount := range []int{-1, 1, 3} {
-		plan := renderPlan{
+	for _, loops := range []loopCount{-1, 1, 3} {
+		plan := semanticPlan{
 			duration: duration,
 			cursor: timeline[ir.Cursor]{
 				duration: duration,
@@ -43,16 +43,16 @@ func TestPruneZeroDwellCursorEndpointPreservesFiniteLoop(t *testing.T) {
 			},
 			cursorEverVisible: true,
 		}
-		plan.pruneZeroDwellCursorEndpoint(loopCount)
+		plan.pruneZeroDwellCursorEndpoint(loops)
 		if !plan.cursorEverVisible || len(plan.cursor.points) != 2 || !plan.cursor.points[1].state.Visible {
-			t.Fatalf("loop %d did not preserve final cursor state: %+v", loopCount, plan)
+			t.Fatalf("loop %d did not preserve final cursor state: %+v", loops, plan)
 		}
 	}
 }
 
 func TestPruneZeroDwellCursorEndpointPreservesVisibleDwell(t *testing.T) {
 	duration := time.Second
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: duration,
 		cursor: timeline[ir.Cursor]{duration: duration, points: []timelinePoint[ir.Cursor]{
 			{time: 0, state: ir.Cursor{Visible: false}},

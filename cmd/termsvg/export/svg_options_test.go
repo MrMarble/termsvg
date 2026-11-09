@@ -46,12 +46,12 @@ func TestNormalizedSVGOptions(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := test.cmd.normalizedSVGOptions(test.format)
+			got, err := test.cmd.checkFormatFlags(test.format)
 			if (err != nil) != test.wantErr {
-				t.Fatalf("normalizedSVGOptions() error = %v, wantErr %v", err, test.wantErr)
+				t.Fatalf("checkFormatFlags() error = %v, wantErr %v", err, test.wantErr)
 			}
 			if err == nil && got != test.want {
-				t.Fatalf("normalizedSVGOptions() = %#v, want %#v", got, test.want)
+				t.Fatalf("checkFormatFlags() = %#v, want %#v", got, test.want)
 			}
 		})
 	}

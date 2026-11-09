@@ -114,9 +114,9 @@ func (w *candidateWriter) countElement(name string) {
 	}
 }
 
-func TestMeasureCandidateReportsSerializedStructure(t *testing.T) {
+func TestMeasureBestReportsSerializedStructure(t *testing.T) {
 	r := New(renderer.DefaultConfig(), WithAnimation(AnimationSMIL))
-	metrics, err := r.MeasureCandidate(context.Background(), experimentalRecording())
+	metrics, err := r.measureBest(context.Background(), experimentalRecording())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestMeasureCandidateReportsSerializedStructure(t *testing.T) {
 }
 
 func TestCSSMetricsCountAnimatedContentAndCursorElements(t *testing.T) {
-	metrics, err := New(renderer.DefaultConfig()).MeasureCandidate(context.Background(), experimentalRecording())
+	metrics, err := New(renderer.DefaultConfig()).measureBest(context.Background(), experimentalRecording())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestRegionMetricsUseNarrowLocalViewports(t *testing.T) {
 		{{Y: 20, Runs: []ir.TextRun{{Text: "0", StartCol: 60, EndCol: 61}}}},
 		{{Y: 20, Runs: []ir.TextRun{{Text: "1", StartCol: 60, EndCol: 61}}}},
 	})
-	metrics, err := New(renderer.DefaultConfig(), WithLayout(LayoutRegions)).MeasureCandidate(context.Background(), rec)
+	metrics, err := New(renderer.DefaultConfig(), WithLayout(LayoutRegions)).measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestViewportAreaUsesLargestEmittedViewport(t *testing.T) {
 		append([]ir.Row{parityRow(0, parityRun("0000000000", 0, ir.CellAttrs{}))}, narrowRows("0")...),
 		append([]ir.Row{parityRow(0, parityRun("1111111111", 0, ir.CellAttrs{}))}, narrowRows("1")...),
 	}
-	metrics, err := New(renderer.DefaultConfig(), WithLayout(LayoutBands)).MeasureCandidate(
+	metrics, err := New(renderer.DefaultConfig(), WithLayout(LayoutBands)).measureBest(
 		context.Background(), parityRecording(20, 20, states))
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func TestSparseRegionsTransformLessAreaThanFramesAndBands(t *testing.T) {
 	rec := regionBenchmarkRecordings()["120x40_four_distant_counters"]
 	metrics := map[LayoutMode]CandidateMetrics{}
 	for _, layout := range []LayoutMode{LayoutFrames, LayoutBands, LayoutRegions} {
-		measured, err := New(renderer.DefaultConfig(), WithLayout(layout)).MeasureCandidate(context.Background(), rec)
+		measured, err := New(renderer.DefaultConfig(), WithLayout(layout)).measureBest(context.Background(), rec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestExistingChildIDRetainsWrapperInExactMetrics(t *testing.T) {
 	metrics := CandidateMetrics{}
 	c := canvas{
 		rec:     parityRecording(1, 1, nil),
-		plan:    renderPlan{duration: time.Second},
+		plan:    semanticPlan{duration: time.Second},
 		options: Options{Layout: LayoutFrames, Animation: AnimationSMIL, FrameSwitch: FrameSwitchHref},
 	}
 	if err := addStructuralMetrics(&metrics, &c, &content); err != nil {

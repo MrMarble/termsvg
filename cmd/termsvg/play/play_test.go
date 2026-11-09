@@ -49,53 +49,46 @@ func parse(t *testing.T) *asciicast.Cast {
 	return c
 }
 
-// mustPlayback plays the test cast, failing the test on error, and returns stdout.
-func mustPlayback(t *testing.T, speed float64, maxIdle time.Duration) string {
+// play plays the test cast with a fake sleep, returning stdout and the total
+// time playback asked to wait.
+func play(t *testing.T, speed float64, maxIdle time.Duration) (out string, waited time.Duration) {
 	t.Helper()
 	var err error
-	out := captureStdout(t, func() { err = playback(parse(t), speed, maxIdle) })
+	out = captureStdout(t, func() {
+		err = playback(parse(t), speed, maxIdle, func(d time.Duration) { waited += d })
+	})
 	if err != nil {
 		t.Fatalf("playback() error = %v", err)
 	}
-	return out
+	return out, waited
 }
 
 func TestPlayback_PrintsAllEventsInOrder(t *testing.T) {
-	var err error
-	out := captureStdout(t, func() { err = playback(parse(t), 100, 0) })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != "abc" {
+	if out, _ := play(t, 100, 0); out != "abc" {
 		t.Errorf("output = %q, want %q", out, "abc")
 	}
 }
 
 func TestPlayback_SpeedShortensDuration(t *testing.T) {
-	start := time.Now()
-	mustPlayback(t, 50, 0)
-	if d := time.Since(start); d > 400*time.Millisecond {
-		t.Errorf("playback at 50x took %v, expected well under the 500ms real duration", d)
+	if _, waited := play(t, 50, 0); waited > 20*time.Millisecond {
+		t.Errorf("playback at 50x waits %v, expected at most 10ms", waited)
 	}
 }
 
 func TestPlayback_MaxIdleCapsGaps(t *testing.T) {
-	start := time.Now()
-	out := mustPlayback(t, 1, 20*time.Millisecond)
-	d := time.Since(start)
+	out, waited := play(t, 1, 20*time.Millisecond)
 	if out != "abc" {
 		t.Errorf("output = %q", out)
 	}
-	if d > 300*time.Millisecond {
-		t.Errorf("idle cap ignored: took %v", d)
+	if waited > 100*time.Millisecond {
+		t.Errorf("idle cap ignored: waits %v", waited)
 	}
 }
 
 func TestPlayback_RespectsRealTiming(t *testing.T) {
-	start := time.Now()
-	mustPlayback(t, 1, 0)
-	if d := time.Since(start); d < 450*time.Millisecond {
-		t.Errorf("playback finished too early: %v", d)
+	// The last event is at 500ms. The fake sleep does not advance the clock, so each wait is the full distance to its event.
+	if _, waited := play(t, 1, 0); waited < 500*time.Millisecond || waited > 600*time.Millisecond {
+		t.Errorf("playback waits %v, want about 500ms", waited)
 	}
 }
 
@@ -170,7 +163,7 @@ func TestPlayback_OnlyOutputEventsArePrinted(t *testing.T) {
 		t.Fatal(err)
 	}
 	var playErr error
-	out := captureStdout(t, func() { playErr = playback(cast, 100, 0) })
+	out := captureStdout(t, func() { playErr = playback(cast, 100, 0, func(time.Duration) {}) })
 	if playErr != nil {
 		t.Fatal(playErr)
 	}

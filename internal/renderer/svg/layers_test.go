@@ -234,7 +234,7 @@ func TestCellsToRowBridgesShortInertGaps(t *testing.T) {
 }
 
 func TestLayerVisibilityKeyframes(t *testing.T) {
-	c := canvas{plan: renderPlan{duration: 10 * time.Second}}
+	c := canvas{plan: semanticPlan{duration: 10 * time.Second}}
 	frames := c.plan.layerVisibility(intervalLayer{from: time.Second, to: 9 * time.Second})
 	if len(frames) != 4 || frames[0].state || !frames[1].state || frames[2].state ||
 		frames[1].selector != "10%" || frames[2].selector != "90%" {
@@ -251,7 +251,7 @@ func TestLayerVisibilityKeyframes(t *testing.T) {
 	}
 	open := intervalLayer{from: time.Second, to: 10 * time.Second, open: true, rows: []ir.Row{{Y: 1}}}
 	closed := intervalLayer{from: time.Second, to: 10 * time.Second, rows: []ir.Row{{Y: 2}}}
-	plan := renderPlan{duration: 10 * time.Second, layers: []intervalLayer{open, closed}}
+	plan := semanticPlan{duration: 10 * time.Second, layers: []intervalLayer{open, closed}}
 	if rows := plan.layerRowsAt(10 * time.Second); len(rows) != 1 || rows[0].Y != 1 {
 		t.Fatalf("only the open layer is visible at the end: %#v", rows)
 	}

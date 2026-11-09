@@ -17,7 +17,7 @@ func experimentalRow(y int, text string) ir.Row {
 }
 
 func TestBuildRowBandsGroupsOnlyAdjacentRowsWithMatchingSchedules(t *testing.T) {
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: 2 * time.Second,
 		content: timeline[[]ir.Row]{
 			duration: 2 * time.Second,
@@ -54,7 +54,7 @@ func TestBuildRowBandsGroupsOnlyAdjacentRowsWithMatchingSchedules(t *testing.T) 
 }
 
 func TestBuildRowBandsDoesNotJoinNonAdjacentRowsWithSameSchedule(t *testing.T) {
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{experimentalRow(0, "a"), experimentalRow(1, "middle"), experimentalRow(2, "x")}},

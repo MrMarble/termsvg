@@ -1,6 +1,9 @@
 package svg
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // LayoutMode selects how changing terminal content is arranged in the SVG.
 type LayoutMode string
@@ -95,68 +98,32 @@ func DefaultOptions() Options {
 	}
 }
 
-// WithLayout selects the SVG content layout.
-func WithLayout(layout LayoutMode) Option {
-	return func(options *Options) { options.Layout = layout }
+// WithOptions replaces the renderer's options with o.
+func WithOptions(o Options) Option {
+	return func(options *Options) { *options = o }
 }
 
-// WithAnimation selects the SVG animation backend.
-func WithAnimation(animation AnimationMode) Option {
-	return func(options *Options) { options.Animation = animation }
-}
-
-// WithFrameSwitch selects translated strips or experimental animated hrefs.
-func WithFrameSwitch(frameSwitch FrameSwitchMode) Option {
-	return func(options *Options) { options.FrameSwitch = frameSwitch }
-}
-
-// WithMaxFPS enables opt-in lossy timeline sampling. Zero keeps all states.
-func WithMaxFPS(maxFPS int) Option {
-	return func(options *Options) { options.MaxFPS = maxFPS }
-}
-
-// WithAutoObjective selects size or structural runtime proxy comparison for auto layout.
-func WithAutoObjective(objective AutoObjective) Option {
-	return func(options *Options) { options.AutoObjective = objective }
-}
-
-// WithStyleMode selects the compatibility or profitability-driven paint encoding.
-func WithStyleMode(style StyleMode) Option {
-	return func(options *Options) { options.Style = style }
-}
-
-// WithPrimitiveMode selects snapshot or retained rectangle emission.
-func WithPrimitiveMode(primitives PrimitiveMode) Option {
-	return func(options *Options) { options.Primitives = primitives }
-}
-
-func (o *Options) normalized() Options {
-	n := *o
-	if n.Layout == "" {
-		n.Layout = LayoutFrames
+// Normalize returns o with every unset field replaced by its default and
+// every enum value lower-cased.
+func (o Options) Normalize() Options {
+	d := DefaultOptions()
+	fill := func(value, def string) string {
+		if value == "" {
+			return def
+		}
+		return strings.ToLower(value)
 	}
-	if n.Animation == "" {
-		n.Animation = AnimationCSS
-	}
-	if n.FrameSwitch == "" {
-		n.FrameSwitch = FrameSwitchTranslate
-	}
-	if n.AutoObjective == "" {
-		n.AutoObjective = AutoObjectiveSize
-	}
-	if n.Style == "" {
-		n.Style = StyleLegacy
-	}
-	if n.Primitives == "" {
-		n.Primitives = PrimitiveSnapshots
-	}
-	return n
+	o.Layout = LayoutMode(fill(string(o.Layout), string(d.Layout)))
+	o.Animation = AnimationMode(fill(string(o.Animation), string(d.Animation)))
+	o.FrameSwitch = FrameSwitchMode(fill(string(o.FrameSwitch), string(d.FrameSwitch)))
+	o.AutoObjective = AutoObjective(fill(string(o.AutoObjective), string(d.AutoObjective)))
+	o.Style = StyleMode(fill(string(o.Style), string(d.Style)))
+	o.Primitives = PrimitiveMode(fill(string(o.Primitives), string(d.Primitives)))
+	return o
 }
 
-// Validate checks SVG-specific options.
-func (o *Options) Validate() error {
-	normalized := o.normalized()
-	o = &normalized
+func (o Options) Validate() error {
+	o = o.Normalize()
 	switch o.Layout {
 	case LayoutFrames, LayoutBands, LayoutRegions, LayoutScroll, LayoutAuto:
 	default:
