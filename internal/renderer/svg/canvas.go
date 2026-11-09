@@ -24,12 +24,23 @@ import (
 type canvas struct {
 	w          io.Writer
 	rec        *ir.Recording
-	plan       renderPlan
+	plan       semanticPlan
 	config     renderer.Config
 	options    Options
 	classNames map[color.ID]string
 	style      stylePlan
 	metrics    *CandidateMetrics
+}
+
+func newCanvas(rec *ir.Recording, plan *semanticPlan, config *renderer.Config, options *Options) *canvas {
+	return &canvas{
+		rec:        rec,
+		plan:       *plan,
+		config:     *config,
+		options:    *options,
+		classNames: rec.Colors.GenerateClassNames(),
+		style:      stylePlan{scheme: styleLegacy},
+	}
 }
 
 func (c *canvas) contentWidth() int {
@@ -57,41 +68,62 @@ func (c *canvas) paddedHeight() int {
 	return c.contentHeight() + 2*Padding
 }
 
+// docSection is one fragment of the document. bytes, when set, is the already
+// measured size of the fragment, so the cost ledger need not write it again.
+type docSection struct {
+	write func(io.Writer)
+	bytes *int64
+}
+
+// documentSections lists the document in order. render writes it and
+// buildPreparedCandidateCost measures it, so both always cover the same bytes.
+func (c *canvas) documentSections(content *preparedContent) []docSection {
+	at := func(write func()) func(io.Writer) {
+		return func(w io.Writer) { c.w = w; write() }
+	}
+	text := func(s string) docSection {
+		return docSection{write: func(w io.Writer) { fmt.Fprint(w, s) }}
+	}
+	contentY := Padding
+	opening := at(c.writeBackground)
+	if c.config.ShowWindow {
+		contentY = Padding * HeaderSize
+		opening = at(c.writeWindow)
+	}
+	sections := []docSection{
+		{write: at(c.writeSVGOpen)},
+		{write: opening},
+		{write: func(w io.Writer) {
+			fmt.Fprintf(w, `<defs><clipPath id="clip"><rect width="%s" height="%s"/></clipPath>`,
+				c.xmlInt(c.contentWidth()), c.xmlInt(c.contentHeight()))
+		}},
+		{write: at(func() { c.writeRowDefs(content.rowDefs); c.writeStateDefs(content) }), bytes: &content.cost.definitions},
+		text(`</defs>`),
+		{write: at(func() { c.writeContentGroupOpen(contentY) })},
+		{write: at(func() { c.writeStyles(content) }), bytes: &content.cost.styles},
+	}
+	for _, row := range c.plan.staticRows {
+		sections = append(sections, docSection{write: func(w io.Writer) { c.rows().writeRow(w, row) }})
+	}
+	for index := range c.plan.layers {
+		sections = append(sections, docSection{write: func(w io.Writer) { c.writeLayer(w, index) }})
+	}
+	return append(sections,
+		docSection{write: at(func() { c.writeContent(content) }), bytes: &content.cost.active},
+		docSection{write: at(c.writeCursor)},
+		text(`</g></svg>`),
+	)
+}
+
 func (c *canvas) render(ctx context.Context, content *preparedContent) error {
-	// Check for cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-
-	c.writeSVGOpen()
-
-	if c.config.ShowWindow {
-		c.writeWindow()
-	} else {
-		c.writeBackground()
+	for _, section := range c.documentSections(content) {
+		section.write(c.w)
 	}
-
-	// Content group with clipping
-	contentY := Padding
-	if c.config.ShowWindow {
-		contentY = Padding * HeaderSize
-	}
-
-	c.writeDefs(content)
-	c.writeContentGroupOpen(contentY)
-
-	c.writeStyles(content)
-	for _, row := range c.plan.staticRows {
-		c.rows().writeRow(c.w, row)
-	}
-	c.writeLayers(c.w)
-	c.writeContent(content)
-	c.writeCursor()
-
-	fmt.Fprint(c.w, `</g></svg>`)
-
 	return nil
 }
 
@@ -102,14 +134,6 @@ func (c *canvas) writeSVGOpen() {
 	}
 	fmt.Fprintf(c.w, `<svg xmlns="http://www.w3.org/2000/svg"%s width="%s" height="%s">`,
 		xmlSpace, c.xmlInt(c.paddedWidth()), c.xmlInt(c.paddedHeight()))
-}
-
-func (c *canvas) writeDefs(content *preparedContent) {
-	fmt.Fprintf(c.w, `<defs><clipPath id="clip"><rect width="%s" height="%s"/></clipPath>`,
-		c.xmlInt(c.contentWidth()), c.xmlInt(c.contentHeight()))
-	c.writeRowDefs(content.rowDefs)
-	c.writeStateDefs(content)
-	fmt.Fprint(c.w, `</defs>`)
 }
 
 func (c *canvas) writeContentGroupOpen(contentY int) {
@@ -125,11 +149,9 @@ func (c *canvas) writeBackground() {
 func (c *canvas) writeWindow() {
 	theme := c.config.Theme
 
-	// Window background with rounded corners
 	bgHex := color.RGBAtoHex(theme.WindowBackground)
 	fmt.Fprintf(c.w, `<rect rx="%s" width="100%%" height="100%%" fill="%s"/>`, c.xmlInt(windowCornerRadius), bgHex)
 
-	// Window buttons (close, minimize, maximize)
 	buttonY := Padding
 	for i, btnColor := range theme.WindowButtons {
 		btnHex := color.RGBAtoHex(btnColor)
@@ -179,45 +201,26 @@ func (c *canvas) writeStyles(content *preparedContent) {
 }
 
 func (c *canvas) writePaintStyles(sb *strings.Builder) {
-	// Default text style (white-space:pre preserves spaces, survives minification)
-	fgHex := color.RGBAtoHex(c.rec.Colors.DefaultForeground())
-	if c.style.scheme == "" || c.style.scheme == styleLegacy {
-		fmt.Fprintf(sb, "text{font-family:%s;font-size:%dpx;fill:%s;white-space:pre}",
-			c.config.FontFamily, c.config.FontSize, fgHex)
-	} else {
-		fmt.Fprintf(sb, "text{%s}", c.style.textBaseRule)
-	}
-
-	if c.plan.cursorEverVisible && (c.style.scheme == "" || c.style.scheme == styleLegacy) {
-		fmt.Fprintf(sb, ".cursor{fill:%s;animation:blink 1s step-end infinite}", fgHex)
-	}
-
-	if c.style.scheme == "" || c.style.scheme == styleLegacy {
-		// Color classes
+	if c.style.legacy() {
+		legacy := c.styles().legacyStylePlan()
+		fmt.Fprintf(sb, "text{%s}", legacy.textBaseRule)
+		if legacy.cursorRule != "" {
+			fmt.Fprintf(sb, ".cursor{%s}", legacy.cursorRule)
+		}
 		for _, id := range c.plan.usedColors {
-			rgba := c.rec.Colors.Resolved(id)
-			className := c.classNames[id]
-			hex := color.RGBAtoHex(rgba)
-			fmt.Fprintf(sb, ".%s{fill:%s}", className, hex)
+			fmt.Fprintf(sb, ".%s{fill:%s}", c.classNames[id], color.RGBAtoHex(c.rec.Colors.Resolved(id)))
 		}
-
-		// Attribute classes (only if used)
-		if c.rec.Stats.HasBold {
-			sb.WriteString(".bold{font-weight:bold}")
+		used := [4]bool{c.rec.Stats.HasBold, c.rec.Stats.HasItalic, c.rec.Stats.HasUnderline, c.rec.Stats.HasDim}
+		for i, attr := range textAttrs {
+			if used[i] {
+				fmt.Fprintf(sb, ".%s{%s}", attr.class, attr.declaration)
+			}
 		}
-		if c.rec.Stats.HasItalic {
-			sb.WriteString(".italic{font-style:italic}")
-		}
-		if c.rec.Stats.HasUnderline {
-			sb.WriteString(".underline{text-decoration:underline}")
-		}
-		if c.rec.Stats.HasDim {
-			sb.WriteString(".dim{opacity:0.5}")
-		}
-	} else {
-		for _, rule := range c.style.rules {
-			fmt.Fprintf(sb, ".%s{%s}", rule.class, rule.declarations)
-		}
+		return
+	}
+	fmt.Fprintf(sb, "text{%s}", c.style.textBaseRule)
+	for _, rule := range c.style.rules {
+		fmt.Fprintf(sb, ".%s{%s}", rule.class, rule.declarations)
 	}
 }
 
@@ -239,19 +242,16 @@ func (c *canvas) rows() rowWriter {
 	return rowWriter{rec: c.rec, classNames: c.classNames, style: &c.style, minify: c.config.Minify}
 }
 
-// styles returns a stylePlanner over the canvas's recording, config and plan.
 func (c *canvas) styles() stylePlanner {
 	return stylePlanner{rec: c.rec, config: &c.config, plan: &c.plan}
 }
 
-// collector returns a rowCollector over the canvas's row writer and options.
 func (c *canvas) collector() rowCollector {
 	return rowCollector{rows: c.rows(), withoutBlockSharing: c.options.withoutBlockSharing}
 }
 
-// smil returns a smilWriter for the canvas's loop count and duration.
 func (c *canvas) smil() smilWriter {
-	return smilWriter{loopCount: c.config.LoopCount, duration: c.plan.duration}
+	return smilWriter{loopCount: loopCount(c.config.LoopCount), duration: c.plan.duration}
 }
 
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }

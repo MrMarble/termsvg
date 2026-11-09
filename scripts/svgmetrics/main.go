@@ -186,10 +186,12 @@ func scanSVG(raw []byte, result *metrics) (styles, transforms []string, groups [
 				result.GroupNodes++
 			case "use":
 				result.UseNodes++
-			case "animate", "animateTransform", "animateMotion":
-				result.AnimationNodes++
-				if len(elementIDs) > 0 {
-					animatedParents[elementIDs[len(elementIDs)-1]] = true
+			default:
+				if isSMILAnimation(name) {
+					result.AnimationNodes++
+					if len(elementIDs) > 0 {
+						animatedParents[elementIDs[len(elementIDs)-1]] = true
+					}
 				}
 			}
 			owner := ""
@@ -640,29 +642,92 @@ func cssTransforms(text string) ([]string, error) {
 	return values, nil
 }
 
-func (p pairs) String() string { return "raw.svg=minified.svg" }
+const pairSyntax = "raw.svg=minified.svg"
+
+func (p pairs) String() string { return pairSyntax }
 func (p pairs) Set(value string) error {
 	raw, minified, ok := strings.Cut(value, "=")
 	if !ok || raw == "" || minified == "" {
-		return fmt.Errorf("minified pair must be raw.svg=minified.svg")
+		return fmt.Errorf("minified pair must be %s", pairSyntax)
 	}
 	p[raw] = minified
 	return nil
 }
 
-//nolint:funlen,lll // TSV schema and record order are intentionally explicit and stable.
+// column is one metrics field of the TSV output; the order of columns is the
+// output schema.
+type column struct {
+	name  string
+	value func(metrics) string
+}
+
+func intColumn(name string, get func(metrics) int) column {
+	return column{name, func(m metrics) string { return strconv.Itoa(get(m)) }}
+}
+
+func int64Column(name string, get func(metrics) int64) column {
+	return column{name, func(m metrics) string { return strconv.FormatInt(get(m), 10) }}
+}
+
+func tagCounts(m metrics) string {
+	keys := make([]string, 0, len(m.Tags))
+	for tag := range m.Tags {
+		keys = append(keys, tag)
+	}
+	sort.Strings(keys)
+	counts := make([]string, 0, len(keys))
+	for _, tag := range keys {
+		counts = append(counts, fmt.Sprintf("%s=%d", tag, m.Tags[tag]))
+	}
+	return strings.Join(counts, ",")
+}
+
+var columns = []column{
+	intColumn("raw_bytes", func(m metrics) int { return m.RawBytes }),
+	intColumn("minified_bytes", func(m metrics) int { return m.MinifiedBytes }),
+	intColumn("gzip_bytes", func(m metrics) int { return m.GzipBytes }),
+	intColumn("brotli_bytes", func(m metrics) int { return m.BrotliBytes }),
+	intColumn("xml_nodes", func(m metrics) int { return m.Elements }),
+	intColumn("definition_nodes", func(m metrics) int { return m.DefinitionNodes }),
+	intColumn("active_nodes", func(m metrics) int { return m.ActiveNodes }),
+	intColumn("text_nodes", func(m metrics) int { return m.TextNodes }),
+	intColumn("rect_nodes", func(m metrics) int { return m.RectNodes }),
+	intColumn("group_nodes", func(m metrics) int { return m.GroupNodes }),
+	intColumn("use_nodes", func(m metrics) int { return m.UseNodes }),
+	intColumn("animation_nodes", func(m metrics) int { return m.AnimationNodes }),
+	intColumn("animated_elements", func(m metrics) int { return m.AnimatedElements }),
+	intColumn("state_definitions", func(m metrics) int { return m.StateDefinitions }),
+	intColumn("max_use_depth", func(m metrics) int { return m.MaxUseDepth }),
+	int64Column("max_translated_width", func(m metrics) int64 { return m.MaxTranslatedWidth }),
+	int64Column("max_translated_area", func(m metrics) int64 { return m.MaxTranslatedArea }),
+	intColumn("local_viewports", func(m metrics) int { return m.LocalViewportCount }),
+	intColumn("max_viewport_width", func(m metrics) int { return m.MaxViewportWidth }),
+	intColumn("max_viewport_height", func(m metrics) int { return m.MaxViewportHeight }),
+	{"tags", tagCounts},
+	intColumn("filter_references", func(m metrics) int { return m.FilterRefs }),
+	intColumn("keyframes", func(m metrics) int { return m.Keyframes }),
+	intColumn("keyframe_selectors", func(m metrics) int { return m.KeyframeSelectors }),
+	intColumn("duplicate_selectors", func(m metrics) int { return m.DuplicateSelectors }),
+	{"max_translate", func(m metrics) string { return strconv.FormatFloat(m.MaxTranslate, 'g', -1, 64) }},
+	intColumn("animated_groups", func(m metrics) int { return m.AnimatedGroups }),
+}
+
 func run(args []string, stdout io.Writer) error {
 	set := flag.NewFlagSet("svgmetrics", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 	minifiedFiles := pairs{}
-	set.Var(minifiedFiles, "minified", "raw.svg=minified.svg (repeatable)")
+	set.Var(minifiedFiles, "minified", pairSyntax+" (repeatable)")
 	if err := set.Parse(args); err != nil {
 		return err
 	}
 	if set.NArg() == 0 {
-		return fmt.Errorf("usage: svgmetrics -minified raw.svg=minified.svg raw.svg [...]")
+		return fmt.Errorf("usage: svgmetrics -minified %s raw.svg [...]", pairSyntax)
 	}
-	records := [][]string{{"file", "minified_file", "raw_bytes", "minified_bytes", "gzip_bytes", "brotli_bytes", "xml_nodes", "definition_nodes", "active_nodes", "text_nodes", "rect_nodes", "group_nodes", "use_nodes", "animation_nodes", "animated_elements", "state_definitions", "max_use_depth", "max_translated_width", "max_translated_area", "local_viewports", "max_viewport_width", "max_viewport_height", "tags", "filter_references", "keyframes", "keyframe_selectors", "duplicate_selectors", "max_translate", "animated_groups"}}
+	header := []string{"file", "minified_file"}
+	for _, c := range columns {
+		header = append(header, c.name)
+	}
+	records := [][]string{header}
 	for _, name := range set.Args() {
 		minifiedName, ok := minifiedFiles[name]
 		if !ok {
@@ -682,16 +747,11 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
-		keys := make([]string, 0, len(m.Tags))
-		for tag := range m.Tags {
-			keys = append(keys, tag)
+		record := []string{name, minifiedName}
+		for _, c := range columns {
+			record = append(record, c.value(m))
 		}
-		sort.Strings(keys)
-		counts := make([]string, 0, len(keys))
-		for _, tag := range keys {
-			counts = append(counts, fmt.Sprintf("%s=%d", tag, m.Tags[tag]))
-		}
-		records = append(records, []string{name, minifiedName, strconv.Itoa(m.RawBytes), strconv.Itoa(m.MinifiedBytes), strconv.Itoa(m.GzipBytes), strconv.Itoa(m.BrotliBytes), strconv.Itoa(m.Elements), strconv.Itoa(m.DefinitionNodes), strconv.Itoa(m.ActiveNodes), strconv.Itoa(m.TextNodes), strconv.Itoa(m.RectNodes), strconv.Itoa(m.GroupNodes), strconv.Itoa(m.UseNodes), strconv.Itoa(m.AnimationNodes), strconv.Itoa(m.AnimatedElements), strconv.Itoa(m.StateDefinitions), strconv.Itoa(m.MaxUseDepth), strconv.FormatInt(m.MaxTranslatedWidth, 10), strconv.FormatInt(m.MaxTranslatedArea, 10), strconv.Itoa(m.LocalViewportCount), strconv.Itoa(m.MaxViewportWidth), strconv.Itoa(m.MaxViewportHeight), strings.Join(counts, ","), strconv.Itoa(m.FilterRefs), strconv.Itoa(m.Keyframes), strconv.Itoa(m.KeyframeSelectors), strconv.Itoa(m.DuplicateSelectors), strconv.FormatFloat(m.MaxTranslate, 'g', -1, 64), strconv.Itoa(m.AnimatedGroups)})
+		records = append(records, record)
 	}
 	var output bytes.Buffer
 	w := csv.NewWriter(&output)

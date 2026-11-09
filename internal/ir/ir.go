@@ -9,34 +9,28 @@ import (
 	"github.com/mrmarble/termsvg/internal/color"
 )
 
-// Recording represents the complete intermediate representation of a terminal recording.
-// This is the main output of processing and input for all renderers.
+// Recording is a processed terminal recording, the input of every renderer.
 type Recording struct {
-	// Metadata from the original cast
 	Width    int
 	Height   int
 	Duration time.Duration
-	Title    string
+	Title    string // only read by tests of the SVG renderer
 
-	// Processed data
 	Frames []Frame
 	Colors *color.Catalog
 
-	// Statistics for renderer optimization
 	Stats Stats
 }
 
-// Stats holds aggregate information about the recording.
-// Renderers can use this to skip generating unused CSS classes.
+// Stats tells renderers which text styles occur, so they can skip the unused ones.
 type Stats struct {
-	TotalFrames   int
-	UniqueColors  int
-	MaxRunsPerRow int // Helps renderers pre-allocate
-	HasBold       bool
-	HasItalic     bool
-	HasUnderline  bool
-	HasDim        bool
-	HasTrueColor  bool
+	TotalFrames  int // only read by tests of the SVG renderer
+	UniqueColors int // only read by tests of the SVG renderer
+	HasBold      bool
+	HasItalic    bool
+	HasUnderline bool
+	HasDim       bool
+	HasTrueColor bool // only read by tests of the SVG renderer
 }
 
 // Cursor represents the cursor state at a point in time.
@@ -57,7 +51,7 @@ type Frame struct {
 	// appears or, for the last frame, until the recording ends.
 	Delay time.Duration
 
-	// Index is the frame number (0-indexed)
+	// Index is the frame number (0-indexed). Only tests of the SVG renderer read it.
 	Index int
 
 	// Rows contains the processed row data with text runs

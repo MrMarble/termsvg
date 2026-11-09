@@ -74,7 +74,7 @@ func shareSavings(minify bool, units shareUnits, c *shareCandidate, users []occu
 	savings := -(c.bytes + definitionOverhead(idLen, c.elements))
 	for _, user := range users {
 		dx, dy := (user.col-c.anchor.col)*ColWidth, (user.y-c.anchor.y)*RowHeight
-		savings += units.Bytes(user.unit, user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
+		savings += units.Bytes(user.unit, user.start, user.end) - useBytes(minify, idLen, dx, dy)
 	}
 	return savings
 }

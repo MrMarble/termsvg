@@ -36,9 +36,8 @@ func TestCatalog_Register(t *testing.T) {
 		t.Errorf("Different color should get different ID, both got %d", id2)
 	}
 
-	// Count should reflect unique colors
-	if catalog.Count() != 2 {
-		t.Errorf("Count should be 2, got %d", catalog.Count())
+	if got := len(catalog.Colors()); got != 2 {
+		t.Errorf("Colors() has %d entries, want 2", got)
 	}
 }
 
@@ -155,23 +154,20 @@ func TestIDGenerator_LongSequence(t *testing.T) {
 	}
 }
 
-func TestCatalog_AllAndCount(t *testing.T) {
+func TestCatalog_ColorsInRegistrationOrder(t *testing.T) {
 	catalog := NewCatalog(color.RGBA{255, 255, 255, 255}, color.RGBA{0, 0, 0, 255})
 	palette := Standard()
 
-	if catalog.Count() != 0 || len(catalog.All()) != 0 {
-		t.Fatalf("new catalog should be empty, Count=%d All=%d", catalog.Count(), len(catalog.All()))
+	if len(catalog.Colors()) != 0 {
+		t.Fatalf("new catalog should be empty, got %v", catalog.Colors())
 	}
 
-	red := catalog.Register(FromANSI(1), &palette)
-	green := catalog.Register(FromANSI(2), &palette)
-	catalog.Register(FromANSI(1), &palette) // duplicate
+	catalog.Register(FromANSI(2), &palette)
+	catalog.Register(FromANSI(1), &palette)
+	catalog.Register(FromANSI(2), &palette) // duplicate
 
-	all := catalog.All()
-	if catalog.Count() != 2 || len(all) != 2 {
-		t.Fatalf("Count=%d All=%d, want 2", catalog.Count(), len(all))
-	}
-	if all[red] != palette.At(1) || all[green] != palette.At(2) {
-		t.Errorf("All() = %v", all)
+	got := catalog.Colors()
+	if len(got) != 2 || got[0] != palette.At(2) || got[1] != palette.At(1) {
+		t.Errorf("Colors() = %v, want the colors in the order first registered", got)
 	}
 }

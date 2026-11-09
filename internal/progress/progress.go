@@ -1,6 +1,5 @@
 // Package progress provides progress reporting for export operations.
-// It uses channels for thread-safe updates, making it easy to transition
-// to concurrent operations later.
+// Updates travel over a channel so producers can report from any goroutine.
 package progress
 
 import (
@@ -10,49 +9,71 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+// Phase names shown next to each progress bar.
+const (
+	PhaseIR        = "IR Processing"
+	PhaseRasterize = "Rasterizing"
+	PhaseEncode    = "Encoding"
+)
+
+// updateQueueSize lets producers run ahead of the terminal without blocking.
+const updateQueueSize = 100
+
 // Update represents a progress update from a processing phase.
 type Update struct {
-	Phase   string // Phase name: "IR Processing", "Rasterizing", "Encoding"
+	Phase   string // one of the Phase constants
 	Current int    // Current item number (1-indexed)
 	Total   int    // Total items in this phase
 }
 
-// Reporter manages progress bars for each phase.
+// Reporter draws one progress bar per phase.
 type Reporter struct {
-	updates      <-chan Update
-	done         chan struct{}
-	currentPhase string
+	updates <-chan Update
+	done    chan struct{}
 }
 
-// Start begins listening for updates and creating bars for each phase.
+// New creates a reporter and the send-only channel that feeds it.
+func New() (reporter *Reporter, progressCh chan<- Update) {
+	ch := make(chan Update, updateQueueSize)
+	return &Reporter{updates: ch, done: make(chan struct{})}, ch
+}
+
+// Run starts a reporter, calls fn with the channel to send updates on, and
+// then closes the channel and waits for the last bar to be drawn.
+func Run(fn func(progressCh chan<- Update) error) error {
+	reporter, ch := New()
+	reporter.Start()
+	defer func() {
+		close(ch)
+		reporter.Wait()
+	}()
+	return fn(ch)
+}
+
+// Start begins listening for updates and drawing a bar for each phase.
 func (r *Reporter) Start() {
 	go func() {
-		var currentBar *progressbar.ProgressBar
+		var bar *progressbar.ProgressBar
+		phase := ""
+
+		finish := func() {
+			if bar != nil {
+				_ = bar.Finish()
+				fmt.Println()
+			}
+		}
 
 		for update := range r.updates {
-			// If phase changed, finish the previous bar
-			if update.Phase != r.currentPhase {
-				if currentBar != nil {
-					_ = currentBar.Finish()
-					fmt.Println() // New line after each phase
-				}
-				r.currentPhase = update.Phase
-				currentBar = newBar(update.Total, update.Phase)
+			if update.Phase != phase {
+				finish()
+				phase = update.Phase
+				bar = newBar(update.Total, update.Phase)
 			}
-
-			// Update current bar
-			if currentBar != nil {
-				currentBar.Describe(fmt.Sprintf("%s... %d/%d", update.Phase, update.Current, update.Total))
-				_ = currentBar.Set(update.Current)
-			}
+			bar.Describe(fmt.Sprintf("%s... %d/%d", update.Phase, update.Current, update.Total))
+			_ = bar.Set(update.Current)
 		}
 
-		// Finish the last bar
-		if currentBar != nil {
-			_ = currentBar.Finish()
-			fmt.Println()
-		}
-
+		finish()
 		close(r.done)
 	}()
 }
@@ -62,7 +83,6 @@ func (r *Reporter) Wait() {
 	<-r.done
 }
 
-// newBar creates a new progress bar with consistent settings.
 func newBar(total int, description string) *progressbar.ProgressBar {
 	return progressbar.NewOptions(total,
 		progressbar.OptionSetDescription(description+"..."),
@@ -70,15 +90,4 @@ func newBar(total int, description string) *progressbar.ProgressBar {
 		progressbar.OptionSetWidth(40),
 		progressbar.OptionSetWriter(os.Stderr),
 	)
-}
-
-// New creates a reporter with a channel for updates.
-// Returns the reporter and the send-only channel.
-func New() (reporter *Reporter, progressCh chan<- Update) {
-	ch := make(chan Update, 100) // Buffered to prevent blocking
-	return &Reporter{
-		updates:      ch,
-		done:         make(chan struct{}),
-		currentPhase: "",
-	}, ch
 }

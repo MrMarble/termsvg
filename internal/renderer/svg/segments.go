@@ -74,7 +74,7 @@ func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
 	for k, run := range row.Runs {
 		m.runHash[k] = segmentRunHash(run)
 		if k > 0 {
-			m.gapHash[k] = mixSegmentHash(segmentHashOffset, run.StartCol-row.Runs[k-1].StartCol)
+			m.gapHash[k] = mixHash(hashOffset, run.StartCol-row.Runs[k-1].StartCol)
 		}
 	}
 	m.spans = rw.backgroundSpans(row)
@@ -148,42 +148,12 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 	}
 	for _, use := range uses {
 		emitInline(use.start)
-		sb.WriteString(segmentUseMarkup(minify, use.def.id, use.dx, use.dy))
+		sb.WriteString(useMarkup(minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
 	emitInline(len(m.texts))
 	return sb.String(), elements, inline
-}
-
-func segmentUseMarkup(minify bool, id string, dx, dy int) string {
-	var sb strings.Builder
-	sb.WriteString(`<use href="#`)
-	sb.WriteString(id)
-	sb.WriteByte('"')
-	if dx != 0 {
-		sb.WriteString(` x="`)
-		sb.WriteString(formatInt(dx, minify))
-		sb.WriteByte('"')
-	}
-	if dy != 0 {
-		sb.WriteString(` y="`)
-		sb.WriteString(formatInt(dy, minify))
-		sb.WriteByte('"')
-	}
-	sb.WriteString(`/>`)
-	return sb.String()
-}
-
-func segmentUseBytes(minify bool, idLen, dx, dy int) int {
-	bytes := len(`<use href="#`) + idLen + len(`"/>`)
-	if dx != 0 {
-		bytes += len(` x=""`) + len(formatInt(dx, minify))
-	}
-	if dy != 0 {
-		bytes += len(` y=""`) + len(formatInt(dy, minify))
-	}
-	return bytes
 }
 
 func normalizedSegmentRuns(runs []ir.TextRun) []ir.TextRun {
@@ -199,18 +169,12 @@ func normalizedSegmentRuns(runs []ir.TextRun) []ir.TextRun {
 // distance to the preceding run is mixed in separately while extending a
 // candidate, so equal run sequences hash equally wherever they occur.
 func segmentRunHash(run ir.TextRun) uint64 {
-	h := hashString(segmentHashOffset, run.Text)
-	h = mixSegmentHash(h, len(run.Text))
-	h = mixSegmentHash(h, runEndCol(run)-run.StartCol)
-	h = mixSegmentHash(h, int(run.Attrs.FG))
-	h = mixSegmentHash(h, int(run.Attrs.BG))
-	flags := 0
-	for i, set := range []bool{run.Attrs.Bold, run.Attrs.Italic, run.Attrs.Underline, run.Attrs.Dim} {
-		if set {
-			flags |= 1 << i
-		}
-	}
-	return mixSegmentHash(h, flags)
+	h := hashString(hashOffset, run.Text)
+	h = mixHash(h, len(run.Text))
+	h = mixHash(h, runEndCol(run)-run.StartCol)
+	h = mixHash(h, int(run.Attrs.FG))
+	h = mixHash(h, int(run.Attrs.BG))
+	return mixHash(h, attrBits(run.Attrs))
 }
 
 // shareRowSegments selects profitable segment definitions for the unique rows
@@ -228,7 +192,10 @@ func (rc rowCollector) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator)
 	units := segmentUnits{markup: markup, claimed: claimed}
 	const estimatedIDLen = 2
 	accepted := selectShared(rc.rows.minify, units, candidates, estimatedIDLen,
-		func(accepted int) int { return len(compactXMLID(accepted)) })
+		func(accepted int) int {
+			next := xmlIDAllocator{next: accepted}
+			return len(next.allocate())
+		})
 	accepted = finalizeShared(rc.rows.minify, units, accepted, ids)
 
 	uses := make([][]rowSegmentUse, len(markup))
@@ -297,12 +264,12 @@ func visitSegmentRanges(markup []rowMarkup, visitor func(row, start, end int, ha
 			if !m.boundary[start] {
 				continue
 			}
-			h := uint64(segmentHashOffset)
+			h := uint64(hashOffset)
 			for end := start + 1; end <= len(m.row.Runs) && end-start <= maxSegmentRuns; end++ {
 				if end-1 > start {
-					h = (h ^ m.gapHash[end-1]) * segmentHashPrime
+					h = (h ^ m.gapHash[end-1]) * hashPrime
 				}
-				h = (h ^ m.runHash[end-1]) * segmentHashPrime
+				h = (h ^ m.runHash[end-1]) * hashPrime
 				if !m.boundary[end] {
 					continue
 				}

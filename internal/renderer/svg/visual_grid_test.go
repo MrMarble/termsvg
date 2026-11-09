@@ -26,7 +26,7 @@ func TestBuildVisualGridRepresentsExactGlyphExtents(t *testing.T) {
 	}
 	for y, row := range grid.rows {
 		if !row.supported {
-			t.Fatalf("row %d unexpectedly unsupported: %#v", y, row.fallback)
+			t.Fatalf("row %d unexpectedly unsupported", y)
 		}
 	}
 	if got := glyphs(&grid.rows[0]); !reflect.DeepEqual(got, []visualGlyph{
@@ -70,7 +70,7 @@ func TestBuildVisualGridRepresentsExactGlyphExtents(t *testing.T) {
 	}
 }
 
-func TestBuildVisualGridFallsBackWithoutLoss(t *testing.T) {
+func TestBuildVisualGridRejectsUnsupportedRowsWithoutMutatingSource(t *testing.T) {
 	rows := []ir.Row{
 		{Y: 0, Runs: []ir.TextRun{{Text: "ab", StartCol: 0, EndCol: 3}}},
 		{Y: 1, Runs: []ir.TextRun{{Text: "a", StartCol: 0, EndCol: 1}, {Text: "b", StartCol: 0, EndCol: 1}}},
@@ -83,9 +83,6 @@ func TestBuildVisualGridFallsBackWithoutLoss(t *testing.T) {
 	for y := range rows {
 		if grid.rows[y].supported {
 			t.Fatalf("row %d unexpectedly supported", y)
-		}
-		if !reflect.DeepEqual(grid.rows[y].fallback, rows[y]) {
-			t.Fatalf("row %d fallback = %#v, want %#v", y, grid.rows[y].fallback, rows[y])
 		}
 	}
 	if !reflect.DeepEqual(rows, want) {

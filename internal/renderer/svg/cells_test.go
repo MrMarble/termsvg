@@ -17,7 +17,7 @@ func testCatalog() *termcolor.Catalog {
 
 func TestHoistStaticCellsExtractsStablePrefix(t *testing.T) {
 	colors := testCatalog()
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "CPU: 1", StartCol: 0, EndCol: 6}}}}},
@@ -44,7 +44,7 @@ func TestHoistStaticCellsExtractsStablePrefix(t *testing.T) {
 func TestHoistStaticCellsPreservesUnderlinedSpaces(t *testing.T) {
 	colors := testCatalog()
 	attrs := ir.CellAttrs{Underline: true}
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: " 1", StartCol: 0, EndCol: 2, Attrs: attrs}}}}},
@@ -65,7 +65,7 @@ func TestHoistStaticCellsSkipsAmbiguousCellExtents(t *testing.T) {
 		{time: 0, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "界", StartCol: 0, EndCol: 2}}}}},
 		{time: time.Second, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "界", StartCol: 0, EndCol: 2}}}}},
 	}
-	plan := renderPlan{duration: time.Second, content: timeline[[]ir.Row]{duration: time.Second, points: original}}
+	plan := semanticPlan{duration: time.Second, content: timeline[[]ir.Row]{duration: time.Second, points: original}}
 
 	plan.hoistStaticCells(2, 1, colors)
 
@@ -77,7 +77,7 @@ func TestHoistStaticCellsSkipsAmbiguousCellExtents(t *testing.T) {
 func TestHoistStaticCellsSkipsNULContinuationCells(t *testing.T) {
 	colors := testCatalog()
 	row := ir.Row{Y: 0, Runs: []ir.TextRun{{Text: string([]rune{'界', 0}), StartCol: 0, EndCol: 2}}}
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{row}},
@@ -96,7 +96,7 @@ func TestHoistStaticCellsExtractsColoredBlankSpan(t *testing.T) {
 	colors := testCatalog()
 	bg := termcolor.ID(1)
 	attrs := ir.CellAttrs{BG: bg}
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content: timeline[[]ir.Row]{duration: time.Second, points: []timelinePoint[[]ir.Row]{
 			{time: 0, state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: " A", StartCol: 0, EndCol: 2, Attrs: attrs}}}}},
@@ -127,7 +127,7 @@ func TestHoistStaticCellsPreservesEveryVisualState(t *testing.T) {
 			{Text: "3", StartCol: 8, EndCol: 9},
 		}}}},
 	}
-	plan := renderPlan{
+	plan := semanticPlan{
 		duration: time.Second,
 		content:  timeline[[]ir.Row]{duration: time.Second, points: append([]timelinePoint[[]ir.Row](nil), original...)},
 	}

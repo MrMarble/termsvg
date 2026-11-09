@@ -16,7 +16,6 @@ func createBenchmarkRecording(numFrames, width, height int) *ir.Recording {
 	frames := make([]ir.Frame, numFrames)
 	for i := range frames {
 		frames[i] = ir.Frame{
-			Index: i,
 			Delay: 100 * time.Millisecond,
 			Rows: []ir.Row{
 				{

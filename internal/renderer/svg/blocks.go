@@ -145,7 +145,7 @@ func (rc rowCollector) buildBlockStates(frames [][]*renderedRow) []blockState {
 // it is interned, its markup otherwise.
 func renderedRowBytes(minify bool, row *renderedRow) int {
 	if row.id != "" {
-		return segmentUseBytes(minify, len(row.id), 0, 0)
+		return useBytes(minify, len(row.id), 0, 0)
 	}
 	return finalSVGBytes(row.svg, minify)
 }
@@ -161,12 +161,12 @@ func (rc rowCollector) renderedRowItems(row *renderedRow) int {
 
 // blockRowHash hashes a row independently of its absolute position.
 func blockRowHash(row ir.Row) uint64 {
-	h := mixSegmentHash(segmentHashOffset, len(row.Runs))
+	h := mixHash(hashOffset, len(row.Runs))
 	for k, run := range row.Runs {
 		if k > 0 {
-			h = mixSegmentHash(h, run.StartCol-row.Runs[k-1].StartCol)
+			h = mixHash(h, run.StartCol-row.Runs[k-1].StartCol)
 		}
-		h = (h ^ segmentRunHash(run)) * segmentHashPrime
+		h = (h ^ segmentRunHash(run)) * hashPrime
 	}
 	return h
 }
@@ -185,14 +185,14 @@ func visitBlockRanges(states []blockState, visitor func(state, start, end int, h
 	for stateIndex := range states {
 		s := &states[stateIndex]
 		for start := range s.items {
-			h := uint64(segmentHashOffset)
+			h := uint64(hashOffset)
 			for end := start + 1; end <= len(s.items) && end-start <= maxBlockRows; end++ {
 				k := end - 1
 				if k > start {
-					h = mixSegmentHash(h, s.items[k].row.Y-s.items[k-1].row.Y)
-					h = mixSegmentHash(h, s.cols[k]-s.cols[k-1])
+					h = mixHash(h, s.items[k].row.Y-s.items[k-1].row.Y)
+					h = mixHash(h, s.cols[k]-s.cols[k-1])
 				}
-				h = (h ^ s.hashes[k]) * segmentHashPrime
+				h = (h ^ s.hashes[k]) * hashPrime
 				if end-start >= minBlockRows && s.bytes(start, end) > 0 {
 					visitor(stateIndex, start, end, h)
 				}
@@ -292,7 +292,7 @@ func (rc rowCollector) blockDefinition(states []blockState, candidate *blockCand
 	var sb strings.Builder
 	for _, item := range items {
 		if item.id != "" {
-			sb.WriteString(segmentUseMarkup(rc.rows.minify, item.id, 0, 0))
+			sb.WriteString(useMarkup(rc.rows.minify, item.id, 0, 0))
 			def.uses = append(def.uses, item.id)
 			continue
 		}
@@ -316,7 +316,7 @@ func blockReference(
 	items := states[user.unit].items[user.start:user.end]
 	dx, dy := (user.col-candidate.anchor.col)*ColWidth, (user.y-candidate.anchor.y)*RowHeight
 	return &renderedRow{
-		row: items[0].row, rows: blockRows(items), svg: segmentUseMarkup(minify, def.id, dx, dy),
+		row: items[0].row, rows: blockRows(items), svg: useMarkup(minify, def.id, dx, dy),
 		elements: 1, uses: []string{def.id},
 	}
 }

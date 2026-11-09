@@ -286,7 +286,10 @@ func TestSegmentSavingsEqualSerializedByteDelta(t *testing.T) {
 	candidates := collectSegmentCandidates(markup)
 	ids := &xmlIDAllocator{}
 	accepted := finalizeShared(false, units,
-		selectShared(false, units, candidates, 2, func(n int) int { return len(compactXMLID(n)) }), ids)
+		selectShared(false, units, candidates, 2, func(n int) int {
+			next := xmlIDAllocator{next: n}
+			return len(next.allocate())
+		}), ids)
 	if len(accepted) == 0 {
 		t.Fatal("no segment accepted")
 	}

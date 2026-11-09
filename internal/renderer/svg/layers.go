@@ -12,7 +12,6 @@ import (
 
 	"github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
-	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
 // intervalLayer holds cells that keep one visual value over a contiguous run
@@ -65,8 +64,6 @@ const (
 	// maxLayerRejections stops the exact trials after this many consecutive
 	// candidates failed to shrink the plan.
 	maxLayerRejections = 16
-	// rowReferenceBytes is the serialized size of a whole-row <use> reference.
-	rowReferenceBytes = len(`<use href="#ab"/>`)
 )
 
 // intervalLayerCandidates finds every distinct interval over which some cell
@@ -74,7 +71,7 @@ const (
 // candidate takes every cell that is constant over its interval, including
 // cells whose own constant run is longer, so labels that the moving parts of
 // a screen interrupt at different times still share one layer.
-func (p *renderPlan) intervalLayerCandidates(width, height int, colors *color.Catalog) layerCandidateSet {
+func (p *semanticPlan) intervalLayerCandidates(width, height int, colors *color.Catalog) layerCandidateSet {
 	n := len(p.content.points)
 	set := layerCandidateSet{
 		width: width, decoded: make([][][]terminalCell, height), runs: make(map[cellInterval][][2]int),
@@ -153,7 +150,7 @@ func (candidate *layerCandidate) uncovered(covered map[cellInterval][][2]int) []
 }
 
 // decodeRowStates decodes row y of every content state into cells.
-func (p *renderPlan) decodeRowStates(y, width int) ([][]terminalCell, bool) {
+func (p *semanticPlan) decodeRowStates(y, width int) ([][]terminalCell, bool) {
 	states := make([][]terminalCell, len(p.content.points))
 	for i, point := range p.content.points {
 		var ok bool
@@ -204,11 +201,11 @@ func sortedRowKeys(m map[int][]bool) []int {
 
 // withIntervalLayers returns a copy of the plan in which the selected
 // candidates are hoisted into layers and removed from the states they cover.
-func (p *renderPlan) withIntervalLayers(
+func (p *semanticPlan) withIntervalLayers(
 	set *layerCandidateSet,
 	selected []*layerCandidate,
 	colors *color.Catalog,
-) renderPlan {
+) semanticPlan {
 	plan := *p
 	plan.layers = nil
 	if len(selected) == 0 {
@@ -255,7 +252,7 @@ func (p *renderPlan) withIntervalLayers(
 // estimate and each is kept only when the exact frames serialization of the
 // plan shrinks. The caller still compares the layered and plain plans on the
 // configured layout.
-func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, base *renderPlan) (renderPlan, error) {
+func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, base *semanticPlan) (semanticPlan, error) {
 	set := base.intervalLayerCandidates(rec.Width, rec.Height, rec.Colors)
 	if len(set.candidates) == 0 {
 		return *base, nil
@@ -272,8 +269,7 @@ func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, 
 	probe.Style = StyleLegacy
 	probe.Primitives = PrimitiveSnapshots
 	probe.AutoObjective = AutoObjectiveSize
-	c := &canvas{rec: rec, plan: *base, config: r.config, options: probe, classNames: rec.Colors.GenerateClassNames()}
-	c.style = stylePlan{scheme: styleLegacy}
+	c := newCanvas(rec, base, &r.config, &probe)
 	ranked := c.rankLayerCandidates(&set)
 	if len(ranked) > maxMeasuredLayerCandidates {
 		if r.config.Debug {
@@ -290,12 +286,12 @@ func (r *Renderer) selectIntervalLayers(ctx context.Context, rec *ir.Recording, 
 func (r *Renderer) trialIntervalLayers(
 	ctx context.Context,
 	rec *ir.Recording,
-	base *renderPlan,
+	base *semanticPlan,
 	set *layerCandidateSet,
 	ranked []*layerCandidate,
 	probe *Options,
-) (renderPlan, error) {
-	measure := func(plan *renderPlan) (int64, error) {
+) (semanticPlan, error) {
+	measure := func(plan *semanticPlan) (int64, error) {
 		candidate, err := prepareCandidate(ctx, rec, plan, &r.config, probe)
 		if err != nil {
 			return 0, err
@@ -307,12 +303,12 @@ func (r *Renderer) trialIntervalLayers(
 	best := *base
 	bestBytes, err := measure(&best)
 	if err != nil {
-		return renderPlan{}, err
+		return semanticPlan{}, err
 	}
 	rejections := 0
 	for _, ranked := range ranked {
 		if err := contextErr(ctx); err != nil {
-			return renderPlan{}, err
+			return semanticPlan{}, err
 		}
 		if rejections >= maxLayerRejections {
 			break
@@ -326,7 +322,7 @@ func (r *Renderer) trialIntervalLayers(
 		trial := base.withIntervalLayers(set, append(slices.Clone(selected), &candidate), rec.Colors)
 		bytes, err := measure(&trial)
 		if err != nil {
-			return renderPlan{}, err
+			return semanticPlan{}, err
 		}
 		if r.config.Debug {
 			log.Printf("[SVG] interval layer states=%d..%d cells=%d estimate=%d measured=%d accepted=%t",
@@ -455,7 +451,7 @@ func cellGroups(mask []bool) [][]bool {
 }
 
 // layerRowsAt returns the layer rows visible at the given time.
-func (p *renderPlan) layerRowsAt(at time.Duration) []ir.Row {
+func (p *semanticPlan) layerRowsAt(at time.Duration) []ir.Row {
 	var rows []ir.Row
 	for _, layer := range p.layers {
 		if at >= layer.from && (layer.open || at < layer.to) {
@@ -474,12 +470,6 @@ func layerVisibilityValue(visible bool) string {
 
 func layerAnimationName(index int) string { return "l" + strconv.Itoa(index) }
 
-func (c *canvas) writeLayers(w io.Writer) {
-	for index := range c.plan.layers {
-		c.writeLayer(w, index)
-	}
-}
-
 func (c *canvas) writeLayer(w io.Writer, index int) {
 	layer := &c.plan.layers[index]
 	frames := c.plan.layerVisibility(*layer)
@@ -489,7 +479,7 @@ func (c *canvas) writeLayer(w io.Writer, index int) {
 	}
 	if len(frames) > 1 && c.options.Animation == AnimationCSS {
 		fmt.Fprintf(w, `<g style="animation:%s %s %s step-end%s"%s>`, layerAnimationName(index),
-			animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill(), initial)
+			animationDuration(c.plan.duration), c.loopCount().css(), c.scrollFiniteAnimationFill(), initial)
 	} else {
 		fmt.Fprintf(w, `<g%s>`, initial)
 	}
@@ -522,18 +512,4 @@ func (c *canvas) generateLayerKeyframes(index int) string {
 	}
 	sb.WriteString("}")
 	return sb.String()
-}
-
-// layeredPlan is the test seam for the layer selection.
-func layeredPlan(
-	ctx context.Context,
-	rec *ir.Recording,
-	config *renderer.Config,
-	options *Options,
-) (renderPlan, error) {
-	plan, err := buildSemanticPlan(ctx, rec, config.ShowCursor, options.MaxFPS, config.LoopCount)
-	if err != nil {
-		return renderPlan{}, err
-	}
-	return New(config, func(o *Options) { *o = *options }).selectIntervalLayers(ctx, rec, &plan)
 }

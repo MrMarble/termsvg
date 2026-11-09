@@ -32,7 +32,7 @@ func (c *canvas) writeFrames(
 		fmt.Fprint(c.w, `<g>`)
 		c.smil().writeSMILTranslate(c.w, frames, c.contentWidth())
 	} else {
-		fmt.Fprintf(c.w, `<g style="animation:k %s %s step-end">`, animationDuration(c.plan.duration), c.loopCount())
+		fmt.Fprintf(c.w, `<g style="animation:k %s %s step-end">`, animationDuration(c.plan.duration), c.loopCount().css())
 	}
 	c.writeStateStrip(frameRows, c.contentWidth())
 	fmt.Fprint(c.w, "</g>")
@@ -76,7 +76,7 @@ func (c *canvas) writeBand(band *preparedBand) {
 			c.smil().writeSMILVerticalTranslate(c.w, band.offsets)
 		} else {
 			fmt.Fprintf(c.w, `<g style="animation:%s %s %s step-end%s">`,
-				band.name, animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
+				band.name, animationDuration(c.plan.duration), c.loopCount().css(), c.scrollFiniteAnimationFill())
 		}
 		c.writeFrameRows(band.tapeRows)
 		fmt.Fprint(c.w, `</g></svg>`)
@@ -108,14 +108,14 @@ func (c *canvas) writeSnapshotBandBody(band *preparedBand, width int) {
 		c.smil().writeSMILTranslate(c.w, band.keyframes, width)
 	} else {
 		fmt.Fprintf(c.w, `<g style="animation:%s %s %s step-end%s">`,
-			band.name, animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
+			band.name, animationDuration(c.plan.duration), c.loopCount().css(), c.scrollFiniteAnimationFill())
 	}
 	c.writeStateStrip(band.rows, width)
 	fmt.Fprint(c.w, `</g>`)
 }
 
 func (c *canvas) scrollFiniteAnimationFill() string {
-	if c.options.Layout != LayoutScroll || infiniteLoop(c.config.LoopCount) {
+	if c.options.Layout != LayoutScroll || c.loopCount().infinite() {
 		return ""
 	}
 	return " forwards"
@@ -171,7 +171,7 @@ func (c *canvas) generateScrollKeyframes(name string, frames []keyframePoint[int
 func (c *canvas) writeFrameRows(rows []*renderedRow) {
 	for _, row := range rows {
 		if row.id != "" {
-			fmt.Fprintf(c.w, `<use href="#%s"/>`, row.id)
+			fmt.Fprint(c.w, useMarkup(c.config.Minify, row.id, 0, 0))
 		} else {
 			fmt.Fprint(c.w, row.svg)
 		}
@@ -199,7 +199,7 @@ func (c *canvas) writeCursor() {
 	}
 	if len(frames) > 1 && c.options.Animation == AnimationCSS {
 		style = fmt.Sprintf(` style="animation:cursor %s %s step-end%s"`,
-			animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill())
+			animationDuration(c.plan.duration), c.loopCount().css(), c.scrollFiniteAnimationFill())
 	}
 	fmt.Fprintf(c.w, `<g transform="translate(%s,%s)" visibility="%s"%s>`,
 		c.xmlInt(point.state.Col*ColWidth), c.xmlInt(point.state.Row*RowHeight), cursorVisibility(point.state), style)
@@ -207,7 +207,7 @@ func (c *canvas) writeCursor() {
 		c.smil().writeSMILCursor(c.w, frames)
 	}
 	cursorClass := "cursor"
-	if c.style.scheme != "" && c.style.scheme != styleLegacy {
+	if !c.style.legacy() {
 		cursorClass = c.style.cursorClass
 	}
 	fmt.Fprintf(c.w, `<rect class="%s" width="%s" height="%s"/></g>`, cursorClass, c.xmlInt(ColWidth), c.xmlInt(RowHeight))
