@@ -45,3 +45,9 @@ jobs:
           go-version-file: go.mod
       - name: Run unit tests
         run: go test -v ./...
+      - name: Cross-compile
+        run: |
+          for os in windows darwin freebsd; do
+            echo "GOOS=$os"
+            GOOS=$os go build ./...
+          done
