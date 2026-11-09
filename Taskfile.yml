@@ -75,7 +75,15 @@ tasks:
       - git push origin --tags
 
   examples:
-    desc: Regenerate examples
+    desc: Regenerate all examples (SVG, GIF, WebM) and the size table
+    cmds:
+      - task: examples:svg
+      - task: examples:gif
+      - task: examples:webm
+      - ./scripts/update-filesize.sh
+
+  examples:svg:
+    desc: Regenerate the SVG examples
     deps:
       - build
     sources:
@@ -90,7 +98,38 @@ tasks:
       - ./termsvg export "examples/htop.cast" -m --svg-layout=frames --svg-animation=smil --svg-frame-switch=href --svg-max-fps=30 --svg-style=auto -o "examples/htop.svg"
       - ./termsvg export "examples/rgb.cast" -m --svg-layout=regions --svg-animation=smil --svg-frame-switch=translate --svg-max-fps=30 --svg-style=auto -o "examples/rgb.svg"
       - ./termsvg export "examples/session.cast" -m --svg-layout=bands --svg-animation=smil --svg-frame-switch=href --svg-max-fps=30 --svg-style=auto -o "examples/session.svg"
-      - ./scripts/update-filesize.sh
+
+  examples:gif:
+    desc: Regenerate the GIF examples
+    deps:
+      - build
+    sources:
+      - ./examples/*.cast
+      - ./termsvg
+    generates:
+      - ./examples/*.gif
+    cmds:
+      - ./termsvg export "examples/htop.cast" -f gif -o "examples/htop.gif"
+      - ./termsvg export "examples/rgb.cast" -f gif -o "examples/rgb.gif"
+      - ./termsvg export "examples/session.cast" -f gif -o "examples/session.gif"
+
+  examples:webm:
+    desc: Regenerate the WebM examples (requires ffmpeg with libvpx-vp9)
+    deps:
+      - build
+    preconditions:
+      - sh: command -v ffmpeg
+        msg: ffmpeg is required to export WebM; install it from https://ffmpeg.org
+    sources:
+      - ./examples/*.cast
+      - ./termsvg
+    generates:
+      - ./examples/*.webm
+    cmds:
+      - ./termsvg export "examples/htop.cast" -f webm -o "examples/htop.webm"
+      - ./termsvg export "examples/rgb.cast" -f webm -o "examples/rgb.webm"
+      - ./termsvg export "examples/session.cast" -f webm -o "examples/session.webm"
+
   examples:verify:
     desc: Regenerate examples and fail if tracked artifacts or size documentation drift
     cmds:

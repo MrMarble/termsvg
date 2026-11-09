@@ -120,7 +120,8 @@ termsvg export /path/to/asciicast.cast
 
 Available options:
 
-- `-o, --output=<file>` - Output svg to be created. Defaults to [input].svg
+- `-o, --output=<file>` - Output file to be created. Defaults to [input].[format]
+- `-f, --format=svg|gif|webm` - Output format (default `svg`). WebM needs [ffmpeg](https://ffmpeg.org) with `libvpx-vp9`
 - `-m, --minify` - Minify svg using [Minify](https://github.com/tdewolff/minify)
 - `-s, --speed=<factor>` - Playback speed multiplier (can be fractional)
 - `-i, --max-idle=<duration>` - Cap idle time between events, e.g. `500ms` or `2s`. Defaults to the recording's own `idle_time_limit`, if it has one

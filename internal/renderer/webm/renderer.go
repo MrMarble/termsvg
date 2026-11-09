@@ -155,6 +155,11 @@ func (r *Renderer) encodeToWebM(frames []raster.RasterFrame, w io.Writer) error 
 		"-deadline", "good",
 		"-cpu-used", "5",
 		"-row-mt", "1",
+		// Bit-exact output: no random segment UID, encoding date or encoder tag,
+		// so the same recording always produces the same bytes.
+		"-fflags", "+bitexact",
+		"-flags:v", "+bitexact",
+		"-map_metadata", "-1",
 		"-f", "webm",
 		"pipe:1", // Write to stdout
 	}
