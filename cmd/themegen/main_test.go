@@ -185,3 +185,68 @@ func TestGenerate_MatchesCheckedInThemes(t *testing.T) {
 		t.Error("internal/theme/builtin.go is stale; run `go generate ./internal/theme/`")
 	}
 }
+
+func writeThemeJSON(t *testing.T, dir, name string) {
+	t.Helper()
+	content := `{"fg":"#ffffff","bg":"#000000","palette":"` + validPalette + `"}`
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRun_FromRepositoryRoot(t *testing.T) {
+	root := t.TempDir()
+	themes := filepath.Join(root, "themes")
+	for _, d := range []string{themes, filepath.Join(root, "internal", "theme")} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeThemeJSON(t, themes, "demo.json")
+	t.Chdir(root)
+
+	count, out, err := run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 || out != "internal/theme/builtin.go" {
+		t.Errorf("run() = %d, %q", count, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, out)); err != nil {
+		t.Errorf("output not written: %v", err)
+	}
+}
+
+func TestRun_FromThemePackageDirectory(t *testing.T) {
+	// `go generate` runs with the working directory set to internal/theme, two
+	// levels below the repository root that holds themes/.
+	root := t.TempDir()
+	pkg := filepath.Join(root, "internal", "theme")
+	for _, d := range []string{filepath.Join(root, "themes"), pkg} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeThemeJSON(t, filepath.Join(root, "themes"), "demo.json")
+	t.Chdir(pkg)
+
+	count, out, err := run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Relative to internal/theme the package directory does not exist, so the
+	// generator writes builtin.go into the working directory.
+	if count != 1 || out != "builtin.go" {
+		t.Errorf("run() = %d, %q", count, out)
+	}
+	if _, err := os.Stat(filepath.Join(pkg, "builtin.go")); err != nil {
+		t.Errorf("output not written: %v", err)
+	}
+}
+
+func TestRun_MissingThemesDirectory(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if _, _, err := run(); err == nil {
+		t.Fatal("expected error when no themes directory exists")
+	}
+}
