@@ -9,6 +9,7 @@ import (
 
 	"github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
@@ -47,14 +48,11 @@ func (c *canvas) contentHeight() int {
 }
 
 func (c *canvas) paddedWidth() int {
-	return c.contentWidth() + 2*Padding
+	return layout.PaddedWidth(c.contentWidth())
 }
 
 func (c *canvas) paddedHeight() int {
-	if c.config.ShowWindow {
-		return c.contentHeight() + Padding*HeaderSize + Padding
-	}
-	return c.contentHeight() + 2*Padding
+	return layout.PaddedHeight(c.contentHeight(), c.config.ShowWindow)
 }
 
 func (c *canvas) render(ctx context.Context, content *preparedContent) error {
@@ -74,13 +72,8 @@ func (c *canvas) render(ctx context.Context, content *preparedContent) error {
 	}
 
 	// Content group with clipping
-	contentY := Padding
-	if c.config.ShowWindow {
-		contentY = Padding * HeaderSize
-	}
-
 	c.writeDefs(content)
-	c.writeContentGroupOpen(contentY)
+	c.writeContentGroupOpen(layout.ContentOffsetY(c.config.ShowWindow))
 
 	c.writeStyles(content)
 	for _, row := range c.plan.staticRows {
@@ -133,9 +126,9 @@ func (c *canvas) writeWindow() {
 	buttonY := Padding
 	for i, btnColor := range theme.WindowButtons {
 		btnHex := color.RGBAtoHex(btnColor)
-		x := Padding + i*windowButtonSpacing
+		x := Padding + i*layout.ButtonSpacing
 		fmt.Fprintf(c.w, `<circle cx="%s" cy="%s" r="%s" fill="%s"/>`,
-			c.xmlInt(x), c.xmlInt(buttonY), c.xmlInt(windowButtonRadius), btnHex)
+			c.xmlInt(x), c.xmlInt(buttonY), c.xmlInt(layout.ButtonRadius), btnHex)
 	}
 }
 

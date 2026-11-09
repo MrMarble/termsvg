@@ -249,6 +249,6 @@ func stylePlanRecording() *ir.Recording {
 	return &ir.Recording{
 		Width: 10, Height: len(rows), Duration: time.Second, Colors: catalog,
 		Frames: []ir.Frame{{Rows: rows}},
-		Stats:  ir.Stats{TotalFrames: 1, HasBold: true, HasItalic: true, HasUnderline: true, HasDim: true},
+		Stats:  ir.Stats{HasBold: true, HasItalic: true, HasUnderline: true, HasDim: true},
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/progress"
 	"golang.org/x/image/font"
 )
@@ -29,23 +30,15 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 	results := make([]PalettedFrame, len(frames))
 	totalFrames := len(frames)
 
-	// Calculate image dimensions
-	width := fr.rasterizer.paddedWidth(fr.rec.Width)
-	height := fr.rasterizer.paddedHeight(fr.rec.Height)
-	contentWidth := fr.rasterizer.contentWidth(fr.rec.Width)
-	contentHeight := fr.rasterizer.contentHeight(fr.rec.Height)
+	contentWidth := fr.rec.Width * layout.ColWidth
+	contentHeight := fr.rec.Height * layout.RowHeight
+	width := layout.PaddedWidth(contentWidth)
+	height := layout.PaddedHeight(contentHeight, fr.rasterizer.config.ShowWindow)
 
 	// Pre-render the static base image (window chrome + terminal background) as paletted
 	baseImg := fr.createPalettedBaseImage(width, height, contentWidth, contentHeight)
 
-	// Send initial progress
-	if fr.rasterizer.config.ProgressCh != nil {
-		fr.rasterizer.config.ProgressCh <- progress.Update{
-			Phase:   "Rasterizing",
-			Current: 0,
-			Total:   totalFrames,
-		}
-	}
+	progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", 0, totalFrames)
 
 	// Worker pool setup
 	numWorkers := runtime.NumCPU()
@@ -65,25 +58,16 @@ func (fr *palettedFrameRenderer) render() ([]PalettedFrame, error) {
 			for idx := range jobs {
 				results[idx] = fr.renderSingleFrame(idx, frames[idx], displayDelay(frames, idx), baseImg, face)
 
-				// Send progress update
-				if fr.rasterizer.config.ProgressCh != nil {
-					fr.rasterizer.config.ProgressCh <- progress.Update{
-						Phase:   "Rasterizing",
-						Current: idx + 1,
-						Total:   totalFrames,
-					}
-				}
+				progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", idx+1, totalFrames)
 			}
 		})
 	}
 
-	// Send jobs (frame indices)
 	for i := range frames {
 		jobs <- i
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
 	wg.Wait()
 
 	return results, nil
@@ -97,7 +81,6 @@ func (fr *palettedFrameRenderer) renderSingleFrame(
 	baseImg *image.Paletted,
 	face font.Face,
 ) PalettedFrame {
-	// Create a copy of the base paletted image for this frame
 	img := fr.copyPalettedBaseImage(baseImg)
 
 	// Draw the frame content directly to paletted using the worker's font face

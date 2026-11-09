@@ -77,7 +77,6 @@ func TestRenderer_Render_SingleFrame(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -94,7 +93,6 @@ func TestRenderer_Render_SingleFrame(t *testing.T) {
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 1},
 	}
 
 	var buf bytes.Buffer
@@ -142,7 +140,6 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 500 * time.Millisecond,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 1", StartCol: 0}}},
 				},
@@ -150,7 +147,6 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 			{
 				Time:  500 * time.Millisecond,
 				Delay: 500 * time.Millisecond,
-				Index: 1,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 2", StartCol: 0}}},
 				},
@@ -158,14 +154,12 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 			{
 				Time:  1 * time.Second,
 				Delay: 500 * time.Millisecond,
-				Index: 2,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 3", StartCol: 0}}},
 				},
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 3},
 	}
 
 	var buf bytes.Buffer
@@ -202,7 +196,6 @@ func TestRenderer_Render_WithDebug(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Test", StartCol: 0}}},
 				},
@@ -240,7 +233,7 @@ func TestNew_WithoutFFmpeg(t *testing.T) {
 func newUnprobedRenderer(t *testing.T) *Renderer {
 	t.Helper()
 	cfg := renderer.DefaultConfig()
-	rasterizer, err := renderer.NewRasterizer(cfg)
+	rasterizer, err := raster.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,11 +334,11 @@ func TestRenderer_Render_IsDeterministic(t *testing.T) {
 		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
 		Frames: []ir.Frame{
 			{
-				Index: 0, Delay: 200 * time.Millisecond,
-				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "first", StartCol: 0}}}},
+				Delay: 200 * time.Millisecond,
+				Rows:  []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "first", StartCol: 0}}}},
 			},
 			{
-				Index: 1, Time: 200 * time.Millisecond, Delay: 200 * time.Millisecond,
+				Time: 200 * time.Millisecond, Delay: 200 * time.Millisecond,
 				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "second", StartCol: 0}}}},
 			},
 		},

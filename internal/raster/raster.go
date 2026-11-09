@@ -10,60 +10,26 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
-	"github.com/mrmarble/termsvg/internal/progress"
-	"github.com/mrmarble/termsvg/internal/theme"
+	"github.com/mrmarble/termsvg/internal/renderer"
 	"golang.org/x/image/font"
 )
 
-// RasterFrame represents a single rendered frame with timing metadata.
-//
-// RasterFrame represents a single rendered frame with timing metadata.
+// RasterFrame is a rendered RGBA frame with its display time.
 //
 //nolint:revive // RasterFrame naming is intentional to distinguish from IR frames
 type RasterFrame struct {
-	// Image is the rendered RGBA image for this frame
 	Image *image.RGBA
-
-	// Delay is the time to display this frame
 	Delay time.Duration
 
 	// Index is the frame number (0-indexed, sequential after deduplication)
 	Index int
 }
 
-// Config holds configuration options for the rasterizer.
-type Config struct {
-	// Theme defines the color scheme for rendering
-	Theme theme.Theme
-
-	// ShowWindow enables window chrome rendering (macOS-style buttons)
-	ShowWindow bool
-
-	// ShowCursor enables cursor rendering
-	ShowCursor bool
-
-	// FontSize is the font size in points
-	FontSize int
-
-	// SystemFonts lets glyphs that none of the embedded fonts has be drawn with
-	// installed fonts. The output then depends on the fonts of the machine.
-	SystemFonts bool
-
-	// Layout constants (can be overridden, but defaults are provided)
-	RowHeight  int // pixels per row (default: 25)
-	ColWidth   int // pixels per column (default: 12)
-	Padding    int // padding around content (default: 20)
-	HeaderSize int // multiplier for header area (default: 2)
-
-	// ProgressCh is an optional channel for progress updates
-	ProgressCh chan<- progress.Update
-}
-
 // Rasterizer transforms IR recordings into RGBA images.
 type Rasterizer struct {
-	config   Config
+	config   renderer.Config
 	fontFace font.Face
-	sysFonts *systemFonts // nil unless Config.SystemFonts
+	sysFonts *systemFonts // nil unless config.SystemFonts
 }
 
 // PalettedFrame represents a single rendered frame as a paletted image with timing metadata.
@@ -78,45 +44,18 @@ type PalettedFrame struct {
 	Index int
 }
 
-// Layout constants for rendering (matching SVG renderer for consistency)
-const (
-	RowHeight  = 25 // pixels per row
-	ColWidth   = 12 // pixels per column
-	Padding    = 20 // padding around content
-	HeaderSize = 2  // multiplier for header area (window buttons)
-)
-
-// lastFrameHold is the least time the last frame stays on screen. A recording
-// ends at its last event, so that frame would otherwise flash by, and a looping
-// GIF or video would restart before the final screen could be read.
-const lastFrameHold = 2 * time.Second
-
-// DefaultConfig returns a Config with sensible defaults.
-func DefaultConfig() Config {
-	return Config{
-		Theme:      theme.Default(),
-		ShowWindow: true,
-		ShowCursor: true,
-		FontSize:   20,
-		RowHeight:  RowHeight,
-		ColWidth:   ColWidth,
-		Padding:    Padding,
-		HeaderSize: HeaderSize,
-	}
-}
-
 // displayDelay is how long frame idx of frames stays on screen.
 func displayDelay(frames []ir.Frame, idx int) time.Duration {
 	delay := frames[idx].Delay
 	if idx == len(frames)-1 {
-		delay = max(delay, lastFrameHold)
+		delay = max(delay, LastFrameHold)
 	}
 
 	return delay
 }
 
-// New creates a new Rasterizer with the given configuration.
-func New(config *Config) (*Rasterizer, error) {
+// New creates a Rasterizer for the given renderer configuration.
+func New(config *renderer.Config) (*Rasterizer, error) {
 	var sys *systemFonts
 	if config.SystemFonts {
 		preferred, dirs := defaultFontDirs()

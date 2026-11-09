@@ -2,12 +2,10 @@ package renderer
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
-	"github.com/mrmarble/termsvg/internal/raster"
 	"github.com/mrmarble/termsvg/internal/theme"
 )
 
@@ -51,28 +49,4 @@ func DefaultConfig() *Config {
 		LoopCount:  0,
 		Minify:     false,
 	}
-}
-
-// NewRasterizer creates a raster.Rasterizer from renderer configuration.
-// This helper reduces duplication between renderers that need rasterization.
-func NewRasterizer(config *Config) (*raster.Rasterizer, error) {
-	rasterConfig := raster.Config{
-		Theme:       config.Theme,
-		ShowWindow:  config.ShowWindow,
-		ShowCursor:  config.ShowCursor,
-		FontSize:    config.FontSize,
-		SystemFonts: config.SystemFonts,
-		RowHeight:   raster.RowHeight,
-		ColWidth:    raster.ColWidth,
-		Padding:     raster.Padding,
-		HeaderSize:  raster.HeaderSize,
-		ProgressCh:  config.ProgressCh,
-	}
-
-	rasterizer, err := raster.New(&rasterConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create rasterizer: %w", err)
-	}
-
-	return rasterizer, nil
 }

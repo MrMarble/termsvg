@@ -17,7 +17,6 @@ import (
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
-	"github.com/mrmarble/termsvg/internal/raster"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
@@ -81,7 +80,6 @@ func TestRenderer_Render_SingleFrame(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -98,7 +96,6 @@ func TestRenderer_Render_SingleFrame(t *testing.T) {
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 1},
 	}
 
 	var buf bytes.Buffer
@@ -137,7 +134,6 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 1", StartCol: 0}}},
 				},
@@ -145,14 +141,12 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 			{
 				Time:  1 * time.Second,
 				Delay: 1 * time.Second,
-				Index: 1,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 2", StartCol: 0}}},
 				},
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 2},
 	}
 
 	var buf bytes.Buffer
@@ -199,7 +193,6 @@ func TestRenderer_Render_WithWindow(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows:  []ir.Row{},
 			},
 		},
@@ -217,12 +210,8 @@ func TestRenderer_Render_WithWindow(t *testing.T) {
 		t.Fatalf("failed to decode GIF: %v", err)
 	}
 
-	// With window: height = content + header + padding
-	// content = 10 * 25 = 250
-	// header = 20 * 2 = 40
-	// padding = 20
-	// total = 310
-	expectedHeight := 10*raster.RowHeight + raster.Padding*raster.HeaderSize + raster.Padding
+	// 10 rows are 250px; the window adds a 40px header and 20px bottom padding.
+	expectedHeight := 310
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}
@@ -250,7 +239,6 @@ func TestRenderer_Render_WithoutWindow(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows:  []ir.Row{},
 			},
 		},
@@ -268,8 +256,8 @@ func TestRenderer_Render_WithoutWindow(t *testing.T) {
 		t.Fatalf("failed to decode GIF: %v", err)
 	}
 
-	// Without window: height = content + 2*padding
-	expectedHeight := 10*raster.RowHeight + 2*raster.Padding
+	// 10 rows are 250px, with 20px padding above and below.
+	expectedHeight := 290
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}
@@ -292,7 +280,6 @@ func TestRenderer_Render_ContextCancellation(t *testing.T) {
 		frames[i] = ir.Frame{
 			Time:  time.Duration(i) * 100 * time.Millisecond,
 			Delay: 100 * time.Millisecond,
-			Index: i,
 			Rows:  []ir.Row{},
 		}
 	}
@@ -419,23 +406,20 @@ func TestRenderer_Render_PropagatesWriteError(t *testing.T) {
 	}
 }
 
-func TestRenderer_calculateDelay(t *testing.T) {
-	r := &Renderer{}
+func TestGIFDelay(t *testing.T) {
 	tests := []struct {
 		name         string
 		delay        time.Duration
-		idx, total   int
 		wantGIFUnits int
 	}{
-		{name: "regular delay in 10ms units", delay: 250 * time.Millisecond, idx: 0, total: 3, wantGIFUnits: 25},
-		{name: "short delay is raised to the minimum", delay: 10 * time.Millisecond, idx: 0, total: 3, wantGIFUnits: 2},
-		{name: "zero delay is raised to the minimum", delay: 0, idx: 1, total: 3, wantGIFUnits: 2},
-		{name: "last frame is not raised", delay: 10 * time.Millisecond, idx: 2, total: 3, wantGIFUnits: 1},
+		{name: "regular delay in 10ms units", delay: 250 * time.Millisecond, wantGIFUnits: 25},
+		{name: "short delay is raised to the minimum", delay: 10 * time.Millisecond, wantGIFUnits: 2},
+		{name: "zero delay is raised to the minimum", delay: 0, wantGIFUnits: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := r.calculateDelay(tt.delay, tt.idx, tt.total); got != tt.wantGIFUnits {
-				t.Errorf("calculateDelay() = %d, want %d", got, tt.wantGIFUnits)
+			if got := gifDelay(tt.delay); got != tt.wantGIFUnits {
+				t.Errorf("gifDelay() = %d, want %d", got, tt.wantGIFUnits)
 			}
 		})
 	}

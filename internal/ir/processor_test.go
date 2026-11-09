@@ -73,12 +73,12 @@ func TestDeduplicateFrames(t *testing.T) {
 		}
 	})
 
-	t.Run("merges consecutive duplicates, keeps when they appeared, and renumbers", func(t *testing.T) {
+	t.Run("merges consecutive duplicates and keeps when they appeared", func(t *testing.T) {
 		frames := []Frame{
-			{Index: 0, Time: 0, Rows: a},
-			{Index: 1, Time: 100 * time.Millisecond, Rows: a},
-			{Index: 2, Time: 300 * time.Millisecond, Rows: b},
-			{Index: 3, Time: 350 * time.Millisecond, Rows: a},
+			{Time: 0, Rows: a},
+			{Time: 100 * time.Millisecond, Rows: a},
+			{Time: 300 * time.Millisecond, Rows: b},
+			{Time: 350 * time.Millisecond, Rows: a},
 		}
 		got := deduplicateFrames(frames)
 		if len(got) != 3 {
@@ -89,11 +89,6 @@ func TestDeduplicateFrames(t *testing.T) {
 		if got[0].Time != 0 || got[1].Time != 300*time.Millisecond || got[2].Time != 350*time.Millisecond {
 			t.Errorf("times = %v, %v, %v; want 0, 300ms, 350ms", got[0].Time, got[1].Time, got[2].Time)
 		}
-		for i, f := range got {
-			if f.Index != i {
-				t.Errorf("frame %d has Index %d", i, f.Index)
-			}
-		}
 	})
 }
 
@@ -102,14 +97,11 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		want  Stats // only the fields set by styling; frame counts are checked separately
+		want  Stats // only the fields set by styling
 	}{
 		{name: "bold", input: esc + "1mA", want: Stats{HasBold: true}},
 		{name: "italic", input: esc + "3mA", want: Stats{HasItalic: true}},
 		{name: "underline", input: esc + "4mA", want: Stats{HasUnderline: true}},
-		{name: "truecolor foreground", input: esc + "38;2;10;20;30mA", want: Stats{HasTrueColor: true, UniqueColors: 1}},
-		{name: "truecolor background", input: esc + "48;2;10;20;30mA", want: Stats{HasTrueColor: true, UniqueColors: 1}},
-		{name: "ansi colors are not truecolor", input: esc + "31;42mA", want: Stats{UniqueColors: 2}},
 		{name: "plain text sets no flags", input: "A", want: Stats{}},
 	}
 	for _, tt := range tests {
@@ -123,7 +115,7 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := rec.Stats
-			got.TotalFrames, got.MaxRunsPerRow = 0, 0
+			got.MaxRunsPerRow = 0
 			if got != tt.want {
 				t.Errorf("stats = %+v, want %+v", got, tt.want)
 			}

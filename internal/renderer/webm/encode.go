@@ -20,9 +20,6 @@ const (
 	// videoCRF is the constant-quality target. A terminal is mostly flat color
 	// and sharp text, so 28 keeps text crisp while the file stays small.
 	videoCRF = 28
-
-	// minFrameDuration is the least a frame is shown: one frame of a 30 FPS video.
-	minFrameDuration = time.Second / 30
 )
 
 // ffmpegArgs returns the ffmpeg arguments that encode the frames listed in the
@@ -75,9 +72,7 @@ func writeFrameFiles(
 	var last string
 
 	report := func(done int) {
-		if progressCh != nil {
-			progressCh <- progress.Update{Phase: "Encoding", Current: done, Total: len(frames)}
-		}
+		progress.Send(progressCh, "Encoding", done, len(frames))
 	}
 	report(0)
 
@@ -94,9 +89,7 @@ func writeFrameFiles(
 		if err := writePNG(&encoder, filepath.Join(dir, name), frame); err != nil {
 			return "", err
 		}
-		// The last frame has no next frame to be replaced by, so it still gets
-		// a frame's worth of time even when its delay is zero.
-		fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", name, max(frame.Delay, minFrameDuration).Seconds())
+		fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", name, max(frame.Delay, raster.MinVideoDelay).Seconds())
 		last = name
 		written++
 		report(written)

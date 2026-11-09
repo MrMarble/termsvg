@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
@@ -19,21 +20,14 @@ type Renderer struct {
 	onCandidateSerialize func()
 }
 
-// Layout constants for SVG rendering
+// Layout constants, shared with the raster renderers.
 const (
-	RowHeight  = 25 // pixels per row
-	ColWidth   = 12 // pixels per column
-	Padding    = 20 // padding around content
-	HeaderSize = 2  // multiplier for header area (window buttons)
+	RowHeight  = layout.RowHeight
+	ColWidth   = layout.ColWidth
+	Padding    = layout.Padding
+	HeaderSize = layout.HeaderSize
 
-	// windowCornerRadius is the radius for rounded window corners.
 	windowCornerRadius = 5
-
-	// windowButtonSpacing is the horizontal spacing between window buttons.
-	windowButtonSpacing = 20
-
-	// windowButtonRadius is the radius of window control buttons.
-	windowButtonRadius = 6
 )
 
 func (r *Renderer) buildSemanticPlan(ctx context.Context, rec *ir.Recording) (semanticPlan, error) {

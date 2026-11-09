@@ -12,6 +12,7 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
@@ -219,11 +220,11 @@ func TestFallbackFace_MetricsComeFromThePrimaryFont(t *testing.T) {
 // pixel that differs from the background.
 func inkColumns(img *image.RGBA, cols, rowY int, r *Rasterizer, bg color.RGBA) []bool {
 	out := make([]bool, cols)
-	x0 := r.config.Padding
-	y0 := r.contentOffsetY() + rowY*r.config.RowHeight
+	x0 := layout.Padding
+	y0 := layout.ContentOffsetY(r.config.ShowWindow) + rowY*layout.RowHeight
 	for col := range cols {
-		for x := x0 + col*r.config.ColWidth; x < x0+(col+1)*r.config.ColWidth; x++ {
-			for y := y0; y < y0+r.config.RowHeight; y++ {
+		for x := x0 + col*layout.ColWidth; x < x0+(col+1)*layout.ColWidth; x++ {
+			for y := y0; y < y0+layout.RowHeight; y++ {
 				if img.RGBAAt(x, y) != bg {
 					out[col] = true
 				}
@@ -234,7 +235,7 @@ func inkColumns(img *image.RGBA, cols, rowY int, r *Rasterizer, bg color.RGBA) [
 }
 
 func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	r, err := New(&cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +257,7 @@ func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
 	}
 
 	// The terminal background is what an empty cell looks like.
-	bg := frames[0].Image.RGBAAt(r.config.Padding+0, r.contentOffsetY()+r.config.RowHeight*1)
+	bg := frames[0].Image.RGBAAt(layout.Padding+0, layout.ContentOffsetY(r.config.ShowWindow)+layout.RowHeight*1)
 	got := inkColumns(frames[0].Image, 8, 0, r, bg)
 	want := []bool{false, false, true, false, true, false, true, false}
 	for col := range want {
@@ -440,7 +441,7 @@ func TestFallbackFace_CloseReleasesSystemFontFiles(t *testing.T) {
 
 func TestRasterizer_SystemFontsAreOptIn(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
-		cfg := DefaultConfig()
+		cfg := testConfig()
 		cfg.SystemFonts = enabled
 		r, err := New(&cfg)
 		if err != nil {
@@ -456,7 +457,7 @@ func TestRasterizer_SystemFontsAreOptIn(t *testing.T) {
 func TestRasterize_WithSystemFontsIsSafeAcrossWorkers(t *testing.T) {
 	// Every worker builds its own face over the shared index; run under -race.
 	t.Setenv(fontPathEnv, t.TempDir())
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	cfg.SystemFonts = true
 	r, err := New(&cfg)
 	if err != nil {
@@ -467,8 +468,8 @@ func TestRasterize_WithSystemFontsIsSafeAcrossWorkers(t *testing.T) {
 	frames := make([]ir.Frame, 24)
 	for i := range frames {
 		frames[i] = ir.Frame{
-			Index: i, Delay: 10 * time.Millisecond,
-			Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ȧ漢⠿😀" + string(rune('a'+i%26)), StartCol: 0}}}},
+			Delay: 10 * time.Millisecond,
+			Rows:  []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ȧ漢⠿😀" + string(rune('a'+i%26)), StartCol: 0}}}},
 		}
 		frames[i].Time = time.Duration(i) * 10 * time.Millisecond
 	}

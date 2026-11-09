@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/progress"
 	"golang.org/x/image/font"
 )
@@ -26,23 +27,15 @@ func (fr *frameRenderer) render() ([]RasterFrame, error) {
 	results := make([]RasterFrame, len(frames))
 	totalFrames := len(frames)
 
-	// Calculate image dimensions
-	width := fr.rasterizer.paddedWidth(fr.rec.Width)
-	height := fr.rasterizer.paddedHeight(fr.rec.Height)
-	contentWidth := fr.rasterizer.contentWidth(fr.rec.Width)
-	contentHeight := fr.rasterizer.contentHeight(fr.rec.Height)
+	contentWidth := fr.rec.Width * layout.ColWidth
+	contentHeight := fr.rec.Height * layout.RowHeight
+	width := layout.PaddedWidth(contentWidth)
+	height := layout.PaddedHeight(contentHeight, fr.rasterizer.config.ShowWindow)
 
 	// Pre-render the static base image (window chrome + terminal background)
 	baseImg := fr.createBaseImage(width, height, contentWidth, contentHeight)
 
-	// Send initial progress
-	if fr.rasterizer.config.ProgressCh != nil {
-		fr.rasterizer.config.ProgressCh <- progress.Update{
-			Phase:   "Rasterizing",
-			Current: 0,
-			Total:   totalFrames,
-		}
-	}
+	progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", 0, totalFrames)
 
 	// Worker pool setup
 	numWorkers := runtime.NumCPU()
@@ -62,25 +55,16 @@ func (fr *frameRenderer) render() ([]RasterFrame, error) {
 			for idx := range jobs {
 				results[idx] = fr.renderSingleFrame(idx, frames[idx], displayDelay(frames, idx), baseImg, face)
 
-				// Send progress update
-				if fr.rasterizer.config.ProgressCh != nil {
-					fr.rasterizer.config.ProgressCh <- progress.Update{
-						Phase:   "Rasterizing",
-						Current: idx + 1,
-						Total:   totalFrames,
-					}
-				}
+				progress.Send(fr.rasterizer.config.ProgressCh, "Rasterizing", idx+1, totalFrames)
 			}
 		})
 	}
 
-	// Send jobs (frame indices)
 	for i := range frames {
 		jobs <- i
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
 	wg.Wait()
 
 	return results, nil
@@ -94,10 +78,8 @@ func (fr *frameRenderer) renderSingleFrame(
 	baseImg *image.RGBA,
 	face font.Face,
 ) RasterFrame {
-	// Create a copy of the base image for this frame
 	img := fr.copyBaseImage(baseImg)
 
-	// Draw the frame content using the worker's font face
 	fr.drawFrameContent(img, frame, face)
 
 	return RasterFrame{
@@ -128,7 +110,7 @@ func (fr *frameRenderer) createBaseImage(width, height, contentWidth, contentHei
 	return img
 }
 
-// copyBaseImage creates a deep copy of the base image.
+// copyBaseImage returns a copy of the base image.
 func (fr *frameRenderer) copyBaseImage(base *image.RGBA) *image.RGBA {
 	bounds := base.Bounds()
 	img := image.NewRGBA(bounds)
@@ -138,7 +120,6 @@ func (fr *frameRenderer) copyBaseImage(base *image.RGBA) *image.RGBA {
 
 // drawFrameContent draws the dynamic content (text runs and cursor) to an image.
 func (fr *frameRenderer) drawFrameContent(img *image.RGBA, frame ir.Frame, face font.Face) {
-	// Draw all text runs
 	for _, row := range frame.Rows {
 		for _, run := range row.Runs {
 			fr.rasterizer.drawTextRunWithFace(img, run, row.Y, face, fr.rec.Colors)

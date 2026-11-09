@@ -39,17 +39,13 @@ const (
 	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
 	gifTimeUnit = 10
 
-	// minGifDelay is the minimum delay value to avoid browser clamping.
-	// Browsers clamp delays < 20ms to 100ms, so we use 2 units = 20ms.
-	minGifDelay = 2
-
 	// maxGIFColors is the size of a GIF palette.
 	maxGIFColors = 256
 )
 
 // New creates a new GIF renderer with the given configuration.
 func New(config *renderer.Config) (*Renderer, error) {
-	rasterizer, err := renderer.NewRasterizer(config)
+	rasterizer, err := raster.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -124,19 +120,11 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 }
 
 func (r *Renderer) sendProgress(current, total int) {
-	if r.config.ProgressCh != nil {
-		r.config.ProgressCh <- progress.Update{
-			Phase:   "Encoding",
-			Current: current,
-			Total:   total,
-		}
-	}
+	progress.Send(r.config.ProgressCh, "Encoding", current, total)
 }
 
-// assembleGIF creates the final GIF from rendered paletted frames using delta encoding.
-// GIF assembly requires multiple sequential steps for delta encoding.
-//
-
+// assembleGIF writes the frames as a GIF in which every frame after the first
+// holds only the pixels that changed, and identical frames are merged.
 func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error {
 	g := &gif.GIF{
 		LoopCount: r.config.LoopCount,
@@ -150,7 +138,7 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	timings := &gifTimings{}
 
 	for i, rf := range frames {
-		delay := r.calculateDelay(rf.Delay, i, len(frames))
+		delay := gifDelay(rf.Delay)
 
 		if r.processFrame(g, prevPaletted, rf.Image, delay, timings) {
 			continue
@@ -163,12 +151,8 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	return r.encodeAndLog(g, w, timings)
 }
 
-func (r *Renderer) calculateDelay(delay time.Duration, frameIdx, totalFrames int) int {
-	d := int(delay.Milliseconds() / gifTimeUnit)
-	if d < minGifDelay && frameIdx < totalFrames-1 {
-		return minGifDelay
-	}
-	return d
+func gifDelay(delay time.Duration) int {
+	return int(max(delay, raster.MinGIFDelay).Milliseconds() / gifTimeUnit)
 }
 
 func (r *Renderer) processFrame(g *gif.GIF, prev, curr *image.Paletted, delay int, t *gifTimings) bool {

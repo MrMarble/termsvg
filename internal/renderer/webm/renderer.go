@@ -30,7 +30,7 @@ func New(config *renderer.Config) (*Renderer, error) {
 		return nil, fmt.Errorf("ffmpeg is not installed. Install it from: https://ffmpeg.org")
 	}
 
-	rasterizer, err := renderer.NewRasterizer(config)
+	rasterizer, err := raster.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (r *Renderer) encodeToWebM(ctx context.Context, frames []raster.RasterFrame
 // At 30 FPS, each frame displays for ~33ms. Frames with shorter delays are skipped
 // and their delay is accumulated to the next frame.
 func (r *Renderer) filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
-	const minDelay = 33 * time.Millisecond // Minimum display time at 30 FPS
+	const minDelay = 33 * time.Millisecond
 
 	filtered := make([]raster.RasterFrame, 0, len(frames))
 	var accumulatedDelay time.Duration

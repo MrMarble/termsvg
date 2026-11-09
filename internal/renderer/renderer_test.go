@@ -1,10 +1,6 @@
 package renderer
 
-import (
-	"testing"
-
-	"github.com/mrmarble/termsvg/internal/progress"
-)
+import "testing"
 
 func TestDefaultConfig(t *testing.T) {
 	c := DefaultConfig()
@@ -19,15 +15,5 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if DefaultConfig() == c {
 		t.Error("DefaultConfig must return a fresh value")
-	}
-}
-
-func TestNewRasterizer(t *testing.T) {
-	c := DefaultConfig()
-	ch := make(chan progress.Update, 1)
-	c.ProgressCh = ch
-	r, err := NewRasterizer(c)
-	if err != nil || r == nil {
-		t.Fatalf("NewRasterizer() = %v, %v", r, err)
 	}
 }

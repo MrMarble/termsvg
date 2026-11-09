@@ -16,7 +16,6 @@ func TestProcessor_Process(t *testing.T) {
 			Version: 2,
 			Width:   80,
 			Height:  24,
-			Title:   "Test Recording",
 		},
 		Events: []asciicast.Event{
 			{Time: 0.0, EventType: asciicast.Output, EventData: "Hello"},
@@ -38,9 +37,6 @@ func TestProcessor_Process(t *testing.T) {
 	if recording.Height != 24 {
 		t.Errorf("Height should be 24, got %d", recording.Height)
 	}
-	if recording.Title != "Test Recording" {
-		t.Errorf("Title should be 'Test Recording', got %q", recording.Title)
-	}
 
 	// Check frames
 	if len(recording.Frames) != 3 {
@@ -56,11 +52,6 @@ func TestProcessor_Process(t *testing.T) {
 	}
 	if recording.Frames[2].Time != 1*time.Second {
 		t.Errorf("Third frame time should be 1s, got %v", recording.Frames[2].Time)
-	}
-
-	// Check stats
-	if recording.Stats.TotalFrames != 3 {
-		t.Errorf("Stats.TotalFrames should be 3, got %d", recording.Stats.TotalFrames)
 	}
 }
 

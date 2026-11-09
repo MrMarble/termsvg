@@ -8,7 +8,9 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/progress"
+	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
 var (
@@ -20,7 +22,7 @@ var (
 
 // testPalette contains every color the tests draw with, so that nearest-color
 // quantization is exact for solid fills.
-func testPalette(cfg *Config) color.Palette {
+func testPalette(cfg *renderer.Config) color.Palette {
 	return color.Palette{
 		testBG, testFG, testRed, testBlue,
 		cfg.Theme.WindowBackground,
@@ -41,9 +43,9 @@ func indexOf(t *testing.T, p color.Palette, c color.RGBA) uint8 {
 	return 0
 }
 
-func newTestRasterizer(t *testing.T, mutate func(*Config)) (*Rasterizer, *Config) {
+func newTestRasterizer(t *testing.T, mutate func(*renderer.Config)) (*Rasterizer, *renderer.Config) {
 	t.Helper()
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -84,11 +86,11 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 	if len(frames) != 3 {
 		t.Fatalf("frames = %d, want 3", len(frames))
 	}
-	wantBounds := image.Rect(0, 0, r.paddedWidth(rec.Width), r.paddedHeight(rec.Height))
+	wantBounds := image.Rect(0, 0, 160, 160) // 120x100 content, 20px padding, 40px header
 	for i, f := range frames {
 		want := time.Duration(10*(i+1)) * time.Millisecond
 		if i == len(frames)-1 {
-			want = lastFrameHold // the last frame is held so it can be read
+			want = LastFrameHold // the last frame is held so it can be read
 		}
 		if f.Index != i || f.Delay != want {
 			t.Errorf("frame %d: index=%d delay=%v, want %v", i, f.Index, f.Delay, want)
@@ -108,8 +110,8 @@ func TestRasterizeWithPalette_FramesKeepOrderDelayAndSize(t *testing.T) {
 func TestRasterizeWithPalette_Cursor(t *testing.T) {
 	cursorAt := func(r *Rasterizer, col, row int) image.Point {
 		return image.Pt(
-			r.config.Padding+col*r.config.ColWidth+r.config.ColWidth/2,
-			r.contentOffsetY()+row*r.config.RowHeight+r.config.RowHeight/2,
+			layout.Padding+col*layout.ColWidth+layout.ColWidth/2,
+			layout.ContentOffsetY(r.config.ShowWindow)+row*layout.RowHeight+layout.RowHeight/2,
 		)
 	}
 	tests := []struct {
@@ -124,7 +126,7 @@ func TestRasterizeWithPalette_Cursor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, cfg := newTestRasterizer(t, func(c *Config) { c.ShowCursor = tt.showCursor })
+			r, cfg := newTestRasterizer(t, func(c *renderer.Config) { c.ShowCursor = tt.showCursor })
 			palette := testPalette(cfg)
 			frame := ir.Frame{Cursor: ir.Cursor{Col: 3, Row: 1, Visible: tt.visible}}
 
@@ -163,19 +165,19 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 		t.Fatal(err)
 	}
 	img := frames[0].Image
-	rowTop := r.contentOffsetY() + 1*r.config.RowHeight
+	rowTop := layout.ContentOffsetY(r.config.ShowWindow) + 1*layout.RowHeight
 	idxRed, idxFG, idxWin := indexOf(t, palette, testRed), indexOf(t, palette, testFG),
 		indexOf(t, palette, cfg.Theme.WindowBackground)
 
 	t.Run("background fills the run", func(t *testing.T) {
-		x := r.config.Padding + 1*r.config.ColWidth
+		x := layout.Padding + 1*layout.ColWidth
 		if got := img.ColorIndexAt(x, rowTop+2); got != idxRed {
 			t.Errorf("bg pixel index = %d, want red (%d)", got, idxRed)
 		}
 	})
 	t.Run("underline spans the run width", func(t *testing.T) {
-		y := rowTop + r.config.RowHeight - underlineOffset
-		for x := r.config.Padding + 4*r.config.ColWidth; x < r.config.Padding+7*r.config.ColWidth; x++ {
+		y := rowTop + layout.RowHeight - underlineOffset
+		for x := layout.Padding + 4*layout.ColWidth; x < layout.Padding+7*layout.ColWidth; x++ {
 			if got := img.ColorIndexAt(x, y); got != idxFG {
 				t.Fatalf("underline pixel (%d,%d) index = %d, want fg (%d)", x, y, got, idxFG)
 			}
@@ -183,8 +185,8 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 	})
 	t.Run("glyphs are drawn", func(t *testing.T) {
 		changed := 0
-		for y := rowTop; y < rowTop+r.config.RowHeight-underlineOffset-1; y++ {
-			for x := r.config.Padding + 4*r.config.ColWidth; x < r.config.Padding+7*r.config.ColWidth; x++ {
+		for y := rowTop; y < rowTop+layout.RowHeight-underlineOffset-1; y++ {
+			for x := layout.Padding + 4*layout.ColWidth; x < layout.Padding+7*layout.ColWidth; x++ {
 				if img.ColorIndexAt(x, y) != idxWin {
 					changed++
 				}
@@ -195,19 +197,19 @@ func TestRasterizeWithPalette_TextBackgroundAndUnderline(t *testing.T) {
 		}
 	})
 	t.Run("empty run and untouched area stay background", func(t *testing.T) {
-		if got := img.ColorIndexAt(r.config.Padding+8*r.config.ColWidth+2, rowTop+2); got != idxWin {
+		if got := img.ColorIndexAt(layout.Padding+8*layout.ColWidth+2, rowTop+2); got != idxWin {
 			t.Errorf("index = %d, want window background (%d)", got, idxWin)
 		}
 	})
 }
 
 func TestRasterizeWithPalette_WithoutWindow(t *testing.T) {
-	r, cfg := newTestRasterizer(t, func(c *Config) { c.ShowWindow = false })
+	r, cfg := newTestRasterizer(t, func(c *renderer.Config) { c.ShowWindow = false })
 	frames, err := r.RasterizeWithPalette(recordingWith(newCatalog(), ir.Frame{}), testPalette(cfg))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := image.Rect(0, 0, r.paddedWidth(10), r.paddedHeight(4))
+	want := image.Rect(0, 0, 160, 140) // 120x100 content and 20px padding, no window
 	if got := frames[0].Image.Bounds(); got != want {
 		t.Errorf("bounds = %v, want %v", got, want)
 	}
@@ -215,7 +217,7 @@ func TestRasterizeWithPalette_WithoutWindow(t *testing.T) {
 
 func TestRasterizeWithPalette_ReportsProgress(t *testing.T) {
 	ch := make(chan progress.Update, 16)
-	r, cfg := newTestRasterizer(t, func(c *Config) { c.ProgressCh = ch })
+	r, cfg := newTestRasterizer(t, func(c *renderer.Config) { c.ProgressCh = ch })
 	rec := recordingWith(newCatalog(), ir.Frame{}, ir.Frame{}, ir.Frame{})
 
 	if _, err := r.RasterizeWithPalette(rec, testPalette(cfg)); err != nil {

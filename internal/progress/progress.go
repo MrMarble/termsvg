@@ -82,3 +82,10 @@ func New() (reporter *Reporter, progressCh chan<- Update) {
 		currentPhase: "",
 	}, ch
 }
+
+// Send reports progress to ch. A nil ch is ignored, so callers need no check.
+func Send(ch chan<- Update, phase string, current, total int) {
+	if ch != nil {
+		ch <- Update{Phase: phase, Current: current, Total: total}
+	}
+}

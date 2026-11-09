@@ -68,11 +68,7 @@ var {{ .VarName }} = Theme{
 	Background: color.RGBA{ {{ .Bg }} },
 	Palette:    {{ .VarName }}Palette,
 	WindowBackground: color.RGBA{ {{ .WindowBg }} },
-	WindowButtons: [3]color.RGBA{
-		{R: 255, G: 95, B: 86, A: 255},  // Close
-		{R: 255, G: 189, B: 46, A: 255}, // Minimize
-		{R: 24, G: 193, B: 50, A: 255},  // Maximize
-	},
+	WindowButtons: defaultWindowButtons,
 }
 
 // {{ .VarName }}Palette is the color palette for the "{{ .Name }}" theme.

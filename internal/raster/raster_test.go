@@ -7,10 +7,13 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
+func testConfig() renderer.Config { return *renderer.DefaultConfig() }
+
 func TestNew(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -26,7 +29,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestRasterize_EmptyRecording(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -45,7 +48,7 @@ func TestRasterize_EmptyRecording(t *testing.T) {
 
 //nolint:funlen // test setup requires multiple test cases
 func TestRasterize_SingleFrame(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -65,7 +68,6 @@ func TestRasterize_SingleFrame(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -82,7 +84,6 @@ func TestRasterize_SingleFrame(t *testing.T) {
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 1},
 	}
 
 	frames, err := r.Rasterize(rec)
@@ -99,8 +100,8 @@ func TestRasterize_SingleFrame(t *testing.T) {
 	}
 
 	// The only frame is also the last, so it is held.
-	if frames[0].Delay != lastFrameHold {
-		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, lastFrameHold)
+	if frames[0].Delay != LastFrameHold {
+		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, LastFrameHold)
 	}
 
 	if frames[0].Index != 0 {
@@ -108,8 +109,8 @@ func TestRasterize_SingleFrame(t *testing.T) {
 	}
 
 	// Verify image dimensions
-	expectedWidth := config.Padding*2 + rec.Width*config.ColWidth
-	expectedHeight := config.Padding*config.HeaderSize + config.Padding + rec.Height*config.RowHeight
+	// 80x24 cells: 960x600 content, 20px padding, 40px header
+	expectedWidth, expectedHeight := 1000, 660
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dx() != expectedWidth {
 		t.Errorf("image width = %d, want %d", bounds.Dx(), expectedWidth)
@@ -120,7 +121,7 @@ func TestRasterize_SingleFrame(t *testing.T) {
 }
 
 func TestRasterize_MultipleFrames(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -140,7 +141,6 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 1", StartCol: 0}}},
 				},
@@ -148,14 +148,12 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 			{
 				Time:  1 * time.Second,
 				Delay: 1 * time.Second,
-				Index: 1,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Frame 2", StartCol: 0}}},
 				},
 			},
 		},
 		Colors: colors,
-		Stats:  ir.Stats{TotalFrames: 2},
 	}
 
 	frames, err := r.Rasterize(rec)
@@ -171,8 +169,8 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 	if frames[0].Delay != 0 {
 		t.Errorf("frame 0 delay = %v, want 0", frames[0].Delay)
 	}
-	if frames[1].Delay != lastFrameHold { // its own 1s is shorter than the hold given to the last frame
-		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, lastFrameHold)
+	if frames[1].Delay != LastFrameHold { // its own 1s is shorter than the hold given to the last frame
+		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, LastFrameHold)
 	}
 
 	// Check indices
@@ -185,7 +183,7 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 }
 
 func TestRasterize_WithWindow(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	config.ShowWindow = true
 
 	r, err := New(&config)
@@ -207,7 +205,6 @@ func TestRasterize_WithWindow(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows:  []ir.Row{},
 			},
 		},
@@ -219,12 +216,8 @@ func TestRasterize_WithWindow(t *testing.T) {
 		t.Fatalf("Rasterize() error = %v", err)
 	}
 
-	// With window: height = content + header + padding
-	// content = 10 * 25 = 250
-	// header = 20 * 2 = 40
-	// padding = 20
-	// total = 310
-	expectedHeight := 10*config.RowHeight + config.Padding*config.HeaderSize + config.Padding
+	// 10 rows are 250px; the window adds a 40px header and 20px bottom padding.
+	expectedHeight := 310
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -232,7 +225,7 @@ func TestRasterize_WithWindow(t *testing.T) {
 }
 
 func TestRasterize_WithoutWindow(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	config.ShowWindow = false
 
 	r, err := New(&config)
@@ -254,7 +247,6 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows:  []ir.Row{},
 			},
 		},
@@ -266,8 +258,8 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 		t.Fatalf("Rasterize() error = %v", err)
 	}
 
-	// Without window: height = content + 2*padding
-	expectedHeight := 10*config.RowHeight + 2*config.Padding
+	// 10 rows are 250px, with 20px padding above and below.
+	expectedHeight := 290
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -276,7 +268,7 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 
 //nolint:funlen // test requires comprehensive frame rendering scenario
 func TestRasterize_MultipleUniqueFrames(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -298,7 +290,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 100 * time.Millisecond,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "A", StartCol: 0}}},
 				},
@@ -306,7 +297,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 			{
 				Time:  1 * time.Second,
 				Delay: 100 * time.Millisecond,
-				Index: 1,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "A", StartCol: 0}}},
 				},
@@ -314,7 +304,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 			{
 				Time:  2 * time.Second,
 				Delay: 100 * time.Millisecond,
-				Index: 2,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}},
 				},
@@ -322,7 +311,6 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 			{
 				Time:  3 * time.Second,
 				Delay: 100 * time.Millisecond,
-				Index: 3,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "B", StartCol: 0}}},
 				},
@@ -354,7 +342,7 @@ func TestRasterize_MultipleUniqueFrames(t *testing.T) {
 
 //nolint:funlen // test requires multiple styling scenarios
 func TestRasterize_WithStyling(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -374,7 +362,6 @@ func TestRasterize_WithStyling(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -423,7 +410,7 @@ func TestRasterize_WithStyling(t *testing.T) {
 }
 
 func TestRasterize_WithCursor(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -443,7 +430,6 @@ func TestRasterize_WithCursor(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Hello", StartCol: 0}}},
 				},
@@ -468,7 +454,7 @@ func TestRasterize_WithCursor(t *testing.T) {
 }
 
 func TestRasterize_MultipleRows(t *testing.T) {
-	config := DefaultConfig()
+	config := testConfig()
 	r, err := New(&config)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -488,7 +474,6 @@ func TestRasterize_MultipleRows(t *testing.T) {
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{{Text: "Line 1", StartCol: 0}}},
 					{Y: 1, Runs: []ir.TextRun{{Text: "Line 2", StartCol: 0}}},
@@ -511,29 +496,6 @@ func TestRasterize_MultipleRows(t *testing.T) {
 
 	if frames[0].Image == nil {
 		t.Error("frame.Image is nil")
-	}
-}
-
-func TestDefaultConfig(t *testing.T) {
-	config := DefaultConfig()
-
-	if config.FontSize != 20 {
-		t.Errorf("FontSize = %v, want 20", config.FontSize)
-	}
-	if !config.ShowWindow {
-		t.Error("ShowWindow should be true by default")
-	}
-	if config.RowHeight != RowHeight {
-		t.Errorf("RowHeight = %v, want %v", config.RowHeight, RowHeight)
-	}
-	if config.ColWidth != ColWidth {
-		t.Errorf("ColWidth = %v, want %v", config.ColWidth, ColWidth)
-	}
-	if config.Padding != Padding {
-		t.Errorf("Padding = %v, want %v", config.Padding, Padding)
-	}
-	if config.HeaderSize != HeaderSize {
-		t.Errorf("HeaderSize = %v, want %v", config.HeaderSize, HeaderSize)
 	}
 }
 
@@ -572,8 +534,8 @@ func TestDisplayDelay(t *testing.T) {
 	}{
 		{idx: 0, want: time.Second},                 // a frame lasts until the next one
 		{idx: 1, want: 0},                           // however briefly
-		{idx: 2, want: lastFrameHold},               // the last frame is held so it can be read
-		{idx: len(frames) - 1, want: lastFrameHold}, // (the same frame)
+		{idx: 2, want: LastFrameHold},               // the last frame is held so it can be read
+		{idx: len(frames) - 1, want: LastFrameHold}, // (the same frame)
 	}
 	for _, tt := range tests {
 		if got := displayDelay(frames, tt.idx); got != tt.want {
@@ -594,15 +556,15 @@ func rasterTestRecording() *ir.Recording {
 		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
 		Frames: []ir.Frame{
 			{
-				Index: 0, Time: 500 * time.Millisecond, Delay: 3 * time.Second,
+				Time: 500 * time.Millisecond, Delay: 3 * time.Second,
 				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "A"}}}},
 			},
 			{
-				Index: 1, Time: 3500 * time.Millisecond, Delay: 2 * time.Second,
+				Time: 3500 * time.Millisecond, Delay: 2 * time.Second,
 				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "AB"}}}},
 			},
 			{
-				Index: 2, Time: 5500 * time.Millisecond, Delay: 0,
+				Time: 5500 * time.Millisecond, Delay: 0,
 				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ABC"}}}},
 			},
 		},
@@ -610,13 +572,13 @@ func rasterTestRecording() *ir.Recording {
 }
 
 func TestRasterize_FramesLastAsLongAsTheyAreOnScreen(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	r, err := New(&cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	want := []time.Duration{3 * time.Second, 2 * time.Second, lastFrameHold}
+	want := []time.Duration{3 * time.Second, 2 * time.Second, LastFrameHold}
 
 	rgba, err := r.Rasterize(rasterTestRecording())
 	if err != nil {

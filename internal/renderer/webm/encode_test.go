@@ -254,8 +254,8 @@ func idleRecording() *ir.Recording {
 		Width: 30, Height: 3, Duration: 20 * time.Second,
 		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
 		Frames: []ir.Frame{
-			{Index: 0, Time: 0, Delay: 10 * time.Second, Rows: run("before the pause")},
-			{Index: 1, Time: 10 * time.Second, Delay: 10 * time.Second, Rows: run("after the pause")},
+			{Time: 0, Delay: 10 * time.Second, Rows: run("before the pause")},
+			{Time: 10 * time.Second, Delay: 10 * time.Second, Rows: run("after the pause")},
 		},
 	}
 }

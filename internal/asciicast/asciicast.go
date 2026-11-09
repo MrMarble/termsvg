@@ -312,13 +312,3 @@ func Parse(r io.Reader) (*Cast, error) {
 
 	return Unmarshal(data)
 }
-
-func (c *Cast) WriteTo(w io.Writer) (int64, error) {
-	data, err := c.Marshal()
-	if err != nil {
-		return 0, err
-	}
-
-	n, err := w.Write(data)
-	return int64(n), err
-}

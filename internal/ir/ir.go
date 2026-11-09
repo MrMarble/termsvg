@@ -16,7 +16,6 @@ type Recording struct {
 	Width    int
 	Height   int
 	Duration time.Duration
-	Title    string
 
 	// Processed data
 	Frames []Frame
@@ -29,14 +28,11 @@ type Recording struct {
 // Stats holds aggregate information about the recording.
 // Renderers can use this to skip generating unused CSS classes.
 type Stats struct {
-	TotalFrames   int
-	UniqueColors  int
 	MaxRunsPerRow int // Helps renderers pre-allocate
 	HasBold       bool
 	HasItalic     bool
 	HasUnderline  bool
 	HasDim        bool
-	HasTrueColor  bool
 }
 
 // Cursor represents the cursor state at a point in time.
@@ -56,9 +52,6 @@ type Frame struct {
 	// Delay is how long the frame stays on screen: until the next frame
 	// appears or, for the last frame, until the recording ends.
 	Delay time.Duration
-
-	// Index is the frame number (0-indexed)
-	Index int
 
 	// Rows contains the processed row data with text runs
 	Rows []Row
