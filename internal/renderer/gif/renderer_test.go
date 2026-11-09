@@ -20,6 +20,8 @@ import (
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
+type errWriter struct{ err error }
+
 func TestRenderer_Format(t *testing.T) {
 	r, err := New(renderer.DefaultConfig())
 	if err != nil {
@@ -312,6 +314,8 @@ func TestRenderer_Render_ContextCancellation(t *testing.T) {
 	}
 }
 
+func (w errWriter) Write([]byte) (int, error) { return 0, w.err }
+
 func gifTestRecording(frames ...ir.Frame) *ir.Recording {
 	colors := termcolor.NewCatalog(
 		color.RGBA{R: 192, G: 192, B: 192, A: 255},
@@ -411,10 +415,6 @@ func TestRenderer_Render_PropagatesWriteError(t *testing.T) {
 		t.Errorf("error = %v, want %v", err, want)
 	}
 }
-
-type errWriter struct{ err error }
-
-func (w errWriter) Write([]byte) (int, error) { return 0, w.err }
 
 func TestRenderer_calculateDelay(t *testing.T) {
 	r := &Renderer{}
