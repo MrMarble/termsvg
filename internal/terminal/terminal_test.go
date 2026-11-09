@@ -21,7 +21,6 @@ func TestNew(t *testing.T) {
 	if e.Width() != 40 || e.Height() != 10 {
 		t.Errorf("size = %dx%d, want 40x10", e.Width(), e.Height())
 	}
-	var _ State = e
 }
 
 func TestEmulator_Write(t *testing.T) {

@@ -1,5 +1,8 @@
 //go:build !windows
 
+// Package record implements the record command, which runs a program in a
+// pseudo-terminal and saves its output as an asciicast. Recording needs a PTY,
+// so the package is only built on non-Windows platforms.
 package record
 
 import (
@@ -80,10 +83,8 @@ func (cmd *Cmd) save(events []asciicast.Event) error {
 
 //nolint:gocognit,funlen // PTY handling requires sequential state management
 func (cmd *Cmd) run() ([]asciicast.Event, error) {
-	// Create command to run
 	c := exec.Command("sh", "-c", cmd.Command) //nolint:gosec // command is from user CLI input
 
-	// Start the command with a PTY
 	ptmx, err := pty.Start(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start pty: %w", err)
@@ -97,14 +98,12 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 	stopResize := handlePtySize(stdin, ptmx)
 	defer stopResize()
 
-	// Set stdin to raw mode
 	oldState, err := term.MakeRaw(int(stdin.Fd()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set raw mode: %w", err)
 	}
 	defer term.Restore(int(stdin.Fd()), oldState)
 
-	// Copy stdin to the PTY with pause support
 	var paused atomic.Bool
 	go func() {
 		buf := make([]byte, readSize)
@@ -120,20 +119,25 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 					paused.Store(!paused.Load())
 					continue
 				}
-				// Write byte to PTY
 				_, _ = ptmx.Write(buf[i : i+1])
 			}
 		}
 	}()
 
-	// Read from PTY and record events
 	events := make([]asciicast.Event, 0, 1024)
 	p := make([]byte, readSize)
 	baseTime := time.Now().UnixMicro()
 
 	startTriggered := !cmd.SkipFirstLine
-	pauseStartTime := int64(0)
-	totalPausedTime := int64(0)
+	var pauseStartTime, totalPausedTime int64
+
+	output := func(data []byte) asciicast.Event {
+		return asciicast.Event{
+			Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
+			EventType: asciicast.Output,
+			EventData: string(data),
+		}
+	}
 
 	for {
 		n, err := ptmx.Read(p)
@@ -141,20 +145,14 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 			if err == io.EOF && n > 0 {
 				_, _ = os.Stdout.Write(p[:n])
 				if !paused.Load() && startTriggered {
-					events = append(events, asciicast.Event{
-						Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
-						EventType: asciicast.Output,
-						EventData: string(p[:n]),
-					})
+					events = append(events, output(p[:n]))
 				}
 			}
 			break
 		}
 
-		// Echo to stdout
 		_, _ = os.Stdout.Write(p[:n])
 
-		// Handle pause state
 		if paused.Load() {
 			if pauseStartTime == 0 {
 				pauseStartTime = time.Now().UnixMicro()
@@ -181,12 +179,7 @@ func (cmd *Cmd) run() ([]asciicast.Event, error) {
 			chunk = rest
 		}
 
-		// Record event
-		events = append(events, asciicast.Event{
-			Time:      float64(time.Now().UnixMicro()-baseTime-totalPausedTime) / float64(time.Millisecond),
-			EventType: asciicast.Output,
-			EventData: string(chunk),
-		})
+		events = append(events, output(chunk))
 	}
 
 	return events, nil
@@ -207,7 +200,6 @@ func handlePtySize(stdin, ptmx *os.File) (stop func()) {
 		}
 	}()
 
-	// Initial resize
 	ch <- syscall.SIGWINCH
 
 	return func() {

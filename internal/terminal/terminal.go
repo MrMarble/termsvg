@@ -16,12 +16,15 @@ type Cell struct {
 	Dim        bool
 }
 
-// State represents terminal state at a given time
-type State interface {
-	Width() int
-	Height() int
-	Cell(col, row int) Cell
-}
+// Attribute bits of vt10x's Glyph.Mode. vt10x keeps them unexported
+// (attrReverse, attrUnderline, attrBold, attrGfx, attrItalic, attrBlink in
+// state.go), so they are mirrored here; keep in sync when upgrading vt10x.
+const (
+	modeReverse   = 1 << 0
+	modeUnderline = 1 << 1
+	modeBold      = 1 << 2
+	modeItalic    = 1 << 4
+)
 
 // Emulator wraps vt10x
 type Emulator struct {
@@ -36,7 +39,6 @@ func New(width, height int) *Emulator {
 	}
 }
 
-// Write writes data to the terminal emulator
 func (e *Emulator) Write(data []byte) (int, error) {
 	return e.term.Write(data)
 }
@@ -47,29 +49,26 @@ func (e *Emulator) Resize(width, height int) {
 	e.term.Resize(width, height)
 }
 
-// Width returns terminal width
 func (e *Emulator) Width() int {
 	w, _ := e.term.Size()
 	return w
 }
 
-// Height returns terminal height
 func (e *Emulator) Height() int {
 	_, h := e.term.Size()
 	return h
 }
 
-// Cell returns the cell at the given column and row
 func (e *Emulator) Cell(col, row int) Cell {
 	c := e.term.Cell(col, row)
 	return Cell{
 		Char:       c.Char,
 		Foreground: convertColor(c.FG),
 		Background: convertColor(c.BG),
-		Bold:       c.Mode&4 != 0,
-		Italic:     c.Mode&16 != 0,
-		Underline:  c.Mode&2 != 0,
-		Dim:        c.Mode&1 != 0,
+		Bold:       c.Mode&modeBold != 0,
+		Italic:     c.Mode&modeItalic != 0,
+		Underline:  c.Mode&modeUnderline != 0,
+		Dim:        c.Mode&modeReverse != 0, // historical mapping: Dim tracks vt10x's reverse bit
 	}
 }
 
@@ -79,12 +78,10 @@ func (e *Emulator) Cursor() (col, row int) {
 	return c.X, c.Y
 }
 
-// CursorVisible returns whether the cursor is visible
 func (e *Emulator) CursorVisible() bool {
 	return e.term.CursorVisible()
 }
 
-// convertColor translates vt10x.Color to color.Color
 func convertColor(c vt10x.Color) color.Color {
 	switch {
 	case c == vt10x.DefaultFG || c == vt10x.DefaultBG:

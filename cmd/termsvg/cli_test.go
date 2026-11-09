@@ -54,31 +54,37 @@ func TestRun_Help(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
 	}
-	for _, cmd := range []string{"play", "export", "record"} {
-		if runtimeHasRecord() || cmd != "record" {
-			if !strings.Contains(out, cmd) {
-				t.Errorf("help output missing command %q:\n%s", cmd, out)
-			}
+	for _, cmd := range []string{"play", "export"} {
+		if !strings.Contains(out, cmd) {
+			t.Errorf("help output missing command %q:\n%s", cmd, out)
 		}
+	}
+	if got := strings.Contains(out, "Record a terminal session"); got != hasRecord {
+		t.Errorf("help lists record = %v, want %v:\n%s", got, hasRecord, out)
 	}
 }
 
 func TestRun_Errors(t *testing.T) {
+	cast := filepath.Join(t.TempDir(), "in.cast")
+	if err := os.WriteFile(cast, []byte(`{"version":2,"width":10,"height":3}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
-		name string
-		args []string
+		name    string
+		args    []string
+		wantErr string
 	}{
-		{name: "no command", args: nil},
-		{name: "unknown command", args: []string{"frobnicate"}},
-		{name: "unknown flag", args: []string{"--nope"}},
-		{name: "missing input file", args: []string{"play", filepath.Join(t.TempDir(), "missing.cast")}},
-		{name: "invalid enum", args: []string{"export", "-f", "png", "x.cast"}},
+		{name: "no command", args: nil, wantErr: "expected one of"},
+		{name: "unknown command", args: []string{"frobnicate"}, wantErr: "frobnicate"},
+		{name: "unknown flag", args: []string{"--nope"}, wantErr: "--nope"},
+		{name: "missing input file", args: []string{"play", filepath.Join(t.TempDir(), "missing.cast")}, wantErr: "missing.cast"},
+		{name: "invalid enum", args: []string{"export", "-f", "png", cast}, wantErr: "png"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, code, err := runCLI(t, tt.args...)
-			if err == nil && code <= 0 {
-				t.Errorf("expected an error or non-zero exit, got err=%v code=%d", err, code)
+			_, _, _, err := runCLI(t, tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("err = %v, want containing %q", err, tt.wantErr)
 			}
 		})
 	}

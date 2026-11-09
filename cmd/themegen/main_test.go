@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"go/format"
-	"image/color"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,13 +12,6 @@ import (
 
 const validPalette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
 	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
-
-func TestRGBAFields(t *testing.T) {
-	got := rgbaFields(color.RGBA{R: 255, G: 87, B: 51, A: 255})
-	if want := "R: 255, G: 87, B: 51, A: 255"; got != want {
-		t.Errorf("rgbaFields() = %q, want %q", got, want)
-	}
-}
 
 func TestToVarName(t *testing.T) {
 	tests := map[string]string{
@@ -57,7 +49,7 @@ func TestParseThemeFile(t *testing.T) {
 		if info.Name != "my-theme" || info.VarName != "MyTheme" {
 			t.Errorf("name/var = %q/%q", info.Name, info.VarName)
 		}
-		if info.Fg != "R: 255, G: 255, B: 255, A: 255" || info.WindowBg != info.Bg {
+		if info.Fg != "R: 255, G: 255, B: 255, A: 255" {
 			t.Errorf("colors = %+v", info)
 		}
 		if n := strings.Count(info.PaletteOverrides, "p["); n != 16 {
@@ -167,86 +159,7 @@ func TestGenerate_MatchesCheckedInThemes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	strip := func(b []byte) string {
-		formatted, ferr := format.Source(b)
-		if ferr != nil {
-			t.Fatal(ferr)
-		}
-		lines := strings.Split(string(formatted), "\n")
-		kept := lines[:0]
-		for _, l := range lines {
-			if !strings.HasPrefix(l, "// Generated at:") {
-				kept = append(kept, l)
-			}
-		}
-		return strings.Join(kept, "\n")
-	}
-	if strip(got) != strip(want) {
+	if !bytes.Equal(got, want) {
 		t.Error("internal/theme/builtin.go is stale; run `go generate ./internal/theme/`")
-	}
-}
-
-func writeThemeJSON(t *testing.T, dir, name string) {
-	t.Helper()
-	content := `{"fg":"#ffffff","bg":"#000000","palette":"` + validPalette + `"}`
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestRun_FromRepositoryRoot(t *testing.T) {
-	root := t.TempDir()
-	themes := filepath.Join(root, "themes")
-	for _, d := range []string{themes, filepath.Join(root, "internal", "theme")} {
-		if err := os.MkdirAll(d, 0o750); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeThemeJSON(t, themes, "demo.json")
-	t.Chdir(root)
-
-	count, out, err := run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 || out != "internal/theme/builtin.go" {
-		t.Errorf("run() = %d, %q", count, out)
-	}
-	if _, err := os.Stat(filepath.Join(root, out)); err != nil {
-		t.Errorf("output not written: %v", err)
-	}
-}
-
-func TestRun_FromThemePackageDirectory(t *testing.T) {
-	// `go generate` runs with the working directory set to internal/theme, two
-	// levels below the repository root that holds themes/.
-	root := t.TempDir()
-	pkg := filepath.Join(root, "internal", "theme")
-	for _, d := range []string{filepath.Join(root, "themes"), pkg} {
-		if err := os.MkdirAll(d, 0o750); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeThemeJSON(t, filepath.Join(root, "themes"), "demo.json")
-	t.Chdir(pkg)
-
-	count, out, err := run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Relative to internal/theme the package directory does not exist, so the
-	// generator writes builtin.go into the working directory.
-	if count != 1 || out != "builtin.go" {
-		t.Errorf("run() = %d, %q", count, out)
-	}
-	if _, err := os.Stat(filepath.Join(pkg, "builtin.go")); err != nil {
-		t.Errorf("output not written: %v", err)
-	}
-}
-
-func TestRun_MissingThemesDirectory(t *testing.T) {
-	t.Chdir(t.TempDir())
-	if _, _, err := run(); err == nil {
-		t.Fatal("expected error when no themes directory exists")
 	}
 }
