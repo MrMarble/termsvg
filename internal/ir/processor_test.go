@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,81 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 			got.TotalFrames, got.MaxRunsPerRow = 0, 0
 			if got != tt.want {
 				t.Errorf("stats = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func lastFrameText(rec *Recording) string {
+	var sb strings.Builder
+	for _, row := range rec.Frames[len(rec.Frames)-1].Rows {
+		for _, run := range row.Runs {
+			sb.WriteString(run.Text)
+		}
+	}
+	return sb.String()
+}
+
+func TestProcessor_OnlyOutputEventsAreDrawn(t *testing.T) {
+	cast := &asciicast.Cast{
+		Header: asciicast.Header{Version: 2, Width: 20, Height: 3},
+		Events: []asciicast.Event{
+			{Time: 0.1, EventType: asciicast.Output, EventData: "ab"},
+			{Time: 0.2, EventType: asciicast.Input, EventData: "TYPED"},
+			{Time: 0.3, EventType: asciicast.Marker, EventData: "MARK"},
+			{Time: 0.4, EventType: asciicast.Resize, EventData: "90x30"},
+			{Time: 0.5, EventType: asciicast.Output, EventData: "cd"},
+			{Time: 0.6, EventType: asciicast.Exit, EventData: "0"},
+			{Time: 0.7, EventType: asciicast.EventType("zz"), EventData: "UNKNOWN"},
+		},
+	}
+
+	rec, err := NewProcessor(DefaultProcessorConfig()).Process(cast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lastFrameText(rec); got != "abcd" {
+		t.Errorf("rendered text = %q, want %q (input, marker, resize, exit and unknown events are not output)",
+			got, "abcd")
+	}
+	if len(rec.Frames) != 2 {
+		t.Errorf("frames = %d, want 2 (one per output event)", len(rec.Frames))
+	}
+}
+
+func TestProcessor_RejectsUnusableCasts(t *testing.T) {
+	out := []asciicast.Event{{Time: 1, EventType: asciicast.Output, EventData: "x"}}
+	tests := []struct {
+		name    string
+		cast    asciicast.Cast
+		wantErr string
+	}{
+		{
+			name: "zero width", cast: asciicast.Cast{Header: asciicast.Header{Width: 0, Height: 5}, Events: out},
+			wantErr: "invalid terminal size 0x5",
+		},
+		{
+			name: "zero height", cast: asciicast.Cast{Header: asciicast.Header{Width: 5, Height: 0}, Events: out},
+			wantErr: "invalid terminal size 5x0",
+		},
+		{
+			name: "negative size", cast: asciicast.Cast{Header: asciicast.Header{Width: -1, Height: -1}, Events: out},
+			wantErr: "invalid terminal size",
+		},
+		{
+			name: "no events", cast: asciicast.Cast{Header: asciicast.Header{Width: 5, Height: 5}},
+			wantErr: "no output events",
+		},
+		{name: "only non-output events", cast: asciicast.Cast{
+			Header: asciicast.Header{Width: 5, Height: 5},
+			Events: []asciicast.Event{{Time: 1, EventType: asciicast.Exit, EventData: "0"}},
+		}, wantErr: "no output events"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec, err := NewProcessor(DefaultProcessorConfig()).Process(&tt.cast)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Process() = %v, %v; want error containing %q", rec, err, tt.wantErr)
 			}
 		})
 	}
