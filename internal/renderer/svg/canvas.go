@@ -235,6 +235,11 @@ func (c *canvas) rows() rowWriter {
 	return rowWriter{rec: c.rec, classNames: c.classNames, style: &c.style, minify: c.config.Minify}
 }
 
+// styles returns a stylePlanner over the canvas's recording, config and plan.
+func (c *canvas) styles() stylePlanner {
+	return stylePlanner{rec: c.rec, config: &c.config, plan: &c.plan}
+}
+
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }
 
 // formatInt formats an integer attribute value, using scientific notation when

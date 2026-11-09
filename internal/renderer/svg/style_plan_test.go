@@ -90,7 +90,7 @@ func TestPaintOccurrencesCountOnlySerializedRows(t *testing.T) {
 		rec:  experimentalRecording(),
 		plan: renderPlan{staticRows: []ir.Row{{Runs: []ir.TextRun{{Text: "s", EndCol: 1}}}}},
 	}
-	counts := c.countPaintOccurrences(&content)
+	counts := c.styles().countPaintOccurrences(&content)
 	if counts.texts[textStyleKey{}] != 2 || counts.texts[textStyleKey{bold: true}] != 2 {
 		t.Fatalf("serialized text occurrences = %#v", counts.texts)
 	}
@@ -106,7 +106,7 @@ func TestPreparedStylePlanContainsCandidateScopedRules(t *testing.T) {
 		backgrounds: map[termcolor.ID]int{},
 		cursor:      1,
 	}
-	plan := c.buildStylePlan(styleInheritedAtomic, counts)
+	plan := c.styles().buildStylePlan(styleInheritedAtomic, counts)
 	if plan.contentGroupAttributes != ` fill="#FFFFFF"` || plan.textBaseRule == "" || plan.cursorRule == "" ||
 		plan.cursorClass == "" || len(plan.rules) == 0 || len(plan.texts) != 1 {
 		t.Fatalf("incomplete candidate-scoped style plan: %#v", plan)
@@ -183,7 +183,7 @@ func TestAutoStyleCostLedgerMatchesSelectedSerialization(t *testing.T) {
 		styleCost.contentGroupAttributes == 0 {
 		t.Fatalf("style ledger omitted selected encoding components: %#v", styleCost)
 	}
-	counts := (&canvas{rec: rec, plan: plan}).countPaintOccurrences(&candidate.content)
+	counts := (&canvas{rec: rec, plan: plan}).styles().countPaintOccurrences(&candidate.content)
 	if !reflect.DeepEqual(candidate.style.occurrences, counts) {
 		t.Fatalf("selected occurrence ledger = %#v, want %#v", candidate.style.occurrences, counts)
 	}

@@ -221,7 +221,7 @@ func prepareStyleCandidate(
 	}
 	c.style = stylePlan{scheme: styleLegacy}
 	if options.Style == StyleAuto {
-		c.style = c.legacyStylePlan()
+		c.style = c.styles().legacyStylePlan()
 	}
 	if scheme == styleLegacy {
 		content, err := c.prepareContentContext(ctx)
@@ -229,13 +229,14 @@ func prepareStyleCandidate(
 			return nil, false, err
 		}
 		if options.Style == StyleAuto {
-			c.style.occurrences = c.countPaintOccurrences(&content)
+			c.style.occurrences = c.styles().countPaintOccurrences(&content)
 		}
 		candidate, err := finishPreparedCandidate(c, plan, options, &content)
 		return candidate, true, err
 	}
 
-	style := c.buildStylePlan(scheme, paintOccurrences{texts: map[textStyleKey]int{}, backgrounds: map[color.ID]int{}})
+	empty := paintOccurrences{texts: map[textStyleKey]int{}, backgrounds: map[color.ID]int{}}
+	style := c.styles().buildStylePlan(scheme, empty)
 	// Bound the naming/interning fixed-point search to four passes. Schemes that
 	// do not stabilize are skipped so another stable candidate can win.
 	for range 4 {
@@ -244,7 +245,7 @@ func prepareStyleCandidate(
 		if err != nil {
 			return nil, false, err
 		}
-		next := c.buildStylePlan(scheme, c.countPaintOccurrences(&content))
+		next := c.styles().buildStylePlan(scheme, c.styles().countPaintOccurrences(&content))
 		if stylePlanEqual(&style, &next) {
 			c.style = next
 			candidate, err := finishPreparedCandidate(c, plan, options, &content)

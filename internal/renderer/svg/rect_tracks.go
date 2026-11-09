@@ -124,7 +124,7 @@ func (c *canvas) writeRetainedRect(track *retainedRectTrack) {
 	}
 	if track.fillChanges() {
 		writeRetainedRectAnimation(c, c.w, "fill", track.fill, func(value color.ID) string {
-			return c.paintHex(c.rec.Colors.Resolved(value))
+			return paintHex(c.rec.Colors.Resolved(value), c.config.Minify)
 		})
 	}
 	fmt.Fprint(c.w, `</rect>`)
