@@ -115,7 +115,6 @@ func TestProcessor_StylesAndStats(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := rec.Stats
-			got.TotalFrames, got.UniqueColors = 0, 0
 			if got != tt.want {
 				t.Errorf("stats = %+v, want %+v", got, tt.want)
 			}

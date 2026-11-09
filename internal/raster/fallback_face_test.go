@@ -12,6 +12,7 @@ import (
 
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
@@ -219,11 +220,11 @@ func TestFallbackFace_MetricsComeFromThePrimaryFont(t *testing.T) {
 // pixel that differs from the background.
 func inkColumns(img *image.RGBA, cols, rowY int, r *Rasterizer, bg color.RGBA) []bool {
 	out := make([]bool, cols)
-	x0 := Padding
-	y0 := r.contentOffsetY() + rowY*RowHeight
+	x0 := layout.Padding
+	y0 := layout.ContentOffsetY(r.config.ShowWindow) + rowY*layout.RowHeight
 	for col := range cols {
-		for x := x0 + col*ColWidth; x < x0+(col+1)*ColWidth; x++ {
-			for y := y0; y < y0+RowHeight; y++ {
+		for x := x0 + col*layout.ColWidth; x < x0+(col+1)*layout.ColWidth; x++ {
+			for y := y0; y < y0+layout.RowHeight; y++ {
 				if img.RGBAAt(x, y) != bg {
 					out[col] = true
 				}
@@ -255,7 +256,7 @@ func TestRasterize_FallbackGlyphsAreDrawnInsideTheirCells(t *testing.T) {
 	}
 
 	// The terminal background is what an empty cell looks like.
-	bg := frames[0].Image.RGBAAt(Padding+0, r.contentOffsetY()+RowHeight*1)
+	bg := frames[0].Image.RGBAAt(layout.Padding+0, layout.ContentOffsetY(r.config.ShowWindow)+layout.RowHeight*1)
 	got := inkColumns(frames[0].Image, 8, 0, r, bg)
 	want := []bool{false, false, true, false, true, false, true, false}
 	for col := range want {

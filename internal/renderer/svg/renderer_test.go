@@ -251,7 +251,6 @@ func TestRender_ColorClasses(t *testing.T) {
 	rec.Frames = append(rec.Frames, ir.Frame{
 		Time:  2 * time.Second,
 		Delay: time.Second,
-		Index: 2,
 		Rows: []ir.Row{
 			{Y: 0, Runs: []ir.TextRun{
 				{Text: "Red", StartCol: 0, Attrs: ir.CellAttrs{FG: redID}},
@@ -293,8 +292,7 @@ func TestRender_TextAttributes(t *testing.T) {
 		),
 		Frames: []ir.Frame{
 			{
-				Time:  0,
-				Index: 0,
+				Time: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{
 						{Text: "Bold", StartCol: 0, Attrs: ir.CellAttrs{Bold: true}},
@@ -364,8 +362,7 @@ func TestRender_BackgroundRectangles(t *testing.T) {
 
 	rec.Frames = []ir.Frame{
 		{
-			Time:  0,
-			Index: 0,
+			Time: 0,
 			Rows: []ir.Row{
 				{Y: 1, Runs: []ir.TextRun{
 					{Text: "界", StartCol: 1, EndCol: 3, Attrs: ir.CellAttrs{BG: blueID}},
@@ -477,8 +474,7 @@ func TestRender_HTMLEscaping(t *testing.T) {
 		),
 		Frames: []ir.Frame{
 			{
-				Time:  0,
-				Index: 0,
+				Time: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{
 						{Text: "<script>alert('xss')</script>", StartCol: 0},
@@ -675,7 +671,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	// Padded dimensions with window
 	config.ShowWindow = true
 	c.config = *config
-	expectedPaddedHeight := c.contentHeight() + Padding*HeaderSize + Padding // header + bottom padding
+	expectedPaddedHeight := 660 // 600 content + 40 header + 20 bottom padding
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() with window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
 	}
@@ -683,7 +679,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	// Padded dimensions without window
 	config.ShowWindow = false
 	c.config = *config
-	expectedPaddedHeight = c.contentHeight() + 2*Padding
+	expectedPaddedHeight = 640 // 600 content + 20 padding above and below
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() without window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
 	}
@@ -700,13 +696,11 @@ func createTestRecording() *ir.Recording {
 		Width:    80,
 		Height:   24,
 		Duration: time.Second,
-		Title:    "Test Recording",
 		Colors:   colors,
 		Frames: []ir.Frame{
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -720,7 +714,6 @@ func createTestRecording() *ir.Recording {
 			{
 				Time:  500 * time.Millisecond,
 				Delay: 500 * time.Millisecond,
-				Index: 1,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -730,9 +723,6 @@ func createTestRecording() *ir.Recording {
 					},
 				},
 			},
-		},
-		Stats: ir.Stats{
-			TotalFrames: 2,
 		},
 	}
 }
@@ -810,8 +800,8 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	// Verify multiple color classes were generated (256 color demo should have many)
-	if rec.Stats.UniqueColors < 10 {
-		t.Errorf("Expected many unique colors for 256color demo, got %d", rec.Stats.UniqueColors)
+	if len(rec.Colors.Colors()) < 10 {
+		t.Errorf("Expected many unique colors for 256color demo, got %d", len(rec.Colors.Colors()))
 	}
 
 	if !strings.Contains(svg, `<rect class="`) {
@@ -824,7 +814,7 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	t.Logf("Generated SVG: %d bytes, %d frames, %d unique colors",
-		len(svg), rec.Stats.TotalFrames, rec.Stats.UniqueColors)
+		len(svg), len(rec.Frames), len(rec.Colors.Colors()))
 
 	outPath := filepath.Join(t.TempDir(), "256colors.svg")
 	//nolint:gosec // test output file needs to be readable

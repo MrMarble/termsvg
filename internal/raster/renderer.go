@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/progress"
 )
 
@@ -16,14 +17,15 @@ import (
 // WindowBackground, which is opaque and matches the chrome, so GIF delta
 // encoding sees only the pixels that change.
 func (r *Rasterizer) baseImage(rec *ir.Recording) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, paddedWidth(rec.Width), r.paddedHeight(rec.Height)))
+	contentWidth, contentHeight := rec.Width*layout.ColWidth, rec.Height*layout.RowHeight
+	img := image.NewRGBA(image.Rect(0, 0, layout.PaddedWidth(contentWidth), layout.PaddedHeight(contentHeight, r.config.ShowWindow)))
 
 	if r.config.ShowWindow {
 		r.drawWindow(img)
 	} else {
 		r.drawBackground(img)
 	}
-	r.drawTerminalBackground(img, contentWidth(rec.Width), contentHeight(rec.Height))
+	r.drawTerminalBackground(img, contentWidth, contentHeight)
 
 	return img
 }
@@ -34,9 +36,7 @@ func renderFrames[I draw.Image](r *Rasterizer, rec *ir.Recording, base I, clone 
 	images := make([]I, len(frames))
 
 	report := func(done int) {
-		if r.config.ProgressCh != nil {
-			r.config.ProgressCh <- progress.Update{Phase: progress.PhaseRasterize, Current: done, Total: len(frames)}
-		}
+		progress.Send(r.config.ProgressCh, progress.PhaseRasterize, done, len(frames))
 	}
 	report(0)
 

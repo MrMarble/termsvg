@@ -1,7 +1,5 @@
 package raster
 
-import "github.com/mrmarble/termsvg/internal/theme"
+import "github.com/mrmarble/termsvg/internal/renderer"
 
-func testConfig() Config {
-	return Config{Theme: theme.Default(), ShowWindow: true, ShowCursor: true, FontSize: 20}
-}
+func testConfig() renderer.Config { return *renderer.DefaultConfig() }

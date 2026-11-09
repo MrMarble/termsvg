@@ -30,7 +30,7 @@ func New(config *renderer.Config) (*Renderer, error) {
 		return nil, fmt.Errorf("ffmpeg is not installed. Install it from: https://ffmpeg.org")
 	}
 
-	rasterizer, err := renderer.NewRasterizer(config)
+	rasterizer, err := raster.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
 
 	for i, frame := range frames {
 		totalDelay := frame.Delay + accumulatedDelay
-		if totalDelay < minFilterDelay && i < len(frames)-1 {
+		if totalDelay < raster.VideoMergeBelow && i < len(frames)-1 {
 			accumulatedDelay = totalDelay
 			continue
 		}

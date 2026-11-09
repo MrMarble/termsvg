@@ -29,17 +29,13 @@ const (
 	// gifTimeUnit is the GIF delay time unit in milliseconds (10ms per unit).
 	gifTimeUnit = 10
 
-	// minGifDelay is the minimum delay value to avoid browser clamping.
-	// Browsers clamp delays < 20ms to 100ms, so we use 2 units = 20ms.
-	minGifDelay = 2
-
 	// maxGIFColors is the size of a GIF palette.
 	maxGIFColors = 256
 )
 
 // New creates a new GIF renderer with the given configuration.
 func New(config *renderer.Config) (*Renderer, error) {
-	rasterizer, err := renderer.NewRasterizer(config)
+	rasterizer, err := raster.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +79,7 @@ func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) e
 }
 
 func (r *Renderer) sendProgress(current, total int) {
-	if r.config.ProgressCh != nil {
-		r.config.ProgressCh <- progress.Update{
-			Phase:   progress.PhaseEncode,
-			Current: current,
-			Total:   total,
-		}
-	}
+	progress.Send(r.config.ProgressCh, progress.PhaseEncode, current, total)
 }
 
 // assembleGIF writes the frames as a GIF in which each frame after the first
@@ -101,7 +91,7 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	r.sendProgress(0, len(frames))
 
 	for i, frame := range frames {
-		delay := gifDelay(frame.Delay, i == len(frames)-1)
+		delay := gifDelay(frame.Delay)
 
 		switch {
 		case prev == nil:
@@ -122,15 +112,9 @@ func (r *Renderer) assembleGIF(frames []raster.PalettedFrame, w io.Writer) error
 	return gif.EncodeAll(w, g)
 }
 
-// gifDelay converts a display time to GIF delay units. Every frame but the
-// last is shown for at least minGifDelay.
-func gifDelay(delay time.Duration, last bool) int {
-	units := int(delay.Milliseconds() / gifTimeUnit)
-	if units < minGifDelay && !last {
-		return minGifDelay
-	}
-
-	return units
+// gifDelay converts a display time to GIF delay units, at least raster.MinGIFDelay.
+func gifDelay(delay time.Duration) int {
+	return int(max(delay, raster.MinGIFDelay).Milliseconds() / gifTimeUnit)
 }
 
 func framesEqual(a, b *image.Paletted) bool {

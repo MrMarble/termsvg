@@ -9,6 +9,7 @@ import (
 
 	"github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/layout"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
@@ -58,14 +59,11 @@ func (c *canvas) contentHeight() int {
 }
 
 func (c *canvas) paddedWidth() int {
-	return c.contentWidth() + 2*Padding
+	return layout.PaddedWidth(c.contentWidth())
 }
 
 func (c *canvas) paddedHeight() int {
-	if c.config.ShowWindow {
-		return c.contentHeight() + Padding*HeaderSize + Padding
-	}
-	return c.contentHeight() + 2*Padding
+	return layout.PaddedHeight(c.contentHeight(), c.config.ShowWindow)
 }
 
 // docSection is one fragment of the document. bytes, when set, is the already
@@ -84,10 +82,9 @@ func (c *canvas) documentSections(content *preparedContent) []docSection {
 	text := func(s string) docSection {
 		return docSection{write: func(w io.Writer) { fmt.Fprint(w, s) }}
 	}
-	contentY := Padding
+	contentY := layout.ContentOffsetY(c.config.ShowWindow)
 	opening := at(c.writeBackground)
 	if c.config.ShowWindow {
-		contentY = Padding * HeaderSize
 		opening = at(c.writeWindow)
 	}
 	sections := []docSection{
@@ -155,9 +152,9 @@ func (c *canvas) writeWindow() {
 	buttonY := Padding
 	for i, btnColor := range theme.WindowButtons {
 		btnHex := color.RGBAtoHex(btnColor)
-		x := Padding + i*windowButtonSpacing
+		x := Padding + i*layout.ButtonSpacing
 		fmt.Fprintf(c.w, `<circle cx="%s" cy="%s" r="%s" fill="%s"/>`,
-			c.xmlInt(x), c.xmlInt(buttonY), c.xmlInt(windowButtonRadius), btnHex)
+			c.xmlInt(x), c.xmlInt(buttonY), c.xmlInt(layout.ButtonRadius), btnHex)
 	}
 }
 

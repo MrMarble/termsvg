@@ -595,7 +595,7 @@ func randomParityRecording(rng *rand.Rand) *ir.Recording {
 		if i > 0 && i%5 == 0 {
 			rows = previous
 		}
-		frames[i] = ir.Frame{Time: at, Index: i, Rows: rows, Cursor: ir.Cursor{
+		frames[i] = ir.Frame{Time: at, Rows: rows, Cursor: ir.Cursor{
 			Col: rng.Intn(width), Row: rng.Intn(height), Visible: rng.Intn(3) != 0,
 		}}
 		previous = rows

@@ -7,8 +7,8 @@ import (
 )
 
 func TestReporter_WaitReturnsAfterChannelClose(t *testing.T) {
-	r, ch := New()
-	r.Start()
+	r, ch := newReporter()
+	r.start()
 
 	for i := 1; i <= 3; i++ {
 		ch <- Update{Phase: PhaseRasterize, Current: i, Total: 3}
@@ -17,11 +17,11 @@ func TestReporter_WaitReturnsAfterChannelClose(t *testing.T) {
 	close(ch)
 
 	done := make(chan struct{})
-	go func() { r.Wait(); close(done) }()
+	go func() { r.wait(); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("Wait() did not return after channel close")
+		t.Fatal("wait() did not return after channel close")
 	}
 }
 

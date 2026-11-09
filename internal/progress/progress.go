@@ -32,8 +32,8 @@ type Reporter struct {
 	done    chan struct{}
 }
 
-// New creates a reporter and the send-only channel that feeds it.
-func New() (reporter *Reporter, progressCh chan<- Update) {
+// newReporter creates a reporter and the send-only channel that feeds it.
+func newReporter() (reporter *Reporter, progressCh chan<- Update) {
 	ch := make(chan Update, updateQueueSize)
 	return &Reporter{updates: ch, done: make(chan struct{})}, ch
 }
@@ -41,17 +41,17 @@ func New() (reporter *Reporter, progressCh chan<- Update) {
 // Run starts a reporter, calls fn with the channel to send updates on, and
 // then closes the channel and waits for the last bar to be drawn.
 func Run(fn func(progressCh chan<- Update) error) error {
-	reporter, ch := New()
-	reporter.Start()
+	reporter, ch := newReporter()
+	reporter.start()
 	defer func() {
 		close(ch)
-		reporter.Wait()
+		reporter.wait()
 	}()
 	return fn(ch)
 }
 
-// Start begins listening for updates and drawing a bar for each phase.
-func (r *Reporter) Start() {
+// start begins listening for updates and drawing a bar for each phase.
+func (r *Reporter) start() {
 	go func() {
 		var bar *progressbar.ProgressBar
 		phase := ""
@@ -78,8 +78,8 @@ func (r *Reporter) Start() {
 	}()
 }
 
-// Wait blocks until the reporter finishes (channel is closed).
-func (r *Reporter) Wait() {
+// wait blocks until the reporter finishes (channel is closed).
+func (r *Reporter) wait() {
 	<-r.done
 }
 
@@ -90,4 +90,11 @@ func newBar(total int, description string) *progressbar.ProgressBar {
 		progressbar.OptionSetWidth(40),
 		progressbar.OptionSetWriter(os.Stderr),
 	)
+}
+
+// Send reports progress to ch. A nil ch is ignored, so callers need no check.
+func Send(ch chan<- Update, phase string, current, total int) {
+	if ch != nil {
+		ch <- Update{Phase: phase, Current: current, Total: total}
+	}
 }

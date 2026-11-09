@@ -91,13 +91,13 @@ func TestRasterize_SingleFrame(t *testing.T) {
 	}
 
 	// The only frame is also the last, so it is held.
-	if frames[0].Delay != lastFrameHold {
-		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, lastFrameHold)
+	if frames[0].Delay != LastFrameHold {
+		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, LastFrameHold)
 	}
 
 	// Verify image dimensions
-	expectedWidth := Padding*2 + rec.Width*ColWidth
-	expectedHeight := Padding*HeaderSize + Padding + rec.Height*RowHeight
+	// 80x24 cells: 960x600 content, 20px padding, 40px header
+	expectedWidth, expectedHeight := 1000, 660
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dx() != expectedWidth {
 		t.Errorf("image width = %d, want %d", bounds.Dx(), expectedWidth)
@@ -155,8 +155,8 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 	if frames[0].Delay != 0 {
 		t.Errorf("frame 0 delay = %v, want 0", frames[0].Delay)
 	}
-	if frames[1].Delay != lastFrameHold { // its own 1s is shorter than the hold given to the last frame
-		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, lastFrameHold)
+	if frames[1].Delay != LastFrameHold { // its own 1s is shorter than the hold given to the last frame
+		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, LastFrameHold)
 	}
 
 }
@@ -199,7 +199,7 @@ func TestRasterize_WithWindow(t *testing.T) {
 	// header = 20 * 2 = 40
 	// padding = 20
 	// total = 310
-	expectedHeight := 10*RowHeight + Padding*HeaderSize + Padding
+	expectedHeight := 310 // 250px of rows, 40px header, 20px bottom padding
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -240,7 +240,7 @@ func TestRasterize_WithoutWindow(t *testing.T) {
 	}
 
 	// Without window: height = content + 2*padding
-	expectedHeight := 10*RowHeight + 2*Padding
+	expectedHeight := 290 // 250px of rows, 20px padding above and below
 	bounds := frames[0].Image.Bounds()
 	if bounds.Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, bounds.Dy())
@@ -508,8 +508,8 @@ func TestDisplayDelay(t *testing.T) {
 	}{
 		{idx: 0, want: time.Second},                 // a frame lasts until the next one
 		{idx: 1, want: 0},                           // however briefly
-		{idx: 2, want: lastFrameHold},               // the last frame is held so it can be read
-		{idx: len(frames) - 1, want: lastFrameHold}, // (the same frame)
+		{idx: 2, want: LastFrameHold},               // the last frame is held so it can be read
+		{idx: len(frames) - 1, want: LastFrameHold}, // (the same frame)
 	}
 	for _, tt := range tests {
 		if got := displayDelay(frames, tt.idx); got != tt.want {
@@ -551,7 +551,7 @@ func TestRasterize_FramesLastAsLongAsTheyAreOnScreen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []time.Duration{3 * time.Second, 2 * time.Second, lastFrameHold}
+	want := []time.Duration{3 * time.Second, 2 * time.Second, LastFrameHold}
 
 	rgba, err := r.Rasterize(rasterTestRecording())
 	if err != nil {

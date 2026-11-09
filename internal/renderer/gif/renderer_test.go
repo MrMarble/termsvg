@@ -18,7 +18,6 @@ import (
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/progress"
-	"github.com/mrmarble/termsvg/internal/raster"
 	"github.com/mrmarble/termsvg/internal/renderer"
 )
 
@@ -190,12 +189,8 @@ func TestRenderer_Render_WithWindow(t *testing.T) {
 		t.Fatalf("failed to decode GIF: %v", err)
 	}
 
-	// With window: height = content + header + padding
-	// content = 10 * 25 = 250
-	// header = 20 * 2 = 40
-	// padding = 20
-	// total = 310
-	expectedHeight := 10*raster.RowHeight + raster.Padding*raster.HeaderSize + raster.Padding
+	// 10 rows are 250px; the window adds a 40px header and 20px bottom padding.
+	expectedHeight := 310
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}
@@ -240,8 +235,8 @@ func TestRenderer_Render_WithoutWindow(t *testing.T) {
 		t.Fatalf("failed to decode GIF: %v", err)
 	}
 
-	// Without window: height = content + 2*padding
-	expectedHeight := 10*raster.RowHeight + 2*raster.Padding
+	// 10 rows are 250px, with 20px padding above and below.
+	expectedHeight := 290
 	if g.Image[0].Bounds().Dy() != expectedHeight {
 		t.Errorf("expected height %d, got %d", expectedHeight, g.Image[0].Bounds().Dy())
 	}

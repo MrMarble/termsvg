@@ -323,7 +323,7 @@ func staticFrames(count int) *ir.Recording {
 	rows := []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "unchanged output"}}}}
 	rec.Frames = make([]ir.Frame, count)
 	for i := range rec.Frames {
-		rec.Frames[i] = ir.Frame{Time: time.Duration(i) * time.Millisecond, Index: i, Rows: rows}
+		rec.Frames[i] = ir.Frame{Time: time.Duration(i) * time.Millisecond, Rows: rows}
 	}
 	rec.Duration = time.Duration(count) * time.Millisecond
 	return rec
@@ -350,7 +350,6 @@ func colorFrames() *ir.Recording {
 	}
 	rec.Frames = []ir.Frame{{Rows: rows}}
 	rec.Duration = time.Second
-	rec.Stats.HasTrueColor = true
 	return rec
 }
 
@@ -362,7 +361,7 @@ func repeatedRows(count int) *ir.Recording {
 	}
 	rec.Frames = make([]ir.Frame, count)
 	for i := range rec.Frames {
-		rec.Frames[i] = ir.Frame{Time: time.Duration(i) * time.Millisecond, Index: i, Rows: variants[i%len(variants)]}
+		rec.Frames[i] = ir.Frame{Time: time.Duration(i) * time.Millisecond, Rows: variants[i%len(variants)]}
 	}
 	rec.Duration = time.Duration(count) * time.Millisecond
 	return rec

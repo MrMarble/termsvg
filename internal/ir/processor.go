@@ -54,9 +54,7 @@ func NewProcessor(config *ProcessorConfig) *Processor {
 
 // sendProgress reports IR processing progress when a progress channel is set.
 func (p *Processor) sendProgress(current, total int) {
-	if p.config.ProgressCh != nil {
-		p.config.ProgressCh <- progress.Update{Phase: progress.PhaseIR, Current: current, Total: total}
-	}
+	progress.Send(p.config.ProgressCh, progress.PhaseIR, current, total)
 }
 
 func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
@@ -90,14 +88,11 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 
 	frames = deduplicateFrames(frames)
 	assignDisplayDelays(frames, duration)
-	stats.TotalFrames = len(frames)
-	stats.UniqueColors = len(catalog.Colors())
 
 	return &Recording{
 		Width:    canvas.cols,
 		Height:   canvas.rows,
 		Duration: duration,
-		Title:    cast.Header.Title,
 		Frames:   frames,
 		Colors:   catalog,
 		Stats:    stats,
@@ -126,7 +121,7 @@ func (p *Processor) captureFrames(
 			_, _ = term.Write([]byte(event.EventData))
 		}
 
-		frames = append(frames, p.captureFrame(term, catalog, i, floatSecondsToDuration(event.Time), stats))
+		frames = append(frames, p.captureFrame(term, catalog, floatSecondsToDuration(event.Time), stats))
 
 		if i%10 == 0 {
 			p.sendProgress(i+1, len(events))
@@ -169,7 +164,6 @@ func hasOutput(events []asciicast.Event) bool {
 func (p *Processor) captureFrame(
 	term *terminal.Emulator,
 	catalog *color.Catalog,
-	index int,
 	absTime time.Duration,
 	stats *Stats,
 ) Frame {
@@ -188,7 +182,6 @@ func (p *Processor) captureFrame(
 
 	return Frame{
 		Time:   absTime,
-		Index:  index,
 		Rows:   rows,
 		Cursor: cursor,
 	}
@@ -265,10 +258,6 @@ func (p *Processor) cellToAttrs(
 	}
 	if cell.Dim {
 		stats.HasDim = true
-	}
-
-	if cell.Foreground.Type == color.TrueColor || cell.Background.Type == color.TrueColor {
-		stats.HasTrueColor = true
 	}
 
 	return CellAttrs{
@@ -396,10 +385,6 @@ func deduplicateFrames(frames []Frame) []Frame {
 			continue
 		}
 		deduped = append(deduped, frames[i])
-	}
-
-	for i := range deduped {
-		deduped[i].Index = i
 	}
 
 	return deduped

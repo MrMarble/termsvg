@@ -14,7 +14,6 @@ type Recording struct {
 	Width    int
 	Height   int
 	Duration time.Duration
-	Title    string // only read by tests of the SVG renderer
 
 	Frames []Frame
 	Colors *color.Catalog
@@ -24,13 +23,10 @@ type Recording struct {
 
 // Stats tells renderers which text styles occur, so they can skip the unused ones.
 type Stats struct {
-	TotalFrames  int // only read by tests of the SVG renderer
-	UniqueColors int // only read by tests of the SVG renderer
 	HasBold      bool
 	HasItalic    bool
 	HasUnderline bool
 	HasDim       bool
-	HasTrueColor bool // only read by tests of the SVG renderer
 }
 
 // Cursor represents the cursor state at a point in time.
@@ -50,9 +46,6 @@ type Frame struct {
 	// Delay is how long the frame stays on screen: until the next frame
 	// appears or, for the last frame, until the recording ends.
 	Delay time.Duration
-
-	// Index is the frame number (0-indexed). Only tests of the SVG renderer read it.
-	Index int
 
 	// Rows contains the processed row data with text runs
 	Rows []Row

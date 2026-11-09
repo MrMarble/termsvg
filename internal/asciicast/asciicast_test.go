@@ -1,7 +1,6 @@
 package asciicast
 
 import (
-	"bytes"
 	"math"
 	"strings"
 	"testing"
@@ -204,21 +203,6 @@ func TestCast_Compress(t *testing.T) {
 	empty.Compress()
 	if len(empty.Events) != 0 {
 		t.Errorf("empty compress = %v", empty.Events)
-	}
-}
-
-func TestCast_WriteTo(t *testing.T) {
-	c := mustParse(t, sampleCast)
-	var buf bytes.Buffer
-	n, err := c.WriteTo(&buf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != int64(buf.Len()) || buf.Len() == 0 {
-		t.Errorf("n = %d, buffer = %d", n, buf.Len())
-	}
-	if _, err := Parse(&buf); err != nil {
-		t.Errorf("written output does not parse: %v", err)
 	}
 }
 

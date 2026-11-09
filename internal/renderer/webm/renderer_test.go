@@ -218,7 +218,7 @@ func TestNew_WithoutFFmpeg(t *testing.T) {
 func newUnprobedRenderer(t *testing.T) *Renderer {
 	t.Helper()
 	cfg := renderer.DefaultConfig()
-	rasterizer, err := renderer.NewRasterizer(cfg)
+	rasterizer, err := raster.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

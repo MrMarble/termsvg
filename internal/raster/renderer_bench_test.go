@@ -7,6 +7,7 @@ import (
 
 	irColor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
+	"github.com/mrmarble/termsvg/internal/renderer"
 	"github.com/mrmarble/termsvg/internal/theme"
 )
 
@@ -51,7 +52,7 @@ func createBenchmarkRecording(numFrames, width, height int) *ir.Recording {
 // BenchmarkRasterize_10Frames benchmarks rendering 10 frames.
 func BenchmarkRasterize_10Frames(b *testing.B) {
 	rec := createBenchmarkRecording(10, 80, 24)
-	config := Config{
+	config := renderer.Config{
 		Theme:      theme.Default(),
 		ShowWindow: false,
 		ShowCursor: true,
@@ -71,7 +72,7 @@ func BenchmarkRasterize_10Frames(b *testing.B) {
 // BenchmarkRasterize_50Frames benchmarks rendering 50 frames.
 func BenchmarkRasterize_50Frames(b *testing.B) {
 	rec := createBenchmarkRecording(50, 80, 24)
-	config := Config{
+	config := renderer.Config{
 		Theme:      theme.Default(),
 		ShowWindow: false,
 		ShowCursor: true,
@@ -91,7 +92,7 @@ func BenchmarkRasterize_50Frames(b *testing.B) {
 // BenchmarkRasterize_100Frames benchmarks rendering 100 frames.
 func BenchmarkRasterize_100Frames(b *testing.B) {
 	rec := createBenchmarkRecording(100, 80, 24)
-	config := Config{
+	config := renderer.Config{
 		Theme:      theme.Default(),
 		ShowWindow: false,
 		ShowCursor: true,
@@ -111,7 +112,7 @@ func BenchmarkRasterize_100Frames(b *testing.B) {
 // BenchmarkRasterize_200Frames benchmarks rendering 200 frames.
 func BenchmarkRasterize_200Frames(b *testing.B) {
 	rec := createBenchmarkRecording(200, 80, 24)
-	config := Config{
+	config := renderer.Config{
 		Theme:      theme.Default(),
 		ShowWindow: false,
 		ShowCursor: true,
@@ -131,7 +132,7 @@ func BenchmarkRasterize_200Frames(b *testing.B) {
 // BenchmarkRasterize_WithWindow benchmarks rendering with window chrome.
 func BenchmarkRasterize_WithWindow(b *testing.B) {
 	rec := createBenchmarkRecording(50, 80, 24)
-	config := Config{
+	config := renderer.Config{
 		Theme:      theme.Default(),
 		ShowWindow: true,
 		ShowCursor: true,
