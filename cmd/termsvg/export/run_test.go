@@ -273,3 +273,31 @@ func TestCmd_Run_UsesRecordingIdleTimeLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestCmd_Run_EightColorHeaderTheme(t *testing.T) {
+	dir := t.TempDir()
+	in := writeRunFile(t, dir, "eight.cast",
+		`{"version":3,"term":{"cols":20,"rows":3,"theme":{"fg":"#112233","bg":"#445566",`+
+			`"palette":"#000000:#cc0000:#00cc00:#cccc00:#0000cc:#cc00cc:#00cccc:#cccccc"}}}`+"\n"+
+			"[0.1,\"o\",\"\\u001b[31mred\\u001b[0m \\u001b[91mbright\\u001b[0m\"]\n")
+	out := filepath.Join(dir, "eight.svg")
+	if err := newCmd(in, out, "svg").Run(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(out) //nolint:gosec // test temp file
+	if err != nil {
+		t.Fatal(err)
+	}
+	svg := strings.ToLower(string(data))
+	if !strings.Contains(svg, "#445566") {
+		t.Error("the header theme background was not applied")
+	}
+	// Normal red and bright red both map to the theme's red (#cc0000), because
+	// an 8-color palette repeats its colors for the bright half.
+	if !strings.Contains(svg, "#c00") && !strings.Contains(svg, "#cc0000") {
+		t.Error("themed red missing from output")
+	}
+	if strings.Contains(svg, "#ff0000") || strings.Contains(svg, "#f00") {
+		t.Error("the default bright red was used instead of the theme's repeated red")
+	}
+}
