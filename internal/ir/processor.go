@@ -85,18 +85,21 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		frames[i].Rows = cleanRows(frames[i].Rows, catalog)
 	}
 
-	// 5. Deduplicate consecutive identical frames, including cursor state
-	frames = deduplicateFrames(frames)
-
-	// 6. Finalize statistics
-	stats.TotalFrames = len(frames)
-	stats.UniqueColors = catalog.Count()
-
-	// 7. Calculate duration
+	// The recording ends with its last event, even when that event changed
+	// nothing visible and is merged into the previous frame below.
 	var duration time.Duration
 	if len(frames) > 0 {
 		duration = frames[len(frames)-1].Time
 	}
+
+	// 5. Deduplicate consecutive identical frames, including cursor state, and
+	// work out how long each remaining frame stays on screen
+	frames = deduplicateFrames(frames)
+	assignDisplayDelays(frames, duration)
+
+	// 6. Finalize statistics
+	stats.TotalFrames = len(frames)
+	stats.UniqueColors = catalog.Count()
 
 	return &Recording{
 		Width:    canvas.cols,
@@ -119,7 +122,6 @@ func (p *Processor) captureFrames(
 	stats *Stats,
 ) []Frame {
 	frames := make([]Frame, 0, len(events))
-	var prevTime time.Duration
 	for i, event := range events {
 		if event.EventType == asciicast.Resize {
 			cols, rows, ok := parseResize(event.EventData)
@@ -132,15 +134,12 @@ func (p *Processor) captureFrames(
 			_, _ = term.Write([]byte(event.EventData))
 		}
 
-		frameTime := floatSecondsToDuration(event.Time)
-		frames = append(frames, p.captureFrame(term, catalog, i, frameTime, frameTime-prevTime, stats))
+		frames = append(frames, p.captureFrame(term, catalog, i, floatSecondsToDuration(event.Time), stats))
 
 		// Send progress update every 10 events
 		if i%10 == 0 {
 			p.sendProgress(i+1, len(events))
 		}
-
-		prevTime = frameTime
 	}
 	p.sendProgress(len(events), len(events))
 
@@ -180,7 +179,7 @@ func (p *Processor) captureFrame(
 	term *terminal.Emulator,
 	catalog *color.Catalog,
 	index int,
-	absTime, delay time.Duration,
+	absTime time.Duration,
 	stats *Stats,
 ) Frame {
 	rows := make([]Row, term.Height())
@@ -199,7 +198,6 @@ func (p *Processor) captureFrame(
 
 	return Frame{
 		Time:   absTime,
-		Delay:  delay,
 		Index:  index,
 		Rows:   rows,
 		Cursor: cursor,
@@ -418,35 +416,19 @@ func cleanRuns(runs []TextRun, catalog *color.Catalog) []TextRun {
 	return cleaned
 }
 
-// deduplicateFrames removes consecutive identical frames and consolidates their delays.
-// This optimizes the recording by eliminating redundant frames.
 func deduplicateFrames(frames []Frame) []Frame {
 	if len(frames) <= 1 {
 		return frames
 	}
 
 	deduped := make([]Frame, 0, len(frames))
-	var prevFrame *Frame
-
-	for i, frame := range frames {
-		if i == 0 {
-			// First frame always kept
-			deduped = append(deduped, frame)
-			prevFrame = &deduped[len(deduped)-1]
+	for i := range frames {
+		// A frame identical to the previous one adds nothing: the previous frame
+		// simply stays on screen. It keeps the time it first appeared at.
+		if len(deduped) > 0 && framesEqual(&deduped[len(deduped)-1], &frames[i]) {
 			continue
 		}
-
-		// Check if frame is identical to previous
-		if framesEqual(prevFrame, &frame) {
-			// Duplicate: add delay to previous frame
-			prevFrame.Delay += frame.Delay
-			// Update absolute time to match the duplicate
-			prevFrame.Time = frame.Time
-		} else {
-			// New unique frame: add it
-			deduped = append(deduped, frame)
-			prevFrame = &deduped[len(deduped)-1]
-		}
+		deduped = append(deduped, frames[i])
 	}
 
 	// Renumber frame indices to be sequential
@@ -455,6 +437,18 @@ func deduplicateFrames(frames []Frame) []Frame {
 	}
 
 	return deduped
+}
+
+// assignDisplayDelays sets each frame's Delay to how long it stays on screen:
+// until the next frame appears or, for the last frame, until the recording ends.
+func assignDisplayDelays(frames []Frame, duration time.Duration) {
+	for i := range frames {
+		end := duration
+		if i+1 < len(frames) {
+			end = frames[i+1].Time
+		}
+		frames[i].Delay = max(0, end-frames[i].Time)
+	}
 }
 
 // framesEqual compares visible frame content, including the cursor, not timing.

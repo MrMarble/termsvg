@@ -98,8 +98,9 @@ func TestRasterize_SingleFrame(t *testing.T) {
 		t.Error("frame.Image is nil")
 	}
 
-	if frames[0].Delay != 0 {
-		t.Errorf("Delay = %v, want 0", frames[0].Delay)
+	// The only frame is also the last, so it is held.
+	if frames[0].Delay != lastFrameHold {
+		t.Errorf("Delay = %v, want the last-frame hold %v", frames[0].Delay, lastFrameHold)
 	}
 
 	if frames[0].Index != 0 {
@@ -170,8 +171,8 @@ func TestRasterize_MultipleFrames(t *testing.T) {
 	if frames[0].Delay != 0 {
 		t.Errorf("frame 0 delay = %v, want 0", frames[0].Delay)
 	}
-	if frames[1].Delay != 1*time.Second {
-		t.Errorf("frame 1 delay = %v, want 1s", frames[1].Delay)
+	if frames[1].Delay != lastFrameHold { // its own 1s is shorter than the hold given to the last frame
+		t.Errorf("frame 1 delay = %v, want the last-frame hold %v", frames[1].Delay, lastFrameHold)
 	}
 
 	// Check indices
@@ -559,6 +560,81 @@ func TestDimColor(t *testing.T) {
 		result := dimColor(tt.input)
 		if result != tt.expected {
 			t.Errorf("dimColor(%v) = %v, want %v", tt.input, result, tt.expected)
+		}
+	}
+}
+
+func TestDisplayDelay(t *testing.T) {
+	frames := []ir.Frame{{Delay: time.Second}, {Delay: 0}, {Delay: 100 * time.Millisecond}}
+	tests := []struct {
+		idx  int
+		want time.Duration
+	}{
+		{idx: 0, want: time.Second},                 // a frame lasts until the next one
+		{idx: 1, want: 0},                           // however briefly
+		{idx: 2, want: lastFrameHold},               // the last frame is held so it can be read
+		{idx: len(frames) - 1, want: lastFrameHold}, // (the same frame)
+	}
+	for _, tt := range tests {
+		if got := displayDelay(frames, tt.idx); got != tt.want {
+			t.Errorf("displayDelay(%d) = %v, want %v", tt.idx, got, tt.want)
+		}
+	}
+
+	// A last frame that already lasts longer than the hold keeps its time.
+	long := []ir.Frame{{Delay: time.Second}, {Delay: 5 * time.Second}}
+	if got := displayDelay(long, 1); got != 5*time.Second {
+		t.Errorf("displayDelay = %v, want 5s", got)
+	}
+}
+
+func rasterTestRecording() *ir.Recording {
+	return &ir.Recording{
+		Width: 10, Height: 2, Duration: 6 * time.Second,
+		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
+		Frames: []ir.Frame{
+			{
+				Index: 0, Time: 500 * time.Millisecond, Delay: 3 * time.Second,
+				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "A"}}}},
+			},
+			{
+				Index: 1, Time: 3500 * time.Millisecond, Delay: 2 * time.Second,
+				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "AB"}}}},
+			},
+			{
+				Index: 2, Time: 5500 * time.Millisecond, Delay: 0,
+				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ABC"}}}},
+			},
+		},
+	}
+}
+
+func TestRasterize_FramesLastAsLongAsTheyAreOnScreen(t *testing.T) {
+	cfg := DefaultConfig()
+	r, err := New(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	want := []time.Duration{3 * time.Second, 2 * time.Second, lastFrameHold}
+
+	rgba, err := r.Rasterize(rasterTestRecording())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, f := range rgba {
+		if f.Delay != want[i] {
+			t.Errorf("RGBA frame %d Delay = %v, want %v", i, f.Delay, want[i])
+		}
+	}
+
+	paletted, err := r.RasterizeWithPalette(rasterTestRecording(), testPalette(&cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, f := range paletted {
+		if f.Delay != want[i] {
+			t.Errorf("paletted frame %d Delay = %v, want %v", i, f.Delay, want[i])
 		}
 	}
 }

@@ -73,19 +73,21 @@ func TestDeduplicateFrames(t *testing.T) {
 		}
 	})
 
-	t.Run("merges consecutive duplicates and renumbers", func(t *testing.T) {
+	t.Run("merges consecutive duplicates, keeps when they appeared, and renumbers", func(t *testing.T) {
 		frames := []Frame{
-			{Index: 0, Time: 0, Delay: 100 * time.Millisecond, Rows: a},
-			{Index: 1, Time: 100 * time.Millisecond, Delay: 200 * time.Millisecond, Rows: a},
-			{Index: 2, Time: 300 * time.Millisecond, Delay: 50 * time.Millisecond, Rows: b},
-			{Index: 3, Time: 350 * time.Millisecond, Delay: 10 * time.Millisecond, Rows: a},
+			{Index: 0, Time: 0, Rows: a},
+			{Index: 1, Time: 100 * time.Millisecond, Rows: a},
+			{Index: 2, Time: 300 * time.Millisecond, Rows: b},
+			{Index: 3, Time: 350 * time.Millisecond, Rows: a},
 		}
 		got := deduplicateFrames(frames)
 		if len(got) != 3 {
 			t.Fatalf("frames = %d, want 3", len(got))
 		}
-		if got[0].Delay != 300*time.Millisecond || got[0].Time != 100*time.Millisecond {
-			t.Errorf("merged frame delay=%v time=%v, want 300ms/100ms", got[0].Delay, got[0].Time)
+		// The first state appeared at 0: the identical frame at 100ms must not
+		// move it, or the state would seem to start later than it did.
+		if got[0].Time != 0 || got[1].Time != 300*time.Millisecond || got[2].Time != 350*time.Millisecond {
+			t.Errorf("times = %v, %v, %v; want 0, 300ms, 350ms", got[0].Time, got[1].Time, got[2].Time)
 		}
 		for i, f := range got {
 			if f.Index != i {
@@ -325,5 +327,65 @@ func TestProcessor_RejectsOversizedHeader(t *testing.T) {
 	if _, err := NewProcessor(DefaultProcessorConfig()).Process(cast); err == nil ||
 		!strings.Contains(err.Error(), "invalid terminal size") {
 		t.Errorf("error = %v, want an invalid terminal size error", err)
+	}
+}
+
+func TestAssignDisplayDelays(t *testing.T) {
+	frames := []Frame{{Time: 500 * time.Millisecond}, {Time: 3500 * time.Millisecond}, {Time: 5500 * time.Millisecond}}
+	assignDisplayDelays(frames, 6*time.Second)
+	want := []time.Duration{3 * time.Second, 2 * time.Second, 500 * time.Millisecond}
+	for i := range want {
+		if frames[i].Delay != want[i] {
+			t.Errorf("frame %d Delay = %v, want %v (until the next frame, or the end of the recording)",
+				i, frames[i].Delay, want[i])
+		}
+	}
+
+	// A duration before the last frame can never give a negative delay.
+	assignDisplayDelays(frames, time.Second)
+	if frames[2].Delay != 0 {
+		t.Errorf("Delay = %v, want 0", frames[2].Delay)
+	}
+	assignDisplayDelays(nil, time.Second) // must not panic
+}
+
+func TestProcessor_FramesAreShownWhenTheirEventHappens(t *testing.T) {
+	// A appears at 0.5s, B at 3.5s, C at 5.5s. Each state stays until the next.
+	rec := processEvents(t, 12, 2, outputEvent(0.5, "A"), outputEvent(3.5, "B"), outputEvent(5.5, "C"))
+
+	wantTimes := []time.Duration{500 * time.Millisecond, 3500 * time.Millisecond, 5500 * time.Millisecond}
+	wantDelays := []time.Duration{3 * time.Second, 2 * time.Second, 0}
+	if len(rec.Frames) != 3 {
+		t.Fatalf("frames = %d, want 3", len(rec.Frames))
+	}
+	for i, f := range rec.Frames {
+		if f.Time != wantTimes[i] || f.Delay != wantDelays[i] {
+			t.Errorf("frame %d: time=%v delay=%v, want %v / %v", i, f.Time, f.Delay, wantTimes[i], wantDelays[i])
+		}
+	}
+	if rec.Duration != 5500*time.Millisecond {
+		t.Errorf("Duration = %v, want 5.5s", rec.Duration)
+	}
+}
+
+func TestProcessor_EventsThatChangeNothingDoNotShiftWhatFollows(t *testing.T) {
+	noop := "\x1b[0m" // an escape sequence that changes nothing visible
+	// A is on screen from 0.5s to 4.0s (when B appears), however many no-op
+	// events happen meanwhile; the recording ends at 6.0s with another one.
+	rec := processEvents(t, 12, 2,
+		outputEvent(0.5, "A"), outputEvent(2.0, noop), outputEvent(4.0, "B"), outputEvent(6.0, noop))
+
+	if len(rec.Frames) != 2 {
+		t.Fatalf("frames = %d, want 2", len(rec.Frames))
+	}
+	a, b := rec.Frames[0], rec.Frames[1]
+	if a.Time != 500*time.Millisecond || a.Delay != 3500*time.Millisecond {
+		t.Errorf("A: time=%v delay=%v, want 0.5s / 3.5s", a.Time, a.Delay)
+	}
+	if b.Time != 4*time.Second || b.Delay != 2*time.Second {
+		t.Errorf("AB: time=%v delay=%v, want 4s / 2s (until the recording ends)", b.Time, b.Delay)
+	}
+	if rec.Duration != 6*time.Second {
+		t.Errorf("Duration = %v, want 6s: the last event, even though it changed nothing", rec.Duration)
 	}
 }

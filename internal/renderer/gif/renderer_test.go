@@ -170,9 +170,10 @@ func TestRenderer_Render_MultipleFrames(t *testing.T) {
 		t.Errorf("expected 2 frames, got %d", len(g.Image))
 	}
 
-	// Check frame delay (1 second = 100 units of 10ms)
-	if g.Delay[1] != 100 {
-		t.Errorf("expected delay of 100 (1s), got %d", g.Delay[1])
+	// The last frame is held for 2 seconds (200 units of 10ms) so it can be read,
+	// although it was only on screen for 1 second in the recording.
+	if g.Delay[1] != 200 {
+		t.Errorf("expected the last frame to be held for 200 (2s), got %d", g.Delay[1])
 	}
 }
 
@@ -351,9 +352,10 @@ func TestRenderer_Render_MergesIdenticalFrames(t *testing.T) {
 	if len(g.Image) != 2 {
 		t.Fatalf("images = %d, want 2 (identical frames merged)", len(g.Image))
 	}
-	// 100ms + 200ms merged into one frame, in 10ms units.
-	if g.Delay[0] != 30 || g.Delay[1] != 30 {
-		t.Errorf("delays = %v, want [30 30]", g.Delay)
+	// 100ms + 200ms merged into one frame, in 10ms units; the last frame is
+	// held for 2 seconds instead of its own 300ms.
+	if g.Delay[0] != 30 || g.Delay[1] != 200 {
+		t.Errorf("delays = %v, want [30 200]", g.Delay)
 	}
 }
 
