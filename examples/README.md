@@ -35,18 +35,18 @@ This table tracks size changes between the first release of the example and the 
 <!--SIZES_START-->
 | File | Iterations | First Size | Current Size | Variation |
 |------|:----------:|------------|--------------|-----------|
-| 256colors.svg | 7 | 954.73kB | 39.20kB | 95.8942% |
-| 444816.svg | 10 | 3.42MB | 142.10kB | 95.8383% |
-| 444816_borderless.svg | 5 | 3.11MB | 141.96kB | 95.4290% |
-| htop.svg | 8 | 74.15kB | 15.27kB | 79.4066% |
+| 256colors.svg | 8 | 954.73kB | 39.56kB | 95.8568% |
+| 444816.svg | 11 | 3.42MB | 141.88kB | 95.8448% |
+| 444816_borderless.svg | 6 | 3.11MB | 141.73kB | 95.4361% |
+| htop.svg | 9 | 74.15kB | 15.34kB | 79.3149% |
 | rgb.svg | 5 | 95.53kB | 6.75kB | 92.9349% |
-| session.svg | 9 | 462.64kB | 18.51kB | 96.0003% |
-| htop.gif | 1 | 158.63kB | 158.63kB | 0.0000% |
-| rgb.gif | 1 | 136.76kB | 136.76kB | 0.0000% |
-| session.gif | 1 | 480.20kB | 480.20kB | 0.0000% |
-| htop.webm | 2 | 367.87kB | 102.12kB | 72.2415% |
-| rgb.webm | 2 | 20.28kB | 11.40kB | 43.7830% |
-| session.webm | 2 | 753.98kB | 122.19kB | 83.7943% |
+| session.svg | 10 | 462.64kB | 18.79kB | 95.9394% |
+| htop.gif | 2 | 158.63kB | 158.63kB | 0.0000% |
+| rgb.gif | 2 | 136.76kB | 136.76kB | 0.0000% |
+| session.gif | 2 | 480.20kB | 480.20kB | 0.0000% |
+| htop.webm | 3 | 367.87kB | 132.13kB | 64.0831% |
+| rgb.webm | 3 | 20.28kB | 10.80kB | 46.7374% |
+| session.webm | 3 | 753.98kB | 134.34kB | 82.1825% |
 
 <!--SIZES_END-->
 
