@@ -330,3 +330,40 @@ func TestRenderer_Render_CancelledBeforeEncoding(t *testing.T) {
 		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }
+
+func TestRenderer_Render_IsDeterministic(t *testing.T) {
+	r, err := New(renderer.DefaultConfig())
+	if err != nil {
+		t.Skipf("FFmpeg not installed: %v", err)
+	}
+	rec := &ir.Recording{
+		Width: 20, Height: 3, Duration: time.Second,
+		Colors: termcolor.NewCatalog(color.RGBA{R: 192, G: 192, B: 192, A: 255}, color.RGBA{A: 255}),
+		Frames: []ir.Frame{
+			{
+				Index: 0, Delay: 200 * time.Millisecond,
+				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "first", StartCol: 0}}}},
+			},
+			{
+				Index: 1, Time: 200 * time.Millisecond, Delay: 200 * time.Millisecond,
+				Rows: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "second", StartCol: 0}}}},
+			},
+		},
+	}
+
+	var first []byte
+	for i := range 3 {
+		var buf bytes.Buffer
+		if err := r.Render(context.Background(), rec, &buf); err != nil {
+			t.Fatalf("Render() error = %v", err)
+		}
+		if i == 0 {
+			first = buf.Bytes()
+			continue
+		}
+		if !bytes.Equal(first, buf.Bytes()) {
+			t.Fatalf("render %d differs from the first (%d vs %d bytes); output must be reproducible",
+				i+1, buf.Len(), len(first))
+		}
+	}
+}
