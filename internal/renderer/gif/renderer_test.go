@@ -473,94 +473,104 @@ func TestComputeDelta(t *testing.T) {
 	}
 }
 
-func TestRenderer_buildPalette(t *testing.T) {
+func paletteContains(p color.Palette, c color.RGBA) bool {
+	for _, pc := range p {
+		if pc == color.Color(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func newPaletteRenderer(t *testing.T) (*Renderer, *renderer.Config) {
+	t.Helper()
 	cfg := renderer.DefaultConfig()
 	r, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	contains := func(p color.Palette, c color.RGBA) bool {
-		for _, pc := range p {
-			if pc == color.Color(c) {
-				return true
-			}
+	return r, cfg
+}
+
+func TestRenderer_buildPalette_IncludesTransparentThemeAndCatalogColors(t *testing.T) {
+	r, cfg := newPaletteRenderer(t)
+	rec := gifTestRecording()
+	pal := r.buildPalette(rec)
+	if pal[0] != color.Color(color.RGBA{}) {
+		t.Errorf("first entry = %v, want transparent", pal[0])
+	}
+	for _, c := range []color.RGBA{
+		cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
+		cfg.Theme.WindowButtons[0], rec.Colors.DefaultForeground(), rec.Colors.DefaultBackground(),
+	} {
+		if !paletteContains(pal, c) {
+			t.Errorf("palette missing %v", c)
 		}
-		return false
+	}
+}
+
+func TestRenderer_buildPalette_CappedAt256(t *testing.T) {
+	r, cfg := newPaletteRenderer(t)
+	rec := gifTestRecording()
+	for i := range 300 {
+		rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>1), uint8(i%7)), &cfg.Theme.Palette)
+	}
+	if got := len(r.buildPalette(rec)); got != 256 {
+		t.Errorf("palette size = %d, want 256", got)
+	}
+}
+
+func TestRenderer_buildPalette_IsDeterministic(t *testing.T) {
+	r, cfg := newPaletteRenderer(t)
+	rec := gifTestRecording()
+	for i := range 40 {
+		rec.Colors.Register(termcolor.FromRGB(uint8(i*5), uint8(255-i), uint8(i*3)), &cfg.Theme.Palette)
+	}
+	first := r.buildPalette(rec)
+	for range 20 {
+		if got := r.buildPalette(rec); !slices.Equal(got, first) {
+			t.Fatal("palette differs between calls")
+		}
+	}
+}
+
+func TestRenderer_buildPalette_HasNoDuplicates(t *testing.T) {
+	r, cfg := newPaletteRenderer(t)
+	rec := gifTestRecording()
+	// A catalog colour equal to a theme colour must not add a second entry.
+	fg := cfg.Theme.Foreground
+	rec.Colors.Register(termcolor.FromRGB(fg.R, fg.G, fg.B), &cfg.Theme.Palette)
+	seen := map[color.Color]bool{}
+	for _, c := range r.buildPalette(rec) {
+		if seen[c] {
+			t.Fatalf("duplicate palette entry %v", c)
+		}
+		seen[c] = true
+	}
+}
+
+func TestRenderer_buildPalette_OverflowKeepsThemeAndDropsNewestColors(t *testing.T) {
+	r, cfg := newPaletteRenderer(t)
+	rec := gifTestRecording()
+	first := rec.Colors.Register(termcolor.FromRGB(0, 0, 77), &cfg.Theme.Palette)
+	var last termcolor.ID
+	for i := 1; i < 400; i++ {
+		last = rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>8), 77), &cfg.Theme.Palette)
 	}
 
-	t.Run("includes transparent, theme and catalog colors", func(t *testing.T) {
-		rec := gifTestRecording()
-		pal := r.buildPalette(rec)
-		if pal[0] != color.Color(color.RGBA{}) {
-			t.Errorf("first entry = %v, want transparent", pal[0])
+	pal := r.buildPalette(rec)
+	for _, c := range []color.RGBA{
+		cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
+		cfg.Theme.WindowButtons[0], cfg.Theme.WindowButtons[2],
+	} {
+		if !paletteContains(pal, c) {
+			t.Errorf("theme colour %v dropped on overflow", c)
 		}
-		for _, c := range []color.RGBA{
-			cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
-			cfg.Theme.WindowButtons[0], rec.Colors.DefaultForeground(), rec.Colors.DefaultBackground(),
-		} {
-			if !contains(pal, c) {
-				t.Errorf("palette missing %v", c)
-			}
-		}
-	})
-
-	t.Run("is capped at 256 entries", func(t *testing.T) {
-		rec := gifTestRecording()
-		for i := range 300 {
-			rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>1), uint8(i%7)), &cfg.Theme.Palette)
-		}
-		if got := len(r.buildPalette(rec)); got != 256 {
-			t.Errorf("palette size = %d, want 256", got)
-		}
-	})
-
-	t.Run("is deterministic", func(t *testing.T) {
-		rec := gifTestRecording()
-		for i := range 40 {
-			rec.Colors.Register(termcolor.FromRGB(uint8(i*5), uint8(255-i), uint8(i*3)), &cfg.Theme.Palette)
-		}
-		first := r.buildPalette(rec)
-		for range 20 {
-			if got := r.buildPalette(rec); !slices.Equal(got, first) {
-				t.Fatal("palette differs between calls")
-			}
-		}
-	})
-
-	t.Run("has no duplicate colours", func(t *testing.T) {
-		rec := gifTestRecording()
-		// Registering a colour equal to a theme colour must not add a second entry.
-		rec.Colors.Register(termcolor.FromRGB(cfg.Theme.Foreground.R, cfg.Theme.Foreground.G,
-			cfg.Theme.Foreground.B), &cfg.Theme.Palette)
-		seen := map[color.Color]bool{}
-		for _, c := range r.buildPalette(rec) {
-			if seen[c] {
-				t.Fatalf("duplicate palette entry %v", c)
-			}
-			seen[c] = true
-		}
-	})
-
-	t.Run("overflow keeps theme colours and drops the newest recording colours", func(t *testing.T) {
-		rec := gifTestRecording()
-		var ids []termcolor.ID
-		for i := range 400 {
-			ids = append(ids, rec.Colors.Register(termcolor.FromRGB(uint8(i), uint8(i>>8), 77), &cfg.Theme.Palette))
-		}
-		pal := r.buildPalette(rec)
-		for _, c := range []color.RGBA{
-			cfg.Theme.Background, cfg.Theme.WindowBackground, cfg.Theme.Foreground,
-			cfg.Theme.WindowButtons[0], cfg.Theme.WindowButtons[2],
-		} {
-			if !contains(pal, c) {
-				t.Errorf("theme colour %v dropped on overflow", c)
-			}
-		}
-		if !contains(pal, rec.Colors.Resolved(ids[0])) {
-			t.Error("the first colour used by the recording was dropped")
-		}
-		if contains(pal, rec.Colors.Resolved(ids[len(ids)-1])) {
-			t.Error("the most recently introduced colour survived while 256 were already taken")
-		}
-	})
+	}
+	if !paletteContains(pal, rec.Colors.Resolved(first)) {
+		t.Error("the first colour used by the recording was dropped")
+	}
+	if paletteContains(pal, rec.Colors.Resolved(last)) {
+		t.Error("the most recently introduced colour survived while 256 were already taken")
+	}
 }
