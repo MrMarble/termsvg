@@ -27,7 +27,7 @@ func buildSemanticPlan(
 	rec *ir.Recording,
 	showCursor bool,
 	maxFPS int,
-	loopCount int,
+	loops int,
 ) (semanticPlan, error) {
 	if err := contextErr(ctx); err != nil {
 		return semanticPlan{}, err
@@ -70,7 +70,7 @@ func buildSemanticPlan(
 	if err := contextErr(ctx); err != nil {
 		return semanticPlan{}, err
 	}
-	plan.pruneZeroDwellCursorEndpoint(loopCount)
+	plan.pruneZeroDwellCursorEndpoint(loopCount(loops))
 	plan.usedColors = usedColorIDs(rec, plan.staticRows, plan.content.points)
 	return plan, contextErr(ctx)
 }
@@ -84,8 +84,8 @@ func contextErr(ctx context.Context) error {
 	}
 }
 
-func (p *semanticPlan) pruneZeroDwellCursorEndpoint(loopCount int) {
-	if !infiniteLoop(loopCount) || len(p.cursor.points) < 2 {
+func (p *semanticPlan) pruneZeroDwellCursorEndpoint(loops loopCount) {
+	if !loops.infinite() || len(p.cursor.points) < 2 {
 		return
 	}
 	last := p.cursor.points[len(p.cursor.points)-1]
@@ -99,10 +99,6 @@ func (p *semanticPlan) pruneZeroDwellCursorEndpoint(loopCount int) {
 	// 100% hold of the preceding state for both CSS and SMIL backends.
 	p.cursor = normalizeTimeline(p.duration, p.cursor.points[:len(p.cursor.points)-1], cursorStatesEqual)
 	p.refreshCursorVisibility()
-}
-
-func infiniteLoop(loopCount int) bool {
-	return loopCount == 0 || loopCount < -1
 }
 
 func (p *semanticPlan) refreshCursorVisibility() {

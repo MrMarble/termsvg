@@ -70,7 +70,7 @@ func buildVisualRow(row ir.Row, width int, colors *color.Catalog) visualRow {
 			}
 			index := len(result.glyphs)
 			result.glyphs = append(result.glyphs, glyph)
-			visible := glyph.text != " " || glyph.attrs.Underline || !colors.IsDefault(glyph.attrs.BG)
+			visible := glyphVisible(glyph.text == " ", glyph.attrs, colors)
 			for offset := range glyph.width {
 				result.cells[glyph.startCol+offset] = visualCell{
 					glyphIndex: index, glyphOffset: offset, visible: visible, attrs: glyph.attrs,

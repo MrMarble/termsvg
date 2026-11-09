@@ -30,7 +30,6 @@ type backgroundSpan struct {
 
 var svgTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-// xmlInt formats an integer attribute value; see formatInt.
 func (rw rowWriter) xmlInt(value int) string { return formatInt(value, rw.minify) }
 
 func (rw rowWriter) writeRow(w io.Writer, row ir.Row) {
@@ -111,7 +110,7 @@ func (rw rowWriter) writeTextRun(w io.Writer, run ir.TextRun, rowY int) {
 	}
 
 	// Replace spaces with non-breaking spaces to survive minification. The
-	// streaming export transform restores them after minification.
+	// svgoutput restores them after minification.
 	if rw.minify {
 		text = strings.ReplaceAll(text, " ", "\u00A0")
 	}

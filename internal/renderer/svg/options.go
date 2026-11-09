@@ -122,7 +122,6 @@ func (o Options) Normalize() Options {
 	return o
 }
 
-// Validate checks SVG-specific options.
 func (o Options) Validate() error {
 	o = o.Normalize()
 	switch o.Layout {

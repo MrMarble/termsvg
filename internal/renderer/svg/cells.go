@@ -108,8 +108,19 @@ func decodeRowCells(row ir.Row, width int) ([]terminalCell, bool) {
 	return cells, true
 }
 
+// spacesPaint reports whether a space with these attributes is visible: it
+// sits on a coloured background or is underlined.
+func spacesPaint(attrs ir.CellAttrs, colors *color.Catalog) bool {
+	return attrs.Underline || !colors.IsDefault(attrs.BG)
+}
+
+// glyphVisible is the one visibility rule for a terminal cell or glyph.
+func glyphVisible(isSpace bool, attrs ir.CellAttrs, colors *color.Catalog) bool {
+	return !isSpace || spacesPaint(attrs, colors)
+}
+
 func cellVisible(cell terminalCell, colors *color.Catalog) bool {
-	return cell.char != ' ' || cell.attrs.Underline || !colors.IsDefault(cell.attrs.BG)
+	return glyphVisible(cell.char == ' ', cell.attrs, colors)
 }
 
 func cellVisualEqual(a, b terminalCell, colors *color.Catalog) bool {
@@ -141,7 +152,7 @@ func cellsToRow(y int, cells []terminalCell, include []bool, colors *color.Catal
 				continue
 			}
 			next := inertGapEnd(cells, col, colors)
-			if next < 0 || !colors.IsDefault(attrs.BG) || attrs.Underline || !included(next) || cells[next].attrs != attrs {
+			if next < 0 || spacesPaint(attrs, colors) || !included(next) || cells[next].attrs != attrs {
 				break
 			}
 			for ; col < next; col++ {
@@ -168,7 +179,7 @@ func splitInertGaps(row ir.Row, colors *color.Catalog) ir.Row {
 	out := ir.Row{Y: row.Y, Runs: make([]ir.TextRun, 0, len(row.Runs))}
 	for _, run := range row.Runs {
 		runes := []rune(run.Text)
-		if !colors.IsDefault(run.Attrs.BG) || run.Attrs.Underline || len(runes) != runEndCol(run)-run.StartCol ||
+		if spacesPaint(run.Attrs, colors) || len(runes) != runEndCol(run)-run.StartCol ||
 			slices.Contains(runes, 0) {
 			out.Runs = append(out.Runs, run)
 			continue

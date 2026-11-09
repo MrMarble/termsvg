@@ -194,7 +194,6 @@ func (cmd *Cmd) Run() error {
 		return err
 	}
 
-	// Override dimensions if specified
 	if cmd.Cols > 0 {
 		cast.Header.Width = cmd.Cols
 	}

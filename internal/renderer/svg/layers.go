@@ -64,8 +64,6 @@ const (
 	// maxLayerRejections stops the exact trials after this many consecutive
 	// candidates failed to shrink the plan.
 	maxLayerRejections = 16
-	// rowReferenceBytes is the serialized size of a whole-row <use> reference.
-	rowReferenceBytes = len(`<use href="#ab"/>`)
 )
 
 // intervalLayerCandidates finds every distinct interval over which some cell
@@ -472,12 +470,6 @@ func layerVisibilityValue(visible bool) string {
 
 func layerAnimationName(index int) string { return "l" + strconv.Itoa(index) }
 
-func (c *canvas) writeLayers(w io.Writer) {
-	for index := range c.plan.layers {
-		c.writeLayer(w, index)
-	}
-}
-
 func (c *canvas) writeLayer(w io.Writer, index int) {
 	layer := &c.plan.layers[index]
 	frames := c.plan.layerVisibility(*layer)
@@ -487,7 +479,7 @@ func (c *canvas) writeLayer(w io.Writer, index int) {
 	}
 	if len(frames) > 1 && c.options.Animation == AnimationCSS {
 		fmt.Fprintf(w, `<g style="animation:%s %s %s step-end%s"%s>`, layerAnimationName(index),
-			animationDuration(c.plan.duration), c.loopCount(), c.scrollFiniteAnimationFill(), initial)
+			animationDuration(c.plan.duration), c.loopCount().css(), c.scrollFiniteAnimationFill(), initial)
 	} else {
 		fmt.Fprintf(w, `<g%s>`, initial)
 	}

@@ -68,41 +68,62 @@ func (c *canvas) paddedHeight() int {
 	return c.contentHeight() + 2*Padding
 }
 
+// docSection is one fragment of the document. bytes, when set, is the already
+// measured size of the fragment, so the cost ledger need not write it again.
+type docSection struct {
+	write func(io.Writer)
+	bytes *int64
+}
+
+// documentSections lists the document in order. render writes it and
+// buildPreparedCandidateCost measures it, so both always cover the same bytes.
+func (c *canvas) documentSections(content *preparedContent) []docSection {
+	at := func(write func()) func(io.Writer) {
+		return func(w io.Writer) { c.w = w; write() }
+	}
+	text := func(s string) docSection {
+		return docSection{write: func(w io.Writer) { fmt.Fprint(w, s) }}
+	}
+	contentY := Padding
+	opening := at(c.writeBackground)
+	if c.config.ShowWindow {
+		contentY = Padding * HeaderSize
+		opening = at(c.writeWindow)
+	}
+	sections := []docSection{
+		{write: at(c.writeSVGOpen)},
+		{write: opening},
+		{write: func(w io.Writer) {
+			fmt.Fprintf(w, `<defs><clipPath id="clip"><rect width="%s" height="%s"/></clipPath>`,
+				c.xmlInt(c.contentWidth()), c.xmlInt(c.contentHeight()))
+		}},
+		{write: at(func() { c.writeRowDefs(content.rowDefs); c.writeStateDefs(content) }), bytes: &content.cost.definitions},
+		text(`</defs>`),
+		{write: at(func() { c.writeContentGroupOpen(contentY) })},
+		{write: at(func() { c.writeStyles(content) }), bytes: &content.cost.styles},
+	}
+	for _, row := range c.plan.staticRows {
+		sections = append(sections, docSection{write: func(w io.Writer) { c.rows().writeRow(w, row) }})
+	}
+	for index := range c.plan.layers {
+		sections = append(sections, docSection{write: func(w io.Writer) { c.writeLayer(w, index) }})
+	}
+	return append(sections,
+		docSection{write: at(func() { c.writeContent(content) }), bytes: &content.cost.active},
+		docSection{write: at(c.writeCursor)},
+		text(`</g></svg>`),
+	)
+}
+
 func (c *canvas) render(ctx context.Context, content *preparedContent) error {
-	// Check for cancellation
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-
-	c.writeSVGOpen()
-
-	if c.config.ShowWindow {
-		c.writeWindow()
-	} else {
-		c.writeBackground()
+	for _, section := range c.documentSections(content) {
+		section.write(c.w)
 	}
-
-	// Content group with clipping
-	contentY := Padding
-	if c.config.ShowWindow {
-		contentY = Padding * HeaderSize
-	}
-
-	c.writeDefs(content)
-	c.writeContentGroupOpen(contentY)
-
-	c.writeStyles(content)
-	for _, row := range c.plan.staticRows {
-		c.rows().writeRow(c.w, row)
-	}
-	c.writeLayers(c.w)
-	c.writeContent(content)
-	c.writeCursor()
-
-	fmt.Fprint(c.w, `</g></svg>`)
-
 	return nil
 }
 
@@ -113,14 +134,6 @@ func (c *canvas) writeSVGOpen() {
 	}
 	fmt.Fprintf(c.w, `<svg xmlns="http://www.w3.org/2000/svg"%s width="%s" height="%s">`,
 		xmlSpace, c.xmlInt(c.paddedWidth()), c.xmlInt(c.paddedHeight()))
-}
-
-func (c *canvas) writeDefs(content *preparedContent) {
-	fmt.Fprintf(c.w, `<defs><clipPath id="clip"><rect width="%s" height="%s"/></clipPath>`,
-		c.xmlInt(c.contentWidth()), c.xmlInt(c.contentHeight()))
-	c.writeRowDefs(content.rowDefs)
-	c.writeStateDefs(content)
-	fmt.Fprint(c.w, `</defs>`)
 }
 
 func (c *canvas) writeContentGroupOpen(contentY int) {
@@ -136,11 +149,9 @@ func (c *canvas) writeBackground() {
 func (c *canvas) writeWindow() {
 	theme := c.config.Theme
 
-	// Window background with rounded corners
 	bgHex := color.RGBAtoHex(theme.WindowBackground)
 	fmt.Fprintf(c.w, `<rect rx="%s" width="100%%" height="100%%" fill="%s"/>`, c.xmlInt(windowCornerRadius), bgHex)
 
-	// Window buttons (close, minimize, maximize)
 	buttonY := Padding
 	for i, btnColor := range theme.WindowButtons {
 		btnHex := color.RGBAtoHex(btnColor)
@@ -231,19 +242,16 @@ func (c *canvas) rows() rowWriter {
 	return rowWriter{rec: c.rec, classNames: c.classNames, style: &c.style, minify: c.config.Minify}
 }
 
-// styles returns a stylePlanner over the canvas's recording, config and plan.
 func (c *canvas) styles() stylePlanner {
 	return stylePlanner{rec: c.rec, config: &c.config, plan: &c.plan}
 }
 
-// collector returns a rowCollector over the canvas's row writer and options.
 func (c *canvas) collector() rowCollector {
 	return rowCollector{rows: c.rows(), withoutBlockSharing: c.options.withoutBlockSharing}
 }
 
-// smil returns a smilWriter for the canvas's loop count and duration.
 func (c *canvas) smil() smilWriter {
-	return smilWriter{loopCount: c.config.LoopCount, duration: c.plan.duration}
+	return smilWriter{loopCount: loopCount(c.config.LoopCount), duration: c.plan.duration}
 }
 
 func (c *canvas) xmlInt(value int) string { return formatInt(value, c.config.Minify) }

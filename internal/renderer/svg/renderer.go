@@ -16,7 +16,7 @@ type Renderer struct {
 	options Options
 }
 
-// Layout constants for SVG rendering
+// Layout constants.
 const (
 	RowHeight  = 25 // pixels per row
 	ColWidth   = 12 // pixels per column
@@ -37,7 +37,6 @@ func (r *Renderer) buildSemanticPlan(ctx context.Context, rec *ir.Recording) (se
 	return buildSemanticPlan(ctx, rec, r.config.ShowCursor, r.options.MaxFPS, r.config.LoopCount)
 }
 
-// New creates a new SVG renderer with the given configuration.
 func New(config *renderer.Config, opts ...Option) *Renderer {
 	options := DefaultOptions()
 	for _, opt := range opts {
@@ -48,12 +47,10 @@ func New(config *renderer.Config, opts ...Option) *Renderer {
 	return &Renderer{config: *config, options: options.Normalize()}
 }
 
-// Format returns the output format name.
 func (r *Renderer) Format() string {
 	return "svg"
 }
 
-// FileExtension returns the file extension for SVG files.
 func (r *Renderer) FileExtension() string {
 	return ".svg"
 }

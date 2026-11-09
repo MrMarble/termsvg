@@ -162,7 +162,7 @@ func (rc rowCollector) collectRowsWithHash(
 		probe := *ids
 		id := probe.allocate()
 		definition := rc.rows.rowDefinition(entry, id)
-		use := `<use href="#` + id + `"/>`
+		use := useMarkup(rc.rows.minify, id, 0, 0)
 		inlineBytes := entry.count * finalSVGBytes(entry.svg, rc.rows.minify)
 		definitionBytes := finalSVGBytes(definition, rc.rows.minify) +
 			entry.count*finalSVGBytes(use, rc.rows.minify)

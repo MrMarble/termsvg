@@ -148,7 +148,7 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 				elements++
 			}
 		}
-		sb.WriteString(segmentUseMarkup(minify, use.def.id, use.dx, use.dy))
+		sb.WriteString(useMarkup(minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
@@ -160,36 +160,6 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 		}
 	}
 	return sb.String(), elements, inline
-}
-
-func segmentUseMarkup(minify bool, id string, dx, dy int) string {
-	var sb strings.Builder
-	sb.WriteString(`<use href="#`)
-	sb.WriteString(id)
-	sb.WriteByte('"')
-	if dx != 0 {
-		sb.WriteString(` x="`)
-		sb.WriteString(formatInt(dx, minify))
-		sb.WriteByte('"')
-	}
-	if dy != 0 {
-		sb.WriteString(` y="`)
-		sb.WriteString(formatInt(dy, minify))
-		sb.WriteByte('"')
-	}
-	sb.WriteString(`/>`)
-	return sb.String()
-}
-
-func segmentUseBytes(minify bool, idLen, dx, dy int) int {
-	bytes := len(`<use href="#`) + idLen + len(`"/>`)
-	if dx != 0 {
-		bytes += len(` x=""`) + len(formatInt(dx, minify))
-	}
-	if dy != 0 {
-		bytes += len(` y=""`) + len(formatInt(dy, minify))
-	}
-	return bytes
 }
 
 func segmentDefinitionOverhead(idLen, elements int) int {
@@ -458,7 +428,7 @@ func segmentSavings(
 	savings := -(candidate.inlineBytes + segmentDefinitionOverhead(idLen, candidate.elements))
 	for _, user := range users {
 		dx, dy := (user.col-candidate.anchorCol)*ColWidth, (user.y-candidate.anchorY)*RowHeight
-		savings += markup[user.row].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
+		savings += markup[user.row].bytes(user.start, user.end) - useBytes(minify, idLen, dx, dy)
 	}
 	return savings
 }

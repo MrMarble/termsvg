@@ -31,34 +31,13 @@ func (l *candidateCostLedger) addBytes(bytes int64) { l.bytes += bytes }
 
 func buildPreparedCandidateCost(c *canvas, candidate *preparedCandidate) preparedCandidateCost {
 	ledger := candidateCostLedger{minify: c.config.Minify}
-	ledger.add(func(w io.Writer) { c.w = w; c.writeSVGOpen() })
-	if c.config.ShowWindow {
-		ledger.add(func(w io.Writer) { c.w = w; c.writeWindow() })
-	} else {
-		ledger.add(func(w io.Writer) { c.w = w; c.writeBackground() })
+	for _, section := range c.documentSections(&candidate.content) {
+		if section.bytes != nil {
+			ledger.addBytes(*section.bytes)
+		} else {
+			ledger.add(section.write)
+		}
 	}
-	ledger.add(func(w io.Writer) {
-		fmt.Fprintf(w, `<defs><clipPath id="clip"><rect width="%s" height="%s"/></clipPath>`,
-			c.xmlInt(c.contentWidth()), c.xmlInt(c.contentHeight()))
-	})
-	ledger.addBytes(candidate.content.cost.definitions)
-	ledger.add(func(w io.Writer) { fmt.Fprint(w, `</defs>`) })
-	contentY := Padding
-	if c.config.ShowWindow {
-		contentY = Padding * HeaderSize
-	}
-	ledger.add(func(w io.Writer) { c.w = w; c.writeContentGroupOpen(contentY) })
-	ledger.addBytes(candidate.content.cost.styles)
-	for _, row := range c.plan.staticRows {
-		row := row
-		ledger.add(func(w io.Writer) { c.rows().writeRow(w, row) })
-	}
-	for index := range c.plan.layers {
-		ledger.add(func(w io.Writer) { c.writeLayer(w, index) })
-	}
-	ledger.addBytes(candidate.content.cost.active)
-	ledger.add(func(w io.Writer) { c.w = w; c.writeCursor() })
-	ledger.add(func(w io.Writer) { fmt.Fprint(w, `</g></svg>`) })
 	return preparedCandidateCost{finalBytes: ledger.bytes}
 }
 
