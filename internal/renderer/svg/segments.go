@@ -17,26 +17,23 @@ import (
 // Whole-row interning still runs afterwards on the resulting markup, so rows
 // that repeat verbatim at one position keep their existing references.
 
-type segmentOccurrence struct {
-	row   int // index into the unique row list
-	start int // first run (inclusive)
-	end   int // last run (exclusive)
-	col   int // absolute column of the first run
-	y     int // absolute row
+// segmentCandidate shares occurrence units that are indexes into the unique
+// row list and ranges that are run indexes.
+type segmentCandidate struct {
+	shareCandidate
+	runs []ir.TextRun // normalized to column 0
+	def  *renderedRow
 }
 
-type segmentCandidate struct {
-	runs        []ir.TextRun // normalized to column 0
-	occurrences []segmentOccurrence
-	order       int
-	users       []segmentOccurrence
-	anchorCol   int
-	anchorY     int
-	elements    int
-	inlineBytes int // markup bytes of the anchored body
-	def         *renderedRow
-	dropped     bool
+// segmentUnits measures run ranges of the unique rows for the sharing engine.
+type segmentUnits struct {
+	markup  []rowMarkup
+	claimed [][]bool
 }
+
+func (u segmentUnits) Bytes(unit, start, end int) int    { return u.markup[unit].bytes(start, end) }
+func (u segmentUnits) Elements(unit, start, end int) int { return u.markup[unit].elements(start, end) }
+func (u segmentUnits) Claimed(unit int) []bool           { return u.claimed[unit] }
 
 // rowSegmentUse records one accepted reference inside a unique row.
 type rowSegmentUse struct {
@@ -65,9 +62,6 @@ const (
 	// maxSegmentRuns bounds the candidate enumeration to O(runs × maxSegmentRuns)
 	// per row. Prompts and table fragments are far shorter than this.
 	maxSegmentRuns = 64
-
-	segmentHashOffset = 14695981039346656037
-	segmentHashPrime  = 1099511628211
 )
 
 func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
@@ -80,7 +74,7 @@ func (rw rowWriter) buildRowMarkup(row ir.Row) rowMarkup {
 	for k, run := range row.Runs {
 		m.runHash[k] = segmentRunHash(run)
 		if k > 0 {
-			m.gapHash[k] = mixSegmentHash(segmentHashOffset, run.StartCol-row.Runs[k-1].StartCol)
+			m.gapHash[k] = mixHash(hashOffset, run.StartCol-row.Runs[k-1].StartCol)
 		}
 	}
 	m.spans = rw.backgroundSpans(row)
@@ -143,63 +137,23 @@ func (m *rowMarkup) render(minify bool, uses []rowSegmentUse) (svg string, eleme
 		}
 	}
 	next := 0
-	for _, use := range uses {
-		for ; next < use.start; next++ {
+	emitInline := func(until int) {
+		for ; next < until; next++ {
 			sb.WriteString(m.texts[next])
 			inline.Runs = append(inline.Runs, m.row.Runs[next])
 			if m.texts[next] != "" {
 				elements++
 			}
 		}
-		sb.WriteString(segmentUseMarkup(minify, use.def.id, use.dx, use.dy))
+	}
+	for _, use := range uses {
+		emitInline(use.start)
+		sb.WriteString(useMarkup(minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
-	for ; next < len(m.texts); next++ {
-		sb.WriteString(m.texts[next])
-		inline.Runs = append(inline.Runs, m.row.Runs[next])
-		if m.texts[next] != "" {
-			elements++
-		}
-	}
+	emitInline(len(m.texts))
 	return sb.String(), elements, inline
-}
-
-func segmentUseMarkup(minify bool, id string, dx, dy int) string {
-	var sb strings.Builder
-	sb.WriteString(`<use href="#`)
-	sb.WriteString(id)
-	sb.WriteByte('"')
-	if dx != 0 {
-		sb.WriteString(` x="`)
-		sb.WriteString(formatInt(dx, minify))
-		sb.WriteByte('"')
-	}
-	if dy != 0 {
-		sb.WriteString(` y="`)
-		sb.WriteString(formatInt(dy, minify))
-		sb.WriteByte('"')
-	}
-	sb.WriteString(`/>`)
-	return sb.String()
-}
-
-func segmentUseBytes(minify bool, idLen, dx, dy int) int {
-	bytes := len(`<use href="#`) + idLen + len(`"/>`)
-	if dx != 0 {
-		bytes += len(` x=""`) + len(formatInt(dx, minify))
-	}
-	if dy != 0 {
-		bytes += len(` y=""`) + len(formatInt(dy, minify))
-	}
-	return bytes
-}
-
-func segmentDefinitionOverhead(idLen, elements int) int {
-	if elements == 1 {
-		return len(` id=""`) + idLen
-	}
-	return len(`<g id=""></g>`) + idLen
 }
 
 func normalizedSegmentRuns(runs []ir.TextRun) []ir.TextRun {
@@ -211,30 +165,16 @@ func normalizedSegmentRuns(runs []ir.TextRun) []ir.TextRun {
 	return out
 }
 
-func mixSegmentHash(h uint64, value int) uint64 {
-	//nolint:gosec // convert signed values to stable two's-complement hash words.
-	return (h ^ uint64(value)) * segmentHashPrime
-}
-
 // segmentRunHash hashes a run independently of its absolute position. The
 // distance to the preceding run is mixed in separately while extending a
 // candidate, so equal run sequences hash equally wherever they occur.
 func segmentRunHash(run ir.TextRun) uint64 {
-	h := uint64(segmentHashOffset)
-	for i := range len(run.Text) {
-		h = (h ^ uint64(run.Text[i])) * segmentHashPrime
-	}
-	h = mixSegmentHash(h, len(run.Text))
-	h = mixSegmentHash(h, runEndCol(run)-run.StartCol)
-	h = mixSegmentHash(h, int(run.Attrs.FG))
-	h = mixSegmentHash(h, int(run.Attrs.BG))
-	flags := 0
-	for i, set := range []bool{run.Attrs.Bold, run.Attrs.Italic, run.Attrs.Underline, run.Attrs.Dim} {
-		if set {
-			flags |= 1 << i
-		}
-	}
-	return mixSegmentHash(h, flags)
+	h := hashString(hashOffset, run.Text)
+	h = mixHash(h, len(run.Text))
+	h = mixHash(h, runEndCol(run)-run.StartCol)
+	h = mixHash(h, int(run.Attrs.FG))
+	h = mixHash(h, int(run.Attrs.BG))
+	return mixHash(h, attrBits(run.Attrs))
 }
 
 // shareRowSegments selects profitable segment definitions for the unique rows
@@ -249,8 +189,14 @@ func (rc rowCollector) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator)
 	for i := range markup {
 		claimed[i] = make([]bool, len(markup[i].row.Runs))
 	}
-	accepted := selectSegments(rc.rows.minify, markup, candidates, claimed)
-	accepted = finalizeSegmentIDs(rc.rows.minify, markup, accepted, claimed, ids)
+	units := segmentUnits{markup: markup, claimed: claimed}
+	const estimatedIDLen = 2
+	accepted := selectShared(rc.rows.minify, units, candidates, estimatedIDLen,
+		func(accepted int) int {
+			next := xmlIDAllocator{next: accepted}
+			return len(next.allocate())
+		})
+	accepted = finalizeShared(rc.rows.minify, units, accepted, ids)
 
 	uses := make([][]rowSegmentUse, len(markup))
 	defs := make([]*renderedRow, 0, len(accepted))
@@ -258,9 +204,9 @@ func (rc rowCollector) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator)
 		candidate.def = rc.segmentDefinition(candidate)
 		defs = append(defs, candidate.def)
 		for _, user := range candidate.users {
-			uses[user.row] = append(uses[user.row], rowSegmentUse{
+			uses[user.unit] = append(uses[user.unit], rowSegmentUse{
 				start: user.start, end: user.end, def: candidate.def,
-				dx: (user.col - candidate.anchorCol) * ColWidth, dy: (user.y - candidate.anchorY) * RowHeight,
+				dx: (user.col - candidate.anchor.col) * ColWidth, dy: (user.y - candidate.anchor.y) * RowHeight,
 			})
 		}
 	}
@@ -289,17 +235,19 @@ func collectSegmentCandidates(markup []rowMarkup) []*segmentCandidate {
 			}
 		}
 		if candidate == nil {
-			candidate = &segmentCandidate{runs: normalizedSegmentRuns(runs), order: len(candidates)}
+			candidate = &segmentCandidate{
+				shareCandidate: shareCandidate{order: len(candidates)}, runs: normalizedSegmentRuns(runs),
+			}
 			byHash[hash] = append(byHash[hash], candidate)
 			candidates = append(candidates, candidate)
 		}
-		candidate.occurrences = append(candidate.occurrences, segmentOccurrence{
-			row: row, start: start, end: end, col: runs[0].StartCol, y: markup[row].row.Y,
+		candidate.occurrences = append(candidate.occurrences, occurrence{
+			unit: row, start: start, end: end, col: runs[0].StartCol, y: markup[row].row.Y,
 		})
 	})
 	candidates = slices.DeleteFunc(candidates, func(candidate *segmentCandidate) bool {
 		first := candidate.occurrences[0]
-		return len(candidate.occurrences) < 2 || markup[first.row].bytes(first.start, first.end) == 0
+		return len(candidate.occurrences) < 2 || markup[first.unit].bytes(first.start, first.end) == 0
 	})
 	return candidates
 }
@@ -316,12 +264,12 @@ func visitSegmentRanges(markup []rowMarkup, visitor func(row, start, end int, ha
 			if !m.boundary[start] {
 				continue
 			}
-			h := uint64(segmentHashOffset)
+			h := uint64(hashOffset)
 			for end := start + 1; end <= len(m.row.Runs) && end-start <= maxSegmentRuns; end++ {
 				if end-1 > start {
-					h = (h ^ m.gapHash[end-1]) * segmentHashPrime
+					h = (h ^ m.gapHash[end-1]) * hashPrime
 				}
-				h = (h ^ m.runHash[end-1]) * segmentHashPrime
+				h = (h ^ m.runHash[end-1]) * hashPrime
 				if !m.boundary[end] {
 					continue
 				}
@@ -345,162 +293,16 @@ func segmentRunsEqual(normalized, runs []ir.TextRun) bool {
 	return true
 }
 
-// selectSegments greedily accepts candidates by their estimated total saving.
-// Every occurrence whose runs are still unclaimed becomes a user, so nested and
-// overlapping candidates resolve deterministically in favour of the larger win.
-func selectSegments(
-	minify bool,
-	markup []rowMarkup,
-	candidates []*segmentCandidate,
-	claimed [][]bool,
-) []*segmentCandidate {
-	const estimatedIDLen = 2
-	estimate := func(candidate *segmentCandidate) int {
-		chooseSegmentAnchor(markup, candidate, candidate.occurrences)
-		return segmentSavings(minify, markup, candidate, candidate.occurrences, estimatedIDLen)
-	}
-	estimates := make(map[*segmentCandidate]int, len(candidates))
-	for _, candidate := range candidates {
-		estimates[candidate] = estimate(candidate)
-	}
-	slices.SortFunc(candidates, func(a, b *segmentCandidate) int {
-		if estimates[a] != estimates[b] {
-			return estimates[b] - estimates[a]
-		}
-		return a.order - b.order
-	})
-
-	accepted := make([]*segmentCandidate, 0)
-	for _, candidate := range candidates {
-		if estimates[candidate] <= 0 {
-			break
-		}
-		users := make([]segmentOccurrence, 0, len(candidate.occurrences))
-		for _, occurrence := range candidate.occurrences {
-			if segmentRunsFree(claimed[occurrence.row], occurrence.start, occurrence.end) {
-				users = append(users, occurrence)
-				markSegmentRuns(claimed[occurrence.row], occurrence.start, occurrence.end, true)
-			}
-		}
-		release := func() {
-			for _, user := range users {
-				markSegmentRuns(claimed[user.row], user.start, user.end, false)
-			}
-		}
-		if len(users) < 2 {
-			release()
-			continue
-		}
-		chooseSegmentAnchor(markup, candidate, users)
-		idLen := len(compactXMLID(len(accepted)))
-		if segmentSavings(minify, markup, candidate, users, idLen) <= 0 {
-			release()
-			continue
-		}
-		candidate.users = users
-		accepted = append(accepted, candidate)
-	}
-	return accepted
-}
-
-// finalizeSegmentIDs assigns the shortest identifiers to the most referenced
-// definitions and drops any candidate whose exact identifier cost makes it
-// unprofitable. Dropping only shortens later identifiers, so one pass per drop
-// converges quickly.
-func finalizeSegmentIDs(
-	minify bool,
-	markup []rowMarkup,
-	accepted []*segmentCandidate,
-	claimed [][]bool,
-	ids *xmlIDAllocator,
-) []*segmentCandidate {
-	slices.SortStableFunc(accepted, func(a, b *segmentCandidate) int {
-		return len(b.users) - len(a.users)
-	})
-	for {
-		probe := *ids
-		dropped := false
-		for _, candidate := range accepted {
-			id := probe.allocate()
-			if segmentSavings(minify, markup, candidate, candidate.users, len(id)) <= 0 {
-				candidate.dropped = true
-				dropped = true
-				for _, user := range candidate.users {
-					markSegmentRuns(claimed[user.row], user.start, user.end, false)
-				}
-				continue
-			}
-			candidate.def = &renderedRow{id: id}
-		}
-		accepted = slices.DeleteFunc(accepted, func(candidate *segmentCandidate) bool { return candidate.dropped })
-		if !dropped {
-			*ids = probe
-			return accepted
-		}
-	}
-}
-
-func chooseSegmentAnchor(markup []rowMarkup, candidate *segmentCandidate, users []segmentOccurrence) {
-	type position struct{ col, y int }
-	counts := make(map[position]int, len(users))
-	best, bestCount := position{}, 0
-	for _, user := range users {
-		at := position{user.col, user.y}
-		counts[at]++
-		if counts[at] > bestCount {
-			best, bestCount = at, counts[at]
-		}
-	}
-	candidate.anchorCol, candidate.anchorY = best.col, best.y
-	for _, user := range users {
-		if user.col == best.col && user.y == best.y {
-			candidate.inlineBytes = markup[user.row].bytes(user.start, user.end)
-			candidate.elements = markup[user.row].elements(user.start, user.end)
-			break
-		}
-	}
-}
-
-func segmentSavings(
-	minify bool,
-	markup []rowMarkup,
-	candidate *segmentCandidate,
-	users []segmentOccurrence,
-	idLen int,
-) int {
-	savings := -(candidate.inlineBytes + segmentDefinitionOverhead(idLen, candidate.elements))
-	for _, user := range users {
-		dx, dy := (user.col-candidate.anchorCol)*ColWidth, (user.y-candidate.anchorY)*RowHeight
-		savings += markup[user.row].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
-	}
-	return savings
-}
-
-func segmentRunsFree(claimed []bool, start, end int) bool {
-	for k := start; k < end; k++ {
-		if claimed[k] {
-			return false
-		}
-	}
-	return true
-}
-
-func markSegmentRuns(claimed []bool, start, end int, value bool) {
-	for k := start; k < end; k++ {
-		claimed[k] = value
-	}
-}
-
 func (rc rowCollector) segmentDefinition(candidate *segmentCandidate) *renderedRow {
-	row := ir.Row{Y: candidate.anchorY, Runs: make([]ir.TextRun, len(candidate.runs))}
+	row := ir.Row{Y: candidate.anchor.y, Runs: make([]ir.TextRun, len(candidate.runs))}
 	for i, run := range candidate.runs {
 		row.Runs[i] = run
-		row.Runs[i].StartCol += candidate.anchorCol
-		row.Runs[i].EndCol += candidate.anchorCol
+		row.Runs[i].StartCol += candidate.anchor.col
+		row.Runs[i].EndCol += candidate.anchor.col
 	}
 	var sb strings.Builder
 	rc.rows.writeRow(&sb, row)
-	def := candidate.def
+	def := &renderedRow{id: candidate.id}
 	def.row = row
 	def.svg = sb.String()
 	def.elements = candidate.elements

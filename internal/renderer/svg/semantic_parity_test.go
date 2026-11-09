@@ -173,7 +173,7 @@ func TestRegionSemanticParityWithBoundedAndUnlimitedOptimization(t *testing.T) {
 				rec: rec, plan: plan, config: *config, options: options,
 				classNames: rec.Colors.GenerateClassNames(), metrics: &CandidateMetrics{},
 			}
-			regions, err := c.optimizeDynamicRegionsWithBudget(
+			regions, err := c.optimizeDynamicRegions(
 				context.Background(), buildDynamicRegions(&plan, rec.Colors), test.budget,
 			)
 			if err != nil {
@@ -214,7 +214,7 @@ func assertSemanticParityWithConfig(t *testing.T, rec *ir.Recording, config *ren
 
 // assertLayeredSemanticParity checks the plan after interval-static layer
 // selection, which the renderer applies on top of buildSemanticPlan.
-func assertLayeredSemanticParity(t *testing.T, rec *ir.Recording, opts ...Option) renderPlan {
+func assertLayeredSemanticParity(t *testing.T, rec *ir.Recording, opts ...Option) semanticPlan {
 	t.Helper()
 	config := renderer.DefaultConfig()
 	options := DefaultOptions()
@@ -229,7 +229,7 @@ func assertLayeredSemanticParity(t *testing.T, rec *ir.Recording, opts ...Option
 	return plan
 }
 
-func assertPlanParity(t *testing.T, rec *ir.Recording, config *renderer.Config, options *Options, plan *renderPlan) {
+func assertPlanParity(t *testing.T, rec *ir.Recording, config *renderer.Config, options *Options, plan *semanticPlan) {
 	t.Helper()
 	before := cloneRecording(rec)
 	c := canvas{
@@ -238,7 +238,7 @@ func assertPlanParity(t *testing.T, rec *ir.Recording, config *renderer.Config, 
 	}
 	if options.Layout == LayoutRegions {
 		regions := buildDynamicRegions(plan, rec.Colors)
-		optimized, err := c.optimizeDynamicRegions(context.Background(), regions)
+		optimized, err := c.optimizeDynamicRegions(context.Background(), regions, regionCandidateEvaluationBudget)
 		if err != nil {
 			t.Fatalf("optimize regions: %v", err)
 		}
@@ -271,7 +271,7 @@ func assertPlanParity(t *testing.T, rec *ir.Recording, config *renderer.Config, 
 
 func preparedScreenAt(
 	rec *ir.Recording,
-	plan *renderPlan,
+	plan *semanticPlan,
 	content *preparedContent,
 	options *Options,
 	at time.Duration,
@@ -595,7 +595,7 @@ func randomParityRecording(rng *rand.Rand) *ir.Recording {
 		if i > 0 && i%5 == 0 {
 			rows = previous
 		}
-		frames[i] = ir.Frame{Time: at, Index: i, Rows: rows, Cursor: ir.Cursor{
+		frames[i] = ir.Frame{Time: at, Rows: rows, Cursor: ir.Cursor{
 			Col: rng.Intn(width), Row: rng.Intn(height), Visible: rng.Intn(3) != 0,
 		}}
 		previous = rows

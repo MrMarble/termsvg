@@ -215,7 +215,7 @@ func TestSegmentSharingRejectsUnprofitableFragments(t *testing.T) {
 	}
 }
 
-func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
+func TestSegmentDefinitionAndReferences(t *testing.T) {
 	rec := promptRecording()
 	c := &canvas{
 		rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames(),
@@ -228,10 +228,8 @@ func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
 		t.Fatalf("shared prompt definition missing: %#v", defs)
 	}
 	prefix := defs[0]
-	var expected strings.Builder
-	c.rows().writeRow(&expected, prefix.row)
-	if prefix.svg != expected.String() || prefix.definition != `<g id="a">`+prefix.svg+`</g>` {
-		t.Fatalf("definition markup = %q; want anchored row %q", prefix.definition, expected.String())
+	if !strings.HasPrefix(prefix.definition, `<g id="a">`) || !strings.HasSuffix(prefix.definition, `</g>`) {
+		t.Fatalf("definition markup = %q; want a group", prefix.definition)
 	}
 	if prefix.elements != 4 || c.rows().renderedElementCount(prefix) != 4 {
 		t.Fatalf("prefix elements = %d/%d; want 4", prefix.elements, c.rows().renderedElementCount(prefix))
@@ -249,4 +247,78 @@ func TestSegmentSavingsUseExactMarkupBytes(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestSegmentSavingsEqualSerializedByteDelta checks the invariant the
+// selection relies on: the savings it computes are the bytes segment sharing
+// really removes from the serialized unique rows and definitions.
+func TestSegmentSavingsEqualSerializedByteDelta(t *testing.T) {
+	rec := promptRecording()
+	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
+	c.plan = buildRenderPlan(rec, false)
+	rc := c.collector()
+	unique := uniquePlanRows(&c.plan)
+	buildMarkup := func() []rowMarkup {
+		markup := make([]rowMarkup, len(unique))
+		for i, row := range unique {
+			markup[i] = rc.rows.buildRowMarkup(row)
+		}
+		return markup
+	}
+
+	computed := computedSegmentSavings(t, buildMarkup())
+	if measured := measuredSegmentSavings(&rc, buildMarkup()); measured != computed {
+		t.Fatalf("computed savings = %d, measured serialized delta = %d", computed, measured)
+	}
+}
+
+func uniquePlanRows(plan *semanticPlan) []ir.Row {
+	_, states := plan.contentKeyframes()
+	var unique []ir.Row
+	for _, rows := range states {
+		for _, row := range rows {
+			if !slices.ContainsFunc(unique, func(seen ir.Row) bool { return rowEqual(seen, row) }) {
+				unique = append(unique, row)
+			}
+		}
+	}
+	return unique
+}
+
+func computedSegmentSavings(t *testing.T, markup []rowMarkup) int {
+	t.Helper()
+	claimed := make([][]bool, len(markup))
+	for i := range markup {
+		claimed[i] = make([]bool, len(markup[i].row.Runs))
+	}
+	units := segmentUnits{markup: markup, claimed: claimed}
+	idLen := func(n int) int {
+		next := xmlIDAllocator{next: n}
+		return len(next.allocate())
+	}
+	accepted := finalizeShared(false, units,
+		selectShared(false, units, collectSegmentCandidates(markup), 2, idLen), &xmlIDAllocator{})
+	if len(accepted) == 0 {
+		t.Fatal("no segment accepted")
+	}
+	computed := 0
+	for _, candidate := range accepted {
+		computed += shareSavings(false, units, &candidate.shareCandidate, candidate.users, len(candidate.id))
+	}
+	return computed
+}
+
+func measuredSegmentSavings(rc *rowCollector, markup []rowMarkup) int {
+	uses, defs := rc.shareRowSegments(markup, &xmlIDAllocator{})
+	plainBytes, sharedBytes := 0, 0
+	for i := range markup {
+		plain, _, _ := markup[i].render(false, nil)
+		shared, _, _ := markup[i].render(false, uses[i])
+		plainBytes += finalSVGBytes(plain, false)
+		sharedBytes += finalSVGBytes(shared, false)
+	}
+	for _, def := range defs {
+		sharedBytes += finalSVGBytes(def.definition, false)
+	}
+	return plainBytes - sharedBytes
 }

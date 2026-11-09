@@ -22,24 +22,11 @@ import (
 // equal. Definitions are anchored at the most frequent absolute position so
 // those references need no offset.
 
-type blockOccurrence struct {
-	state int // index into the state list
-	start int // first row (inclusive)
-	end   int // last row (exclusive)
-	col   int // absolute column of the first row's first run
-	y     int // absolute row of the first row
-}
-
+// blockCandidate shares occurrence units that are indexes into the state list
+// and ranges that are row indexes.
 type blockCandidate struct {
-	rows        []ir.Row // relative to the first row's column and row
-	occurrences []blockOccurrence
-	order       int
-	users       []blockOccurrence
-	anchor      blockOccurrence
-	elements    int
-	bodyBytes   int // markup bytes of the anchored body
-	id          string
-	dropped     bool
+	shareCandidate
+	rows []ir.Row // relative to the first row's column and row
 }
 
 // blockState caches what every row of one state costs as it is serialized
@@ -74,6 +61,13 @@ func (s *blockState) bytes(start, end int) int { return s.prefixBytes[end] - s.p
 
 func (s *blockState) elements(start, end int) int { return s.prefixElems[end] - s.prefixElems[start] }
 
+// blockUnits measures row ranges of the states for the sharing engine.
+type blockUnits []blockState
+
+func (u blockUnits) Bytes(unit, start, end int) int    { return u[unit].bytes(start, end) }
+func (u blockUnits) Elements(unit, start, end int) int { return u[unit].elements(start, end) }
+func (u blockUnits) Claimed(unit int) []bool           { return u[unit].claimed }
+
 // shareRowBlocks selects profitable block definitions over the per-state row
 // lists, appends them to the definitions, and replaces every covered row group
 // by one block reference. It must run after whole-row interning so the bytes
@@ -89,8 +83,10 @@ func (rc rowCollector) shareRowBlocks(
 	if len(candidates) == 0 {
 		return frames, defs
 	}
-	selected := selectBlocks(rc.rows.minify, blockStates, candidates, ids)
-	accepted := finalizeBlockIDs(rc.rows.minify, blockStates, selected, ids)
+	units := blockUnits(blockStates)
+	selected := selectShared(rc.rows.minify, units, candidates, blockIDLength(ids, 0),
+		func(accepted int) int { return blockIDLength(ids, accepted) })
+	accepted := finalizeShared(rc.rows.minify, units, selected, ids)
 	if len(accepted) == 0 {
 		return frames, defs
 	}
@@ -99,7 +95,7 @@ func (rc rowCollector) shareRowBlocks(
 		def := rc.blockDefinition(blockStates, candidate)
 		defs = append(defs, def)
 		for _, user := range candidate.users {
-			replacements[user.state] = append(replacements[user.state], blockReplacement{
+			replacements[user.unit] = append(replacements[user.unit], blockReplacement{
 				start: user.start, end: user.end, item: blockReference(rc.rows.minify, blockStates, candidate, def, user),
 			})
 		}
@@ -149,7 +145,7 @@ func (rc rowCollector) buildBlockStates(frames [][]*renderedRow) []blockState {
 // it is interned, its markup otherwise.
 func renderedRowBytes(minify bool, row *renderedRow) int {
 	if row.id != "" {
-		return segmentUseBytes(minify, len(row.id), 0, 0)
+		return useBytes(minify, len(row.id), 0, 0)
 	}
 	return finalSVGBytes(row.svg, minify)
 }
@@ -165,12 +161,12 @@ func (rc rowCollector) renderedRowItems(row *renderedRow) int {
 
 // blockRowHash hashes a row independently of its absolute position.
 func blockRowHash(row ir.Row) uint64 {
-	h := mixSegmentHash(segmentHashOffset, len(row.Runs))
+	h := mixHash(hashOffset, len(row.Runs))
 	for k, run := range row.Runs {
 		if k > 0 {
-			h = mixSegmentHash(h, run.StartCol-row.Runs[k-1].StartCol)
+			h = mixHash(h, run.StartCol-row.Runs[k-1].StartCol)
 		}
-		h = (h ^ segmentRunHash(run)) * segmentHashPrime
+		h = (h ^ segmentRunHash(run)) * hashPrime
 	}
 	return h
 }
@@ -189,14 +185,14 @@ func visitBlockRanges(states []blockState, visitor func(state, start, end int, h
 	for stateIndex := range states {
 		s := &states[stateIndex]
 		for start := range s.items {
-			h := uint64(segmentHashOffset)
+			h := uint64(hashOffset)
 			for end := start + 1; end <= len(s.items) && end-start <= maxBlockRows; end++ {
 				k := end - 1
 				if k > start {
-					h = mixSegmentHash(h, s.items[k].row.Y-s.items[k-1].row.Y)
-					h = mixSegmentHash(h, s.cols[k]-s.cols[k-1])
+					h = mixHash(h, s.items[k].row.Y-s.items[k-1].row.Y)
+					h = mixHash(h, s.cols[k]-s.cols[k-1])
 				}
-				h = (h ^ s.hashes[k]) * segmentHashPrime
+				h = (h ^ s.hashes[k]) * hashPrime
 				if end-start >= minBlockRows && s.bytes(start, end) > 0 {
 					visitor(stateIndex, start, end, h)
 				}
@@ -225,12 +221,14 @@ func collectBlockCandidates(states []blockState) []*blockCandidate {
 			}
 		}
 		if candidate == nil {
-			candidate = &blockCandidate{rows: relativeBlockRows(items, col, y), order: len(candidates)}
+			candidate = &blockCandidate{
+				shareCandidate: shareCandidate{order: len(candidates)}, rows: relativeBlockRows(items, col, y),
+			}
 			byHash[hash] = append(byHash[hash], candidate)
 			candidates = append(candidates, candidate)
 		}
-		candidate.occurrences = append(candidate.occurrences, blockOccurrence{
-			state: state, start: start, end: end, col: col, y: y,
+		candidate.occurrences = append(candidate.occurrences, occurrence{
+			unit: state, start: start, end: end, col: col, y: y,
 		})
 	})
 	return slices.DeleteFunc(candidates, func(candidate *blockCandidate) bool {
@@ -272,55 +270,6 @@ func blockRowsEqual(relative []ir.Row, items []*renderedRow, col, y int) bool {
 	return true
 }
 
-// selectBlocks greedily accepts candidates by their estimated total saving.
-// Every occurrence whose rows are still unclaimed becomes a user, so a row
-// joins at most one block and overlapping candidates resolve in favour of the
-// larger win.
-func selectBlocks(
-	minify bool,
-	states []blockState,
-	candidates []*blockCandidate,
-	ids *xmlIDAllocator,
-) []*blockCandidate {
-	estimatedIDLen := blockIDLength(ids, 0)
-	estimates := make(map[*blockCandidate]int, len(candidates))
-	for _, candidate := range candidates {
-		chooseBlockAnchor(states, candidate, candidate.occurrences)
-		estimates[candidate] = blockSavings(minify, states, candidate, candidate.occurrences, estimatedIDLen)
-	}
-	slices.SortFunc(candidates, func(a, b *blockCandidate) int {
-		if estimates[a] != estimates[b] {
-			return estimates[b] - estimates[a]
-		}
-		return a.order - b.order
-	})
-
-	accepted := make([]*blockCandidate, 0)
-	for _, candidate := range candidates {
-		if estimates[candidate] <= 0 {
-			break
-		}
-		users := make([]blockOccurrence, 0, len(candidate.occurrences))
-		for _, occurrence := range candidate.occurrences {
-			claimed := states[occurrence.state].claimed
-			if segmentRunsFree(claimed, occurrence.start, occurrence.end) {
-				users = append(users, occurrence)
-				markSegmentRuns(claimed, occurrence.start, occurrence.end, true)
-			}
-		}
-		if len(users) >= 2 {
-			chooseBlockAnchor(states, candidate, users)
-			if blockSavings(minify, states, candidate, users, blockIDLength(ids, len(accepted))) > 0 {
-				candidate.users = users
-				accepted = append(accepted, candidate)
-				continue
-			}
-		}
-		releaseBlockUsers(states, users)
-	}
-	return accepted
-}
-
 // blockIDLength is the length of the identifier the allocator would hand out
 // after index further block definitions.
 func blockIDLength(ids *xmlIDAllocator, index int) int {
@@ -331,86 +280,11 @@ func blockIDLength(ids *xmlIDAllocator, index int) int {
 	return len(probe.allocate())
 }
 
-func releaseBlockUsers(states []blockState, users []blockOccurrence) {
-	for _, user := range users {
-		markSegmentRuns(states[user.state].claimed, user.start, user.end, false)
-	}
-}
-
-// finalizeBlockIDs assigns the shortest identifiers to the most referenced
-// definitions and drops any candidate whose exact identifier cost makes it
-// unprofitable. Dropping only shortens later identifiers, so one pass per drop
-// converges quickly.
-func finalizeBlockIDs(
-	minify bool,
-	states []blockState,
-	accepted []*blockCandidate,
-	ids *xmlIDAllocator,
-) []*blockCandidate {
-	slices.SortStableFunc(accepted, func(a, b *blockCandidate) int {
-		return len(b.users) - len(a.users)
-	})
-	for {
-		probe := *ids
-		dropped := false
-		for _, candidate := range accepted {
-			id := probe.allocate()
-			if blockSavings(minify, states, candidate, candidate.users, len(id)) <= 0 {
-				candidate.dropped, dropped = true, true
-				releaseBlockUsers(states, candidate.users)
-				continue
-			}
-			candidate.id = id
-		}
-		accepted = slices.DeleteFunc(accepted, func(candidate *blockCandidate) bool { return candidate.dropped })
-		if !dropped {
-			*ids = probe
-			return accepted
-		}
-	}
-}
-
-// chooseBlockAnchor picks the most frequent absolute position among the
-// users, the first occurrence on ties, and measures the body there.
-func chooseBlockAnchor(states []blockState, candidate *blockCandidate, users []blockOccurrence) {
-	type position struct{ col, y int }
-	counts := make(map[position]int, len(users))
-	best, bestCount := position{}, 0
-	for _, user := range users {
-		at := position{user.col, user.y}
-		counts[at]++
-		if counts[at] > bestCount {
-			best, bestCount = at, counts[at]
-		}
-	}
-	for _, user := range users {
-		if user.col == best.col && user.y == best.y {
-			candidate.anchor = user
-			break
-		}
-	}
-	anchor := &states[candidate.anchor.state]
-	candidate.bodyBytes = anchor.bytes(candidate.anchor.start, candidate.anchor.end)
-	candidate.elements = anchor.elements(candidate.anchor.start, candidate.anchor.end)
-}
-
-// blockSavings is the exact byte change of sharing the candidate with the
-// given identifier length: the definition costs its anchored body plus the
-// wrapper, and every user trades what its rows cost today for one reference.
-func blockSavings(minify bool, states []blockState, candidate *blockCandidate, users []blockOccurrence, idLen int) int {
-	savings := -(candidate.bodyBytes + segmentDefinitionOverhead(idLen, candidate.elements))
-	for _, user := range users {
-		dx, dy := (user.col-candidate.anchor.col)*ColWidth, (user.y-candidate.anchor.y)*RowHeight
-		savings += states[user.state].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
-	}
-	return savings
-}
-
 // blockDefinition serializes the anchor rows as they are serialized today,
 // references included, into one definition.
 func (rc rowCollector) blockDefinition(states []blockState, candidate *blockCandidate) *renderedRow {
 	anchor := candidate.anchor
-	items := slices.Clone(states[anchor.state].items[anchor.start:anchor.end])
+	items := slices.Clone(states[anchor.unit].items[anchor.start:anchor.end])
 	def := &renderedRow{
 		id: candidate.id, count: len(candidate.users), elements: candidate.elements,
 		row: items[0].row, rows: blockRows(items), items: items,
@@ -418,7 +292,7 @@ func (rc rowCollector) blockDefinition(states []blockState, candidate *blockCand
 	var sb strings.Builder
 	for _, item := range items {
 		if item.id != "" {
-			sb.WriteString(segmentUseMarkup(rc.rows.minify, item.id, 0, 0))
+			sb.WriteString(useMarkup(rc.rows.minify, item.id, 0, 0))
 			def.uses = append(def.uses, item.id)
 			continue
 		}
@@ -437,12 +311,12 @@ func blockReference(
 	states []blockState,
 	candidate *blockCandidate,
 	def *renderedRow,
-	user blockOccurrence,
+	user occurrence,
 ) *renderedRow {
-	items := states[user.state].items[user.start:user.end]
+	items := states[user.unit].items[user.start:user.end]
 	dx, dy := (user.col-candidate.anchor.col)*ColWidth, (user.y-candidate.anchor.y)*RowHeight
 	return &renderedRow{
-		row: items[0].row, rows: blockRows(items), svg: segmentUseMarkup(minify, def.id, dx, dy),
+		row: items[0].row, rows: blockRows(items), svg: useMarkup(minify, def.id, dx, dy),
 		elements: 1, uses: []string{def.id},
 	}
 }

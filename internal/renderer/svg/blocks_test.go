@@ -236,7 +236,7 @@ func TestBlockSharingRejectsUnprofitableGroups(t *testing.T) {
 	}
 }
 
-func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
+func TestBlockDefinitionAndReferences(t *testing.T) {
 	const states = 8
 	rec := boxRecording(states)
 	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
@@ -248,23 +248,14 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 		block.count != states || !rowEqual(block.row, block.rows[0]) {
 		t.Fatalf("block definition = %#v", block)
 	}
-	var body strings.Builder
 	for i, item := range block.items {
 		if !rowEqual(item.row, block.rows[i]) || item.row.Y != i+1 {
 			t.Fatalf("block item %d = %#v; want anchor row %d", i, item.row, i+1)
 		}
-		if item.id != "" {
-			body.WriteString(segmentUseMarkup(c.config.Minify, item.id, 0, 0))
-			continue
-		}
-		body.WriteString(item.svg)
 	}
-	if block.svg != body.String() || block.definition != `<g id="`+block.id+`">`+body.String()+`</g>` {
-		t.Fatalf("block definition = %q; want the anchor rows %q", block.definition, body.String())
-	}
-	wrapper := segmentDefinitionOverhead(len(block.id), 3)
-	if got := finalSVGBytes(block.definition, false); got != len(body.String())+wrapper {
-		t.Fatalf("definition bytes = %d; want body plus wrapper", got)
+	opening := `<g id="` + block.id + `"><use href="#`
+	if !strings.HasPrefix(block.definition, opening) || !strings.HasSuffix(block.definition, `/></g>`) {
+		t.Fatalf("block definition = %q; want a group of references", block.definition)
 	}
 	if painted := block.paintRows(); len(painted) != 3 {
 		t.Fatalf("block definition paints %d rows, want its three inline items", len(painted))
@@ -274,7 +265,11 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 			t.Fatalf("state %d holds %d items, want one block reference", i, len(rows))
 		}
 		item := rows[0]
-		want := segmentUseMarkup(c.config.Minify, block.id, i*2*ColWidth, 0)
+		want := `<use href="#` + block.id + `"`
+		if i > 0 {
+			want += ` x="` + strconv.Itoa(i*2*ColWidth) + `"`
+		}
+		want += `/>`
 		if item.svg != want || item.elements != 1 || !slices.Equal(item.uses, []string{block.id}) ||
 			len(item.rows) != 3 || item.rows[0].Y != 1 || item.rows[2].Y != 3 || !rowEqual(item.row, item.rows[0]) {
 			t.Fatalf("state %d block reference = %#v; want %q", i, item, want)
@@ -285,5 +280,58 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 		if c.rows().stateNeedsWrapper(rows) || c.rows().stateElementCount(rows) != 1 {
 			t.Fatalf("state %d made of one block reference needs a wrapper", i)
 		}
+	}
+}
+
+// TestBlockSavingsEqualSerializedByteDelta checks the invariant the selection
+// relies on: the savings it computes are the bytes block sharing really
+// removes from the serialized frames and definitions.
+func TestBlockSavingsEqualSerializedByteDelta(t *testing.T) {
+	rec := boxRecording(8)
+	c := &canvas{rec: rec, config: *renderer.DefaultConfig(), classNames: rec.Colors.GenerateClassNames()}
+	c.plan = buildRenderPlan(rec, false)
+	_, contentStates := c.plan.contentKeyframes()
+	plain := c.collector()
+	plain.withoutBlockSharing = true
+	frames, defs := plain.collectRows(contentStates)
+	serialized := func(frames [][]*renderedRow, defs []*renderedRow) int {
+		total := 0
+		for _, rows := range frames {
+			for _, row := range rows {
+				total += renderedRowBytes(false, row)
+			}
+		}
+		for _, def := range defs {
+			total += finalSVGBytes(def.definition, false)
+		}
+		return total
+	}
+	// Every definition so far consumed one identifier.
+	allocator := func() *xmlIDAllocator {
+		ids := &xmlIDAllocator{}
+		for range defs {
+			ids.allocate()
+		}
+		return ids
+	}
+
+	rc := c.collector()
+	ids := allocator()
+	states := rc.buildBlockStates(frames)
+	candidates := collectBlockCandidates(states)
+	units := blockUnits(states)
+	accepted := finalizeShared(false, units,
+		selectShared(false, units, candidates, blockIDLength(ids, 0), func(n int) int { return blockIDLength(ids, n) }), ids)
+	if len(accepted) == 0 {
+		t.Fatal("no block accepted")
+	}
+	computed := 0
+	for _, candidate := range accepted {
+		computed += shareSavings(false, units, &candidate.shareCandidate, candidate.users, len(candidate.id))
+	}
+
+	sharedFrames, sharedDefs := rc.shareRowBlocks(slices.Clone(frames), slices.Clone(defs), allocator())
+	if measured := serialized(frames, defs) - serialized(sharedFrames, sharedDefs); measured != computed {
+		t.Fatalf("computed savings = %d, measured serialized delta = %d", computed, measured)
 	}
 }

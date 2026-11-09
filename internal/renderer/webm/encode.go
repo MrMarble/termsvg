@@ -21,8 +21,13 @@ const (
 	// and sharp text, so 28 keeps text crisp while the file stays small.
 	videoCRF = 28
 
-	// minFrameDuration is the least a frame is shown: one frame of a 30 FPS video.
-	minFrameDuration = time.Second / 30
+	// minVideoDelay is the shortest video frame: one frame of a 30 FPS video.
+	minVideoDelay = time.Second / 30
+
+	// videoMergeBelow is the display time below which a video frame is merged
+	// into the next one. It is rounded down from a 30 FPS frame period, unlike
+	// minVideoDelay.
+	videoMergeBelow = 33 * time.Millisecond
 )
 
 // ffmpegArgs returns the ffmpeg arguments that encode the frames listed in the
@@ -75,17 +80,12 @@ func writeFrameFiles(
 	var last string
 
 	report := func(done int) {
-		if progressCh != nil {
-			progressCh <- progress.Update{Phase: "Encoding", Current: done, Total: len(frames)}
-		}
+		progress.Send(progressCh, progress.PhaseEncode, done, len(frames))
 	}
 	report(0)
 
 	written := 0
 	for _, frame := range frames {
-		if frame.Image == nil {
-			continue
-		}
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
@@ -94,15 +94,10 @@ func writeFrameFiles(
 		if err := writePNG(&encoder, filepath.Join(dir, name), frame); err != nil {
 			return "", err
 		}
-		// The last frame has no next frame to be replaced by, so it still gets
-		// a frame's worth of time even when its delay is zero.
-		fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", name, max(frame.Delay, minFrameDuration).Seconds())
+		fmt.Fprintf(&list, "file '%s'\nduration %.6f\n", name, max(frame.Delay, minVideoDelay).Seconds())
 		last = name
 		written++
 		report(written)
-	}
-	if written == 0 {
-		return "", fmt.Errorf("no valid frames to encode")
 	}
 	// The concat demuxer ignores the duration of the final entry unless the
 	// file is listed once more.

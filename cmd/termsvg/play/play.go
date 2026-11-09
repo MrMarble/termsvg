@@ -2,44 +2,36 @@ package play
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/mrmarble/termsvg/cmd/termsvg/internal/pacing"
 	"github.com/mrmarble/termsvg/internal/asciicast"
 )
 
 type Cmd struct {
-	File    string        `arg:"" type:"existingfile" help:"Asciicast file to play"`
-	Speed   float64       `short:"s" default:"1.0" help:"Playback speed multiplier"`
-	MaxIdle time.Duration `short:"i" default:"0" help:"Cap idle time between frames (0 = the recording's limit, if any)"`
+	File string `arg:"" type:"existingfile" help:"Asciicast file to play"`
+
+	pacing.Flags `embed:""`
 }
 
 func (cmd *Cmd) Run() error {
-	f, err := os.Open(filepath.Clean(cmd.File))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	cast, err := asciicast.Parse(f)
+	cast, err := asciicast.ParseFile(cmd.File)
 	if err != nil {
 		return err
 	}
 
-	return playback(cast, cmd.Speed, cast.IdleLimit(cmd.MaxIdle))
+	return playback(cast, cmd.Speed, cast.IdleLimit(cmd.MaxIdle), time.Sleep)
 }
 
-func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error {
-	// Convert to relative time for idle capping
+// playback prints the output events at their speed-adjusted times, waiting
+// with sleep.
+func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration, sleep func(time.Duration)) error {
 	cast.ToRelativeTime()
 
-	// Cap idle time if specified
 	if maxIdle > 0 {
 		cast.CapRelativeTime(maxIdle.Seconds())
 	}
 
-	// Convert back to absolute and adjust speed
 	cast.ToAbsoluteTime()
 	cast.AdjustSpeed(speed)
 
@@ -56,7 +48,7 @@ func playback(cast *asciicast.Cast, speed float64, maxIdle time.Duration) error 
 		elapsed := time.Since(startTime)
 
 		if delay := targetTime - elapsed; delay > 0 {
-			time.Sleep(delay)
+			sleep(delay)
 		}
 
 		fmt.Print(event.EventData)

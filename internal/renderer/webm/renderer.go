@@ -30,7 +30,7 @@ func New(config *renderer.Config) (*Renderer, error) {
 		return nil, fmt.Errorf("ffmpeg is not installed. Install it from: https://ffmpeg.org")
 	}
 
-	rasterizer, err := renderer.NewRasterizer(config)
+	rasterizer, err := raster.New(config)
 	if err != nil {
 		return nil, err
 	}
@@ -41,73 +41,36 @@ func New(config *renderer.Config) (*Renderer, error) {
 	}, nil
 }
 
-// Format returns the output format name.
-func (r *Renderer) Format() string {
-	return "webm"
-}
-
-// FileExtension returns the file extension for WebM files.
-func (r *Renderer) FileExtension() string {
-	return ".webm"
-}
-
 // Render generates a WebM video from the recording.
 func (r *Renderer) Render(ctx context.Context, rec *ir.Recording, w io.Writer) error {
-	if len(rec.Frames) == 0 {
-		return fmt.Errorf("recording has no frames")
-	}
-
-	startTime := time.Now()
-	if r.config.Debug {
-		log.Printf("[WebM] Starting WebM generation for %d frames", len(rec.Frames))
-	}
-
-	// Phase 1: Rasterize frames to RGBA images
-	rasterStart := time.Now()
-	rgbaFrames, err := r.rasterizer.Rasterize(rec)
+	start := time.Now()
+	frames, err := r.rasterizer.Rasterize(rec)
 	if err != nil {
 		return fmt.Errorf("failed to rasterize frames: %w", err)
 	}
-	rasterDuration := time.Since(rasterStart)
+	rasterized := time.Since(start)
 
-	if r.config.Debug {
-		log.Printf("[WebM] Phase 1 - IR rasterization: %v (%d frames)", rasterDuration, len(rgbaFrames))
-	}
-
-	// Check for cancellation after rendering
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// Phase 2: Encode to WebM using FFmpeg
-	encodeStart := time.Now()
-	if err := r.encodeToWebM(ctx, rgbaFrames, w); err != nil {
+	if err := r.encodeToWebM(ctx, frames, w); err != nil {
 		return fmt.Errorf("failed to encode WebM: %w", err)
 	}
-
 	if r.config.Debug {
-		log.Printf("[WebM] Phase 2 - FFmpeg encoding: %v", time.Since(encodeStart))
-		log.Printf("[WebM] Total time: %v", time.Since(startTime))
+		log.Printf("[WebM] %d frames: rasterized in %v, encoded in %v",
+			len(frames), rasterized, time.Since(start)-rasterized)
 	}
 
 	return nil
 }
 
 func (r *Renderer) encodeToWebM(ctx context.Context, frames []raster.RasterFrame, w io.Writer) error {
-	if len(frames) == 0 {
-		return fmt.Errorf("no frames to encode")
-	}
-
-	// Frames shorter than one frame of a 30 FPS video are not worth encoding.
-	filteredFrames := r.filterFrames(frames)
+	filteredFrames := filterFrames(frames)
 	if r.config.Debug {
-		log.Printf("[WebM] Filtered %d frames -> %d frames (skipped %d rapid frames)",
-			len(frames), len(filteredFrames), len(frames)-len(filteredFrames))
-	}
-	if len(filteredFrames) == 0 || filteredFrames[0].Image == nil {
-		return fmt.Errorf("no valid frames to encode")
+		log.Printf("[WebM] encoding %d of %d frames", len(filteredFrames), len(frames))
 	}
 
 	// ffmpeg reads the frames from a directory and writes the video to a file
@@ -140,37 +103,20 @@ func (r *Renderer) encodeToWebM(ctx context.Context, frames []raster.RasterFrame
 	return nil
 }
 
-// filterFrames filters frames to skip rapid events.
-// At 30 FPS, each frame displays for ~33ms. Frames with shorter delays are skipped
-// and their delay is accumulated to the next frame.
-func (r *Renderer) filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
-	const minDelay = 33 * time.Millisecond // Minimum display time at 30 FPS
-
+// filterFrames drops the frames that would be shown for less than one frame of
+// a 30 FPS video, handing their time to the next frame. The last frame is always kept.
+func filterFrames(frames []raster.RasterFrame) []raster.RasterFrame {
 	filtered := make([]raster.RasterFrame, 0, len(frames))
 	var accumulatedDelay time.Duration
 
 	for i, frame := range frames {
-		// Skip nil frames
-		if frame.Image == nil {
-			accumulatedDelay += frame.Delay
-			continue
-		}
-
 		totalDelay := frame.Delay + accumulatedDelay
-
-		// If this is not the last frame and total delay is below minimum, skip it
-		if totalDelay < minDelay && i < len(frames)-1 {
+		if totalDelay < videoMergeBelow && i < len(frames)-1 {
 			accumulatedDelay = totalDelay
 			continue
 		}
 
-		// Create a new frame with accumulated delay
-		filteredFrame := raster.RasterFrame{
-			Image: frame.Image,
-			Delay: totalDelay,
-			Index: frame.Index,
-		}
-		filtered = append(filtered, filteredFrame)
+		filtered = append(filtered, raster.RasterFrame{Image: frame.Image, Delay: totalDelay})
 		accumulatedDelay = 0
 	}
 

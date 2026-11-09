@@ -44,7 +44,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run unit tests
-        run: go test -v ./...
+        run: go test -race -v ./...
       - name: Cross-compile
         run: |
           for os in windows darwin freebsd; do

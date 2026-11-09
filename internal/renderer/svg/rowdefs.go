@@ -162,7 +162,7 @@ func (rc rowCollector) collectRowsWithHash(
 		probe := *ids
 		id := probe.allocate()
 		definition := rc.rows.rowDefinition(entry, id)
-		use := `<use href="#` + id + `"/>`
+		use := useMarkup(rc.rows.minify, id, 0, 0)
 		inlineBytes := entry.count * finalSVGBytes(entry.svg, rc.rows.minify)
 		definitionBytes := finalSVGBytes(definition, rc.rows.minify) +
 			entry.count*finalSVGBytes(use, rc.rows.minify)
@@ -182,16 +182,6 @@ func (rc rowCollector) collectRowsWithHash(
 	return frames, defs
 }
 
-func compactXMLID(index int) string {
-	for {
-		value := compactXMLIDAt(index)
-		if value != "clip" {
-			return value
-		}
-		index++
-	}
-}
-
 func compactXMLIDAt(index int) string {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz"
 	index++
@@ -209,7 +199,7 @@ func compactXMLIDAt(index int) string {
 func finalSVGBytes(value string, minified bool) int {
 	bytes := len(value)
 	if minified {
-		// The export pipeline converts every UTF-8 NBSP (two bytes) back to a
+		// svgoutput converts every UTF-8 NBSP (two bytes) back to a
 		// one-byte ASCII space after minification. Profitability must therefore
 		// use the bytes that will actually reach the output file.
 		bytes -= strings.Count(value, "\u00a0")
@@ -245,44 +235,17 @@ func elementIDPrefix(svg string) string {
 }
 
 func semanticRowHash(row ir.Row) uint64 {
-	const (
-		offset = 14695981039346656037
-		prime  = 1099511628211
-	)
-	h := uint64(offset)
-	addInt := func(value int) {
-		//nolint:gosec // convert signed values to stable two's-complement hash bytes.
-		v := uint64(value)
-		for range 8 {
-			h = (h ^ uint64(byte(v))) * prime
-			v >>= 8
-		}
-	}
-	addInt(row.Y)
-	addInt(len(row.Runs))
+	h := uint64(hashOffset)
+	h = mixHash(h, row.Y)
+	h = mixHash(h, len(row.Runs))
 	for _, run := range row.Runs {
-		addInt(len(run.Text))
-		for i := range len(run.Text) {
-			h = (h ^ uint64(run.Text[i])) * prime
-		}
-		addInt(run.StartCol)
-		addInt(run.EndCol)
-		addInt(int(run.Attrs.FG))
-		addInt(int(run.Attrs.BG))
-		flags := uint64(0)
-		if run.Attrs.Bold {
-			flags |= 1
-		}
-		if run.Attrs.Italic {
-			flags |= 2
-		}
-		if run.Attrs.Underline {
-			flags |= 4
-		}
-		if run.Attrs.Dim {
-			flags |= 8
-		}
-		h = (h ^ flags) * prime
+		h = mixHash(h, len(run.Text))
+		h = hashString(h, run.Text)
+		h = mixHash(h, run.StartCol)
+		h = mixHash(h, run.EndCol)
+		h = mixHash(h, int(run.Attrs.FG))
+		h = mixHash(h, int(run.Attrs.BG))
+		h = mixHash(h, attrBits(run.Attrs))
 	}
 	return h
 }

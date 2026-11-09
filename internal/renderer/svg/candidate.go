@@ -32,6 +32,12 @@ type countingWriter struct {
 // variant and keeps the one the objective prefers. Interval-static layers are
 // chosen by an estimate, so the plan without them is measured as well.
 func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) (*preparedCandidate, error) {
+	if len(rec.Frames) == 0 {
+		return nil, fmt.Errorf("recording has no frames")
+	}
+	if err := r.options.Validate(); err != nil {
+		return nil, err
+	}
 	plan, err := r.buildSemanticPlan(ctx, rec)
 	if err != nil {
 		return nil, err
@@ -51,7 +57,7 @@ func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) 
 			return nil, err
 		}
 		if candidate.metrics.FinalBytes == 0 {
-			if err := r.measureCandidate(ctx, rec, candidate); err != nil {
+			if err := r.measureCandidate(ctx, candidate); err != nil {
 				return nil, err
 			}
 		}
@@ -67,15 +73,9 @@ func (r *Renderer) prepareBestCandidate(ctx context.Context, rec *ir.Recording) 
 	return selected, nil
 }
 
-// MeasureCandidate renders the configured candidate to a sink and reports its
+// measureBest renders the configured candidate to a sink and reports its
 // exact serialized size and structural cost.
-func (r *Renderer) MeasureCandidate(ctx context.Context, rec *ir.Recording) (CandidateMetrics, error) {
-	if len(rec.Frames) == 0 {
-		return CandidateMetrics{}, fmt.Errorf("recording has no frames")
-	}
-	if err := r.options.Validate(); err != nil {
-		return CandidateMetrics{}, err
-	}
+func (r *Renderer) measureBest(ctx context.Context, rec *ir.Recording) (CandidateMetrics, error) {
 	candidate, err := r.prepareBestCandidate(ctx, rec)
 	if err != nil {
 		return CandidateMetrics{}, err
@@ -97,7 +97,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, frames); err != nil {
+	if err := r.measureCandidate(ctx, frames); err != nil {
 		return nil, err
 	}
 	options.Layout = LayoutBands
@@ -105,7 +105,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, bands); err != nil {
+	if err := r.measureCandidate(ctx, bands); err != nil {
 		return nil, err
 	}
 	options.Layout = LayoutRegions
@@ -113,7 +113,7 @@ func (r *Renderer) prepareSelectedCandidate(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.measureCandidate(ctx, rec, regions); err != nil {
+	if err := r.measureCandidate(ctx, regions); err != nil {
 		return nil, err
 	}
 	selected := selectPreparedCandidate(r.options.AutoObjective, frames, bands, regions)
@@ -212,14 +212,7 @@ func prepareStyleCandidate(
 	options *Options,
 	scheme styleScheme,
 ) (*preparedCandidate, bool, error) {
-	c := &canvas{
-		rec:        rec,
-		plan:       *plan,
-		config:     *config,
-		options:    *options,
-		classNames: rec.Colors.GenerateClassNames(),
-	}
-	c.style = stylePlan{scheme: styleLegacy}
+	c := newCanvas(rec, plan, config, options)
 	if options.Style == StyleAuto {
 		c.style = c.styles().legacyStylePlan()
 	}
@@ -277,20 +270,17 @@ func attachStyleCostLedger(
 	config *renderer.Config,
 	candidate *preparedCandidate,
 ) {
-	c := &canvas{
-		rec: rec, plan: *plan, config: *config, options: candidate.options,
-		classNames: rec.Colors.GenerateClassNames(), style: candidate.style,
-	}
+	c := newCanvas(rec, plan, config, &candidate.options)
+	c.style = candidate.style
 	candidate.style.cost = c.buildStyleCostLedger()
 	candidate.style.styleBytes = candidate.style.cost.total
 }
 
-func (r *Renderer) measureCandidate(ctx context.Context, rec *ir.Recording, candidate *preparedCandidate) error {
-	bytes, err := costPreparedCandidate(ctx, rec, &r.config, candidate)
-	if err != nil {
+func (r *Renderer) measureCandidate(ctx context.Context, candidate *preparedCandidate) error {
+	if err := contextErr(ctx); err != nil {
 		return err
 	}
-	candidate.metrics.FinalBytes = bytes
+	candidate.metrics.FinalBytes = candidate.cost.finalBytes
 	return nil
 }
 
@@ -307,15 +297,9 @@ func (r *Renderer) serializeCandidate(
 	w io.Writer,
 	candidate *preparedCandidate,
 ) error {
-	if r.onCandidateSerialize != nil {
-		r.onCandidateSerialize()
-	}
 	buf := bufio.NewWriterSize(w, 64*1024)
-	c := &canvas{
-		w: buf, rec: rec, plan: *candidate.plan, config: r.config, options: candidate.options,
-		classNames: rec.Colors.GenerateClassNames(), metrics: &candidate.metrics,
-		style: candidate.style,
-	}
+	c := newCanvas(rec, candidate.plan, &r.config, &candidate.options)
+	c.w, c.metrics, c.style = buf, &candidate.metrics, candidate.style
 	if err := c.render(ctx, &candidate.content); err != nil {
 		return err
 	}

@@ -60,13 +60,20 @@ linters:
       # https://staticcheck.io/docs/options#checks
       checks: ["all", "-ST1000"]
     decorder:
-      disable-dec-order-check: false
+      # Related declarations stay together (a type next to its consts and
+      # methods) instead of being grouped by kind across the file.
+      disable-dec-order-check: true
       disable-init-func-first-check: false
     gocritic:
       enabled-tags:
         - performance
         - style
         - experimental
+      settings:
+        hugeParam:
+          # Options-like config values are small and passed by value on purpose
+          # (they are compared with == and copied to derive variants).
+          sizeThreshold: 256
     prealloc:
       simple: true
       range-loops: true

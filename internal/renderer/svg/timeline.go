@@ -213,15 +213,7 @@ func decimalDuration(duration, unit time.Duration, suffix string) string {
 	return prefix + strings.TrimPrefix(formatted, "0") + suffix
 }
 
-func (c *canvas) loopCount() string {
-	if c.config.LoopCount == -1 {
-		return "1"
-	}
-	if c.config.LoopCount > 0 {
-		return fmt.Sprintf("%d", c.config.LoopCount)
-	}
-	return "infinite"
-}
+func (c *canvas) loopCount() loopCount { return loopCount(c.config.LoopCount) }
 
 func (c *canvas) generateCursorKeyframes() string {
 	var sb strings.Builder

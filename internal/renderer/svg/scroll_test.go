@@ -186,7 +186,7 @@ func TestExactBandReplacementDeltaIsAdditiveAndKeepsSnapshotOnTie(t *testing.T) 
 	}
 
 	tie := snapshot
-	if scrollTapeWins(snapshot, tie) {
+	if bandReplacementWins(snapshot, tie) {
 		t.Fatal("zero replacement delta selected the tape")
 	}
 }
@@ -251,7 +251,7 @@ func TestExactBandReplacementDeltaRebuildsSharedDefinitions(t *testing.T) {
 func TestScrollTapeMetricsAndExactCost(t *testing.T) {
 	rec := scrollRecording(120, 40, 21)
 	config := renderer.DefaultConfig()
-	metrics, err := New(config, WithLayout(LayoutScroll)).MeasureCandidate(context.Background(), rec)
+	metrics, err := New(config, WithLayout(LayoutScroll)).measureBest(context.Background(), rec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestScrollTapeMetricsAndExactCost(t *testing.T) {
 	assertCandidateCostExact(t, rec, config, &Options{Layout: LayoutScroll, Animation: AnimationCSS, FrameSwitch: FrameSwitchTranslate, AutoObjective: AutoObjectiveSize, Style: StyleLegacy})
 }
 
-func scrollCanvas(rec *ir.Recording, plan *renderPlan, config *renderer.Config) canvas {
+func scrollCanvas(rec *ir.Recording, plan *semanticPlan, config *renderer.Config) canvas {
 	return canvas{rec: rec, plan: *plan, config: *config, options: Options{Layout: LayoutScroll, Animation: AnimationCSS, FrameSwitch: FrameSwitchTranslate, AutoObjective: AutoObjectiveSize, Style: StyleLegacy}, classNames: rec.Colors.GenerateClassNames(), metrics: &CandidateMetrics{}}
 }
 

@@ -17,8 +17,6 @@ import (
 	termcolor "github.com/mrmarble/termsvg/internal/color"
 	"github.com/mrmarble/termsvg/internal/ir"
 	"github.com/mrmarble/termsvg/internal/renderer"
-	"github.com/tdewolff/minify/v2"
-	msvg "github.com/tdewolff/minify/v2/svg"
 )
 
 type writeCountingWriter struct {
@@ -253,7 +251,6 @@ func TestRender_ColorClasses(t *testing.T) {
 	rec.Frames = append(rec.Frames, ir.Frame{
 		Time:  2 * time.Second,
 		Delay: time.Second,
-		Index: 2,
 		Rows: []ir.Row{
 			{Y: 0, Runs: []ir.TextRun{
 				{Text: "Red", StartCol: 0, Attrs: ir.CellAttrs{FG: redID}},
@@ -295,8 +292,7 @@ func TestRender_TextAttributes(t *testing.T) {
 		),
 		Frames: []ir.Frame{
 			{
-				Time:  0,
-				Index: 0,
+				Time: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{
 						{Text: "Bold", StartCol: 0, Attrs: ir.CellAttrs{Bold: true}},
@@ -366,8 +362,7 @@ func TestRender_BackgroundRectangles(t *testing.T) {
 
 	rec.Frames = []ir.Frame{
 		{
-			Time:  0,
-			Index: 0,
+			Time: 0,
 			Rows: []ir.Row{
 				{Y: 1, Runs: []ir.TextRun{
 					{Text: "界", StartCol: 1, EndCol: 3, Attrs: ir.CellAttrs{BG: blueID}},
@@ -479,8 +474,7 @@ func TestRender_HTMLEscaping(t *testing.T) {
 		),
 		Frames: []ir.Frame{
 			{
-				Time:  0,
-				Index: 0,
+				Time: 0,
 				Rows: []ir.Row{
 					{Y: 0, Runs: []ir.TextRun{
 						{Text: "<script>alert('xss')</script>", StartCol: 0},
@@ -545,15 +539,6 @@ func TestRender_HoistsTextWhitespaceAndEscapesTextNodes(t *testing.T) {
 				t.Fatalf("Render() error = %v", err)
 			}
 			svg := buf.String()
-			if isMinified {
-				m := minify.New()
-				m.AddFunc("image/svg+xml", msvg.Minify)
-				var output bytes.Buffer
-				if err := m.Minify("image/svg+xml", &output, &buf); err != nil {
-					t.Fatalf("Minify() error = %v", err)
-				}
-				svg = strings.ReplaceAll(output.String(), "\u00a0", " ")
-			}
 			if !isMinified && (strings.Count(svg, `xml:space="preserve"`) != 1 ||
 				!strings.Contains(svg, `<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve"`)) {
 				t.Fatalf("xml:space was not inherited from the root SVG: %s", svg)
@@ -686,7 +671,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	// Padded dimensions with window
 	config.ShowWindow = true
 	c.config = *config
-	expectedPaddedHeight := c.contentHeight() + Padding*HeaderSize + Padding // header + bottom padding
+	expectedPaddedHeight := 660 // 600 content + 40 header + 20 bottom padding
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() with window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
 	}
@@ -694,7 +679,7 @@ func TestCanvas_Dimensions(t *testing.T) {
 	// Padded dimensions without window
 	config.ShowWindow = false
 	c.config = *config
-	expectedPaddedHeight = c.contentHeight() + 2*Padding
+	expectedPaddedHeight = 640 // 600 content + 20 padding above and below
 	if c.paddedHeight() != expectedPaddedHeight {
 		t.Errorf("paddedHeight() without window = %d, want %d", c.paddedHeight(), expectedPaddedHeight)
 	}
@@ -711,13 +696,11 @@ func createTestRecording() *ir.Recording {
 		Width:    80,
 		Height:   24,
 		Duration: time.Second,
-		Title:    "Test Recording",
 		Colors:   colors,
 		Frames: []ir.Frame{
 			{
 				Time:  0,
 				Delay: 0,
-				Index: 0,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -731,7 +714,6 @@ func createTestRecording() *ir.Recording {
 			{
 				Time:  500 * time.Millisecond,
 				Delay: 500 * time.Millisecond,
-				Index: 1,
 				Rows: []ir.Row{
 					{
 						Y: 0,
@@ -741,9 +723,6 @@ func createTestRecording() *ir.Recording {
 					},
 				},
 			},
-		},
-		Stats: ir.Stats{
-			TotalFrames: 2,
 		},
 	}
 }
@@ -821,8 +800,8 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	// Verify multiple color classes were generated (256 color demo should have many)
-	if rec.Stats.UniqueColors < 10 {
-		t.Errorf("Expected many unique colors for 256color demo, got %d", rec.Stats.UniqueColors)
+	if len(rec.Colors.Colors()) < 10 {
+		t.Errorf("Expected many unique colors for 256color demo, got %d", len(rec.Colors.Colors()))
 	}
 
 	if !strings.Contains(svg, `<rect class="`) {
@@ -835,7 +814,7 @@ func TestIntegration_256Colors(t *testing.T) {
 	}
 
 	t.Logf("Generated SVG: %d bytes, %d frames, %d unique colors",
-		len(svg), rec.Stats.TotalFrames, rec.Stats.UniqueColors)
+		len(svg), len(rec.Frames), len(rec.Colors.Colors()))
 
 	outPath := filepath.Join(t.TempDir(), "256colors.svg")
 	//nolint:gosec // test output file needs to be readable

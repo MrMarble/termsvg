@@ -48,21 +48,12 @@ func TestSMILKeyTimesRetainSelectorsAndEndpoints(t *testing.T) {
 	}
 }
 
-func TestSMILRepeatCountMatchesRendererLoopSemantics(t *testing.T) {
-	for loopCount, want := range map[int]string{-1: "1", 0: "indefinite", 1: "1", 3: "3"} {
-		c := canvas{config: renderer.Config{LoopCount: loopCount}}
-		if got := c.smil().smilRepeatCount(); got != want {
-			t.Errorf("LoopCount %d = %q, want %q", loopCount, got, want)
-		}
-	}
-}
-
 func TestSMILTranslateValuesAndKeyTimesHaveMatchingLengths(t *testing.T) {
 	var out strings.Builder
 	c := canvas{
 		w:       &out,
 		rec:     experimentalRecording(),
-		plan:    renderPlan{duration: experimentalRecording().Duration},
+		plan:    semanticPlan{duration: experimentalRecording().Duration},
 		config:  renderer.Config{},
 		options: Options{Animation: AnimationSMIL},
 	}

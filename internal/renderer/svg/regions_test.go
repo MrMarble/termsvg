@@ -21,7 +21,7 @@ import (
 )
 
 func TestBuildDynamicRegionsKeepsDistantIntervalsSeparate(t *testing.T) {
-	plan := renderPlan{duration: time.Second, width: 12, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: time.Second, width: 12, height: 1, content: timeline[[]ir.Row]{
 		duration: time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Y: 0, Runs: []ir.TextRun{
@@ -47,7 +47,7 @@ func TestBuildDynamicRegionsKeepsDistantIntervalsSeparate(t *testing.T) {
 }
 
 func TestBuildDynamicRegionsSplitsAdjacentDistinctSchedules(t *testing.T) {
-	plan := renderPlan{duration: 3 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: 3 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
 		duration: 3 * time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Runs: []ir.TextRun{{Text: "00", EndCol: 2}}}}},
@@ -63,7 +63,7 @@ func TestBuildDynamicRegionsSplitsAdjacentDistinctSchedules(t *testing.T) {
 }
 
 func TestBuildDynamicRegionsKeepsAdjacentIdenticalSchedulesTogether(t *testing.T) {
-	plan := renderPlan{duration: 2 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: 2 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
 		duration: 2 * time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Runs: []ir.TextRun{{Text: "00", EndCol: 2}}}}},
@@ -77,7 +77,7 @@ func TestBuildDynamicRegionsKeepsAdjacentIdenticalSchedulesTogether(t *testing.T
 }
 
 func TestBuildDynamicRegionsDoesNotBisectWideGlyphFootprint(t *testing.T) {
-	plan := renderPlan{duration: 3 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: 3 * time.Second, width: 2, height: 1, content: timeline[[]ir.Row]{
 		duration: 3 * time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Runs: []ir.TextRun{{Text: "界\x00", EndCol: 2}}}}},
@@ -102,7 +102,7 @@ func TestOverBudgetSpatialSelectionKeepsVisualAtomsIndivisible(t *testing.T) {
 	}
 	initial := rows(strings.Repeat("0", 20))
 	initial[0].Runs[0] = ir.TextRun{Text: " ", EndCol: 2}
-	plan := renderPlan{duration: 3 * time.Second, width: 20, height: 22, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: 3 * time.Second, width: 20, height: 22, content: timeline[[]ir.Row]{
 		duration: 3 * time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: initial},
@@ -120,7 +120,7 @@ func TestOverBudgetSpatialSelectionKeepsVisualAtomsIndivisible(t *testing.T) {
 		t.Fatalf("temporal merge pairs = %d; want over budget %d", pairs, regionCandidateEvaluationBudget)
 	}
 
-	optimized, err := c.optimizeDynamicRegions(context.Background(), temporal)
+	optimized, err := c.optimizeDynamicRegions(context.Background(), temporal, regionCandidateEvaluationBudget)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestOverBudgetSpatialSelectionKeepsVisualAtomsIndivisible(t *testing.T) {
 }
 
 func TestOptimizeDynamicRegionsUsesExactBackendProfitability(t *testing.T) {
-	plan := renderPlan{duration: time.Second, width: 8, height: 2, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: time.Second, width: 8, height: 2, content: timeline[[]ir.Row]{
 		duration: time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{
@@ -172,7 +172,7 @@ func TestOptimizeDynamicRegionsUsesExactBackendProfitability(t *testing.T) {
 		if mergedBytes >= separate {
 			t.Fatalf("%+v fixture is not profitable: merged %d, separate %d", options, mergedBytes, separate)
 		}
-		optimized, err := c.optimizeDynamicRegions(context.Background(), regions)
+		optimized, err := c.optimizeDynamicRegions(context.Background(), regions, regionCandidateEvaluationBudget)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func TestOptimizeDynamicRegionsUsesExactBackendProfitability(t *testing.T) {
 }
 
 func TestRegionMergeDecisionsMatchFullSerializationOracle(t *testing.T) {
-	plan := renderPlan{duration: time.Second, width: 12, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: time.Second, width: 12, height: 1, content: timeline[[]ir.Row]{
 		duration: time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Y: 0, Runs: []ir.TextRun{
@@ -209,7 +209,7 @@ func TestRegionMergeDecisionsMatchFullSerializationOracle(t *testing.T) {
 			}
 			c.rec.Colors = testCatalog()
 			regions := buildDynamicRegions(&plan, c.rec.Colors)
-			additive, err := c.optimizeDynamicRegions(context.Background(), regions)
+			additive, err := c.optimizeDynamicRegions(context.Background(), regions, regionCandidateEvaluationBudget)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -466,11 +466,11 @@ func Test444816BoundedRegionOptimizationMatchesExhaustiveBaseline(t *testing.T) 
 		t.Fatal(err)
 	}
 	c := canvas{
-		rec: rec, plan: plan, config: *config, options: options,
+		rec: rec, plan: plan, config: *config, options: options, style: stylePlan{scheme: styleLegacy},
 		classNames: rec.Colors.GenerateClassNames(), metrics: &CandidateMetrics{},
 	}
 	regions := buildDynamicRegions(&plan, rec.Colors)
-	bounded, err := c.optimizeDynamicRegionsWithBudget(context.Background(), regions, regionCandidateEvaluationBudget)
+	bounded, err := c.optimizeDynamicRegions(context.Background(), regions, regionCandidateEvaluationBudget)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +547,7 @@ func mergeRegionBounds(regions []dynamicRegion, i, j int) []dynamicRegion {
 }
 
 func TestOptimizeRegionMergesRejectsBoundingBoxThroughThirdRegion(t *testing.T) {
-	plan := renderPlan{duration: time.Second, width: 3, height: 2, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: time.Second, width: 3, height: 2, content: timeline[[]ir.Row]{
 		duration: time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{
@@ -600,7 +600,7 @@ func TestRegionRenderDoesNotDuplicatePaintInsideMergedBounds(t *testing.T) {
 }
 
 func TestBuildDynamicRegionsFallsBackForUnsplittableWideGlyph(t *testing.T) {
-	plan := renderPlan{duration: time.Second, width: 4, height: 1, content: timeline[[]ir.Row]{
+	plan := semanticPlan{duration: time.Second, width: 4, height: 1, content: timeline[[]ir.Row]{
 		duration: time.Second,
 		points: []timelinePoint[[]ir.Row]{
 			{state: []ir.Row{{Y: 0, Runs: []ir.TextRun{{Text: "ab", StartCol: 0, EndCol: 3}}}}},

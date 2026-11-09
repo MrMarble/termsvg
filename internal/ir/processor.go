@@ -54,9 +54,7 @@ func NewProcessor(config *ProcessorConfig) *Processor {
 
 // sendProgress reports IR processing progress when a progress channel is set.
 func (p *Processor) sendProgress(current, total int) {
-	if p.config.ProgressCh != nil {
-		p.config.ProgressCh <- progress.Update{Phase: "IR Processing", Current: current, Total: total}
-	}
+	progress.Send(p.config.ProgressCh, progress.PhaseIR, current, total)
 }
 
 func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
@@ -64,23 +62,19 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		return nil, fmt.Errorf("invalid terminal size %dx%d: %w", cast.Header.Width, cast.Header.Height, err)
 	}
 
-	// 1. Pre-process the cast (compress, adjust timing)
 	events := p.preprocessEvents(cast)
 	if !hasOutput(events) {
 		return nil, errors.New("recording has no output events")
 	}
 	p.sendProgress(0, len(events))
 
-	// 2. Initialize terminal emulator and color catalog with theme defaults
 	term := terminal.New(cast.Header.Width, cast.Header.Height)
 	catalog := color.NewCatalog(p.config.Theme.Foreground, p.config.Theme.Background)
 
-	// 3. Process each event into a frame
 	stats := Stats{}
 	canvas := canvasSize{cols: cast.Header.Width, rows: cast.Header.Height}
 	frames := p.captureFrames(events, term, catalog, &canvas, &stats)
 
-	// 4. Clean up frames: strip empty rows and trim trailing whitespace
 	for i := range frames {
 		frames[i].Rows = cleanRows(frames[i].Rows, catalog)
 	}
@@ -92,20 +86,13 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		duration = frames[len(frames)-1].Time
 	}
 
-	// 5. Deduplicate consecutive identical frames, including cursor state, and
-	// work out how long each remaining frame stays on screen
 	frames = deduplicateFrames(frames)
 	assignDisplayDelays(frames, duration)
-
-	// 6. Finalize statistics
-	stats.TotalFrames = len(frames)
-	stats.UniqueColors = catalog.Count()
 
 	return &Recording{
 		Width:    canvas.cols,
 		Height:   canvas.rows,
 		Duration: duration,
-		Title:    cast.Header.Title,
 		Frames:   frames,
 		Colors:   catalog,
 		Stats:    stats,
@@ -134,9 +121,8 @@ func (p *Processor) captureFrames(
 			_, _ = term.Write([]byte(event.EventData))
 		}
 
-		frames = append(frames, p.captureFrame(term, catalog, i, floatSecondsToDuration(event.Time), stats))
+		frames = append(frames, p.captureFrame(term, catalog, floatSecondsToDuration(event.Time), stats))
 
-		// Send progress update every 10 events
 		if i%10 == 0 {
 			p.sendProgress(i+1, len(events))
 		}
@@ -178,7 +164,6 @@ func hasOutput(events []asciicast.Event) bool {
 func (p *Processor) captureFrame(
 	term *terminal.Emulator,
 	catalog *color.Catalog,
-	index int,
 	absTime time.Duration,
 	stats *Stats,
 ) Frame {
@@ -188,7 +173,6 @@ func (p *Processor) captureFrame(
 		rows[y] = p.captureRow(term, catalog, y, stats)
 	}
 
-	// Capture cursor state
 	cursorCol, cursorRow := term.Cursor()
 	cursor := Cursor{
 		Col:     cursorCol,
@@ -198,13 +182,12 @@ func (p *Processor) captureFrame(
 
 	return Frame{
 		Time:   absTime,
-		Index:  index,
 		Rows:   rows,
 		Cursor: cursor,
 	}
 }
 
-// captureRow extracts a single row, grouping cells into TextRuns.
+// captureRow extracts a row, grouping consecutive cells with the same attributes into runs.
 func (p *Processor) captureRow(
 	term *terminal.Emulator,
 	catalog *color.Catalog,
@@ -225,11 +208,9 @@ func (p *Processor) captureRow(
 		cell := term.Cell(x, y)
 		attrs := p.cellToAttrs(cell, catalog, stats)
 
-		// Check if we can extend the current run
-		if current != nil && attrsEqual(current.attrs, attrs) {
+		if current != nil && current.attrs == attrs {
 			current.chars = append(current.chars, cell.Char)
 		} else {
-			// Finalize the previous run if exists
 			if current != nil {
 				runs = append(runs, TextRun{
 					Text:     string(current.chars),
@@ -238,7 +219,6 @@ func (p *Processor) captureRow(
 					Attrs:    current.attrs,
 				})
 			}
-			// Start a new run
 			current = &runBuilder{
 				chars:  []rune{cell.Char},
 				startX: x,
@@ -247,7 +227,6 @@ func (p *Processor) captureRow(
 		}
 	}
 
-	// Don't forget the last run
 	if current != nil {
 		runs = append(runs, TextRun{
 			Text:     string(current.chars),
@@ -257,25 +236,17 @@ func (p *Processor) captureRow(
 		})
 	}
 
-	// Track statistics
-	if len(runs) > stats.MaxRunsPerRow {
-		stats.MaxRunsPerRow = len(runs)
-	}
-
 	return Row{Y: y, Runs: runs}
 }
 
-// cellToAttrs converts a terminal cell to IR attributes.
 func (p *Processor) cellToAttrs(
 	cell terminal.Cell,
 	catalog *color.Catalog,
 	stats *Stats,
 ) CellAttrs {
-	// Register colors and get IDs
 	fgID := catalog.Register(cell.Foreground, &p.config.Theme.Palette)
 	bgID := catalog.Register(cell.Background, &p.config.Theme.Palette)
 
-	// Track attribute usage
 	if cell.Bold {
 		stats.HasBold = true
 	}
@@ -287,9 +258,6 @@ func (p *Processor) cellToAttrs(
 	}
 	if cell.Dim {
 		stats.HasDim = true
-	}
-	if cell.Foreground.Type == color.TrueColor || cell.Background.Type == color.TrueColor {
-		stats.HasTrueColor = true
 	}
 
 	return CellAttrs{
@@ -304,9 +272,9 @@ func (p *Processor) cellToAttrs(
 
 // preprocessEvents applies timing adjustments and compression.
 func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
-	// Work with a copy to avoid mutating input. Only output and resize events
-	// affect the screen: input, markers, exit statuses and unknown codes carry
-	// data that is not terminal output.
+	// Only output and resize events affect the screen: input, markers, exit
+	// statuses and unknown codes carry data that is not terminal output. The
+	// events are copied so the cast is not mutated.
 	events := make([]asciicast.Event, 0, len(cast.Events))
 	for _, event := range cast.Events {
 		if event.EventType == asciicast.Output || event.EventType == asciicast.Resize {
@@ -314,7 +282,6 @@ func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
 		}
 	}
 
-	// Apply speed adjustment
 	if p.config.Speed != 1.0 && p.config.Speed > 0 {
 		for i := range events {
 			events[i].Time /= p.config.Speed
@@ -338,7 +305,6 @@ func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
 		}
 	}
 
-	// Compress events with same timestamp
 	if p.config.Compress {
 		compressed := make([]asciicast.Event, 0, len(events))
 		for i, event := range events {
@@ -359,16 +325,6 @@ func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
 	}
 
 	return events
-}
-
-// attrsEqual compares two CellAttrs for equality.
-func attrsEqual(a, b CellAttrs) bool {
-	return a.FG == b.FG &&
-		a.BG == b.BG &&
-		a.Bold == b.Bold &&
-		a.Italic == b.Italic &&
-		a.Underline == b.Underline &&
-		a.Dim == b.Dim
 }
 
 func floatSecondsToDuration(seconds float64) time.Duration {
@@ -431,11 +387,6 @@ func deduplicateFrames(frames []Frame) []Frame {
 		deduped = append(deduped, frames[i])
 	}
 
-	// Renumber frame indices to be sequential
-	for i := range deduped {
-		deduped[i].Index = i
-	}
-
 	return deduped
 }
 
@@ -457,12 +408,10 @@ func framesEqual(a, b *Frame) bool {
 		return false
 	}
 
-	// Compare row count
 	if len(a.Rows) != len(b.Rows) {
 		return false
 	}
 
-	// Compare each row
 	for i := range a.Rows {
 		if !rowsEqual(&a.Rows[i], &b.Rows[i]) {
 			return false
@@ -472,7 +421,6 @@ func framesEqual(a, b *Frame) bool {
 	return true
 }
 
-// rowsEqual compares two rows for equality.
 func rowsEqual(a, b *Row) bool {
 	if a.Y != b.Y {
 		return false
@@ -491,7 +439,6 @@ func rowsEqual(a, b *Row) bool {
 	return true
 }
 
-// textRunsEqual compares two text runs for equality.
 func textRunsEqual(a, b *TextRun) bool {
 	return a.Text == b.Text &&
 		a.StartCol == b.StartCol &&
