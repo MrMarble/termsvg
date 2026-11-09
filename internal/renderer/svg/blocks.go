@@ -85,11 +85,12 @@ func (c *canvas) shareRowBlocks(
 ) (frames [][]*renderedRow, defs []*renderedRow) {
 	frames, defs = states, definitions
 	blockStates := c.buildBlockStates(frames)
-	candidates := c.collectBlockCandidates(blockStates)
+	candidates := collectBlockCandidates(blockStates)
 	if len(candidates) == 0 {
 		return frames, defs
 	}
-	accepted := c.finalizeBlockIDs(blockStates, c.selectBlocks(blockStates, candidates, ids), ids)
+	selected := selectBlocks(c.config.Minify, blockStates, candidates, ids)
+	accepted := finalizeBlockIDs(c.config.Minify, blockStates, selected, ids)
 	if len(accepted) == 0 {
 		return frames, defs
 	}
@@ -99,7 +100,7 @@ func (c *canvas) shareRowBlocks(
 		defs = append(defs, def)
 		for _, user := range candidate.users {
 			replacements[user.state] = append(replacements[user.state], blockReplacement{
-				start: user.start, end: user.end, item: c.blockReference(blockStates, candidate, def, user),
+				start: user.start, end: user.end, item: blockReference(c.config.Minify, blockStates, candidate, def, user),
 			})
 		}
 	}
@@ -136,7 +137,7 @@ func (c *canvas) buildBlockStates(frames [][]*renderedRow) []blockState {
 				keys[row] = key
 			}
 			state.hashes[k], state.cols[k] = key.hash, key.col
-			state.prefixBytes[k+1] = state.prefixBytes[k] + c.renderedRowBytes(row)
+			state.prefixBytes[k+1] = state.prefixBytes[k] + renderedRowBytes(c.config.Minify, row)
 			state.prefixElems[k+1] = state.prefixElems[k] + c.renderedRowItems(row)
 		}
 		states[i] = state
@@ -146,11 +147,11 @@ func (c *canvas) buildBlockStates(frames [][]*renderedRow) []blockState {
 
 // renderedRowBytes is what a row costs in a state today: its reference when
 // it is interned, its markup otherwise.
-func (c *canvas) renderedRowBytes(row *renderedRow) int {
+func renderedRowBytes(minify bool, row *renderedRow) int {
 	if row.id != "" {
-		return c.segmentUseBytes(len(row.id), 0, 0)
+		return segmentUseBytes(minify, len(row.id), 0, 0)
 	}
-	return finalSVGBytes(row.svg, c.config.Minify)
+	return finalSVGBytes(row.svg, minify)
 }
 
 // renderedRowItems is the number of XML elements a row contributes to a
@@ -204,7 +205,7 @@ func visitBlockRanges(states []blockState, visitor func(state, start, end int, h
 	}
 }
 
-func (c *canvas) collectBlockCandidates(states []blockState) []*blockCandidate {
+func collectBlockCandidates(states []blockState) []*blockCandidate {
 	counts := make(map[uint64]int)
 	visitBlockRanges(states, func(_, _, _ int, hash uint64) { counts[hash]++ })
 
@@ -275,7 +276,8 @@ func blockRowsEqual(relative []ir.Row, items []*renderedRow, col, y int) bool {
 // Every occurrence whose rows are still unclaimed becomes a user, so a row
 // joins at most one block and overlapping candidates resolve in favour of the
 // larger win.
-func (c *canvas) selectBlocks(
+func selectBlocks(
+	minify bool,
 	states []blockState,
 	candidates []*blockCandidate,
 	ids *xmlIDAllocator,
@@ -283,8 +285,8 @@ func (c *canvas) selectBlocks(
 	estimatedIDLen := blockIDLength(ids, 0)
 	estimates := make(map[*blockCandidate]int, len(candidates))
 	for _, candidate := range candidates {
-		c.chooseBlockAnchor(states, candidate, candidate.occurrences)
-		estimates[candidate] = c.blockSavings(states, candidate, candidate.occurrences, estimatedIDLen)
+		chooseBlockAnchor(states, candidate, candidate.occurrences)
+		estimates[candidate] = blockSavings(minify, states, candidate, candidate.occurrences, estimatedIDLen)
 	}
 	slices.SortFunc(candidates, func(a, b *blockCandidate) int {
 		if estimates[a] != estimates[b] {
@@ -307,8 +309,8 @@ func (c *canvas) selectBlocks(
 			}
 		}
 		if len(users) >= 2 {
-			c.chooseBlockAnchor(states, candidate, users)
-			if c.blockSavings(states, candidate, users, blockIDLength(ids, len(accepted))) > 0 {
+			chooseBlockAnchor(states, candidate, users)
+			if blockSavings(minify, states, candidate, users, blockIDLength(ids, len(accepted))) > 0 {
 				candidate.users = users
 				accepted = append(accepted, candidate)
 				continue
@@ -339,7 +341,8 @@ func releaseBlockUsers(states []blockState, users []blockOccurrence) {
 // definitions and drops any candidate whose exact identifier cost makes it
 // unprofitable. Dropping only shortens later identifiers, so one pass per drop
 // converges quickly.
-func (c *canvas) finalizeBlockIDs(
+func finalizeBlockIDs(
+	minify bool,
 	states []blockState,
 	accepted []*blockCandidate,
 	ids *xmlIDAllocator,
@@ -352,7 +355,7 @@ func (c *canvas) finalizeBlockIDs(
 		dropped := false
 		for _, candidate := range accepted {
 			id := probe.allocate()
-			if c.blockSavings(states, candidate, candidate.users, len(id)) <= 0 {
+			if blockSavings(minify, states, candidate, candidate.users, len(id)) <= 0 {
 				candidate.dropped, dropped = true, true
 				releaseBlockUsers(states, candidate.users)
 				continue
@@ -369,7 +372,7 @@ func (c *canvas) finalizeBlockIDs(
 
 // chooseBlockAnchor picks the most frequent absolute position among the
 // users, the first occurrence on ties, and measures the body there.
-func (c *canvas) chooseBlockAnchor(states []blockState, candidate *blockCandidate, users []blockOccurrence) {
+func chooseBlockAnchor(states []blockState, candidate *blockCandidate, users []blockOccurrence) {
 	type position struct{ col, y int }
 	counts := make(map[position]int, len(users))
 	best, bestCount := position{}, 0
@@ -394,11 +397,11 @@ func (c *canvas) chooseBlockAnchor(states []blockState, candidate *blockCandidat
 // blockSavings is the exact byte change of sharing the candidate with the
 // given identifier length: the definition costs its anchored body plus the
 // wrapper, and every user trades what its rows cost today for one reference.
-func (c *canvas) blockSavings(states []blockState, candidate *blockCandidate, users []blockOccurrence, idLen int) int {
+func blockSavings(minify bool, states []blockState, candidate *blockCandidate, users []blockOccurrence, idLen int) int {
 	savings := -(candidate.bodyBytes + segmentDefinitionOverhead(idLen, candidate.elements))
 	for _, user := range users {
 		dx, dy := (user.col-candidate.anchor.col)*ColWidth, (user.y-candidate.anchor.y)*RowHeight
-		savings += states[user.state].bytes(user.start, user.end) - c.segmentUseBytes(idLen, dx, dy)
+		savings += states[user.state].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
 	}
 	return savings
 }
@@ -415,7 +418,7 @@ func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate)
 	var sb strings.Builder
 	for _, item := range items {
 		if item.id != "" {
-			sb.WriteString(c.segmentUseMarkup(item.id, 0, 0))
+			sb.WriteString(segmentUseMarkup(c.config.Minify, item.id, 0, 0))
 			def.uses = append(def.uses, item.id)
 			continue
 		}
@@ -429,7 +432,8 @@ func (c *canvas) blockDefinition(states []blockState, candidate *blockCandidate)
 
 // blockReference replaces the covered rows of one user by a single reference
 // to the definition, offset from the anchor position.
-func (c *canvas) blockReference(
+func blockReference(
+	minify bool,
 	states []blockState,
 	candidate *blockCandidate,
 	def *renderedRow,
@@ -438,7 +442,7 @@ func (c *canvas) blockReference(
 	items := states[user.state].items[user.start:user.end]
 	dx, dy := (user.col-candidate.anchor.col)*ColWidth, (user.y-candidate.anchor.y)*RowHeight
 	return &renderedRow{
-		row: items[0].row, rows: blockRows(items), svg: c.segmentUseMarkup(def.id, dx, dy),
+		row: items[0].row, rows: blockRows(items), svg: segmentUseMarkup(minify, def.id, dx, dy),
 		elements: 1, uses: []string{def.id},
 	}
 }

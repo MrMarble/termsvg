@@ -151,7 +151,7 @@ func (m *rowMarkup) render(c *canvas, uses []rowSegmentUse) (svg string, element
 				elements++
 			}
 		}
-		sb.WriteString(c.segmentUseMarkup(use.def.id, use.dx, use.dy))
+		sb.WriteString(segmentUseMarkup(c.config.Minify, use.def.id, use.dx, use.dy))
 		elements++
 		next = use.end
 	}
@@ -165,32 +165,32 @@ func (m *rowMarkup) render(c *canvas, uses []rowSegmentUse) (svg string, element
 	return sb.String(), elements, inline
 }
 
-func (c *canvas) segmentUseMarkup(id string, dx, dy int) string {
+func segmentUseMarkup(minify bool, id string, dx, dy int) string {
 	var sb strings.Builder
 	sb.WriteString(`<use href="#`)
 	sb.WriteString(id)
 	sb.WriteByte('"')
 	if dx != 0 {
 		sb.WriteString(` x="`)
-		sb.WriteString(c.xmlInt(dx))
+		sb.WriteString(formatInt(dx, minify))
 		sb.WriteByte('"')
 	}
 	if dy != 0 {
 		sb.WriteString(` y="`)
-		sb.WriteString(c.xmlInt(dy))
+		sb.WriteString(formatInt(dy, minify))
 		sb.WriteByte('"')
 	}
 	sb.WriteString(`/>`)
 	return sb.String()
 }
 
-func (c *canvas) segmentUseBytes(idLen, dx, dy int) int {
+func segmentUseBytes(minify bool, idLen, dx, dy int) int {
 	bytes := len(`<use href="#`) + idLen + len(`"/>`)
 	if dx != 0 {
-		bytes += len(` x=""`) + len(c.xmlInt(dx))
+		bytes += len(` x=""`) + len(formatInt(dx, minify))
 	}
 	if dy != 0 {
-		bytes += len(` y=""`) + len(c.xmlInt(dy))
+		bytes += len(` y=""`) + len(formatInt(dy, minify))
 	}
 	return bytes
 }
@@ -241,7 +241,7 @@ func segmentRunHash(run ir.TextRun) uint64 {
 // and returns the references each row should emit together with the
 // definitions in identifier order.
 func (c *canvas) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]rowSegmentUse, []*renderedRow) {
-	candidates := c.collectSegmentCandidates(markup)
+	candidates := collectSegmentCandidates(markup)
 	if len(candidates) == 0 {
 		return make([][]rowSegmentUse, len(markup)), nil
 	}
@@ -249,8 +249,8 @@ func (c *canvas) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]
 	for i := range markup {
 		claimed[i] = make([]bool, len(markup[i].row.Runs))
 	}
-	accepted := c.selectSegments(markup, candidates, claimed)
-	accepted = c.finalizeSegmentIDs(markup, accepted, claimed, ids)
+	accepted := selectSegments(c.config.Minify, markup, candidates, claimed)
+	accepted = finalizeSegmentIDs(c.config.Minify, markup, accepted, claimed, ids)
 
 	uses := make([][]rowSegmentUse, len(markup))
 	defs := make([]*renderedRow, 0, len(accepted))
@@ -270,7 +270,7 @@ func (c *canvas) shareRowSegments(markup []rowMarkup, ids *xmlIDAllocator) ([][]
 	return uses, defs
 }
 
-func (c *canvas) collectSegmentCandidates(markup []rowMarkup) []*segmentCandidate {
+func collectSegmentCandidates(markup []rowMarkup) []*segmentCandidate {
 	counts := make(map[uint64]int)
 	visitSegmentRanges(markup, func(_, _, _ int, hash uint64) { counts[hash]++ })
 
@@ -348,15 +348,16 @@ func segmentRunsEqual(normalized, runs []ir.TextRun) bool {
 // selectSegments greedily accepts candidates by their estimated total saving.
 // Every occurrence whose runs are still unclaimed becomes a user, so nested and
 // overlapping candidates resolve deterministically in favour of the larger win.
-func (c *canvas) selectSegments(
+func selectSegments(
+	minify bool,
 	markup []rowMarkup,
 	candidates []*segmentCandidate,
 	claimed [][]bool,
 ) []*segmentCandidate {
 	const estimatedIDLen = 2
 	estimate := func(candidate *segmentCandidate) int {
-		c.chooseSegmentAnchor(markup, candidate, candidate.occurrences)
-		return c.segmentSavings(markup, candidate, candidate.occurrences, estimatedIDLen)
+		chooseSegmentAnchor(markup, candidate, candidate.occurrences)
+		return segmentSavings(minify, markup, candidate, candidate.occurrences, estimatedIDLen)
 	}
 	estimates := make(map[*segmentCandidate]int, len(candidates))
 	for _, candidate := range candidates {
@@ -390,9 +391,9 @@ func (c *canvas) selectSegments(
 			release()
 			continue
 		}
-		c.chooseSegmentAnchor(markup, candidate, users)
+		chooseSegmentAnchor(markup, candidate, users)
 		idLen := len(compactXMLID(len(accepted)))
-		if c.segmentSavings(markup, candidate, users, idLen) <= 0 {
+		if segmentSavings(minify, markup, candidate, users, idLen) <= 0 {
 			release()
 			continue
 		}
@@ -406,7 +407,8 @@ func (c *canvas) selectSegments(
 // definitions and drops any candidate whose exact identifier cost makes it
 // unprofitable. Dropping only shortens later identifiers, so one pass per drop
 // converges quickly.
-func (c *canvas) finalizeSegmentIDs(
+func finalizeSegmentIDs(
+	minify bool,
 	markup []rowMarkup,
 	accepted []*segmentCandidate,
 	claimed [][]bool,
@@ -420,7 +422,7 @@ func (c *canvas) finalizeSegmentIDs(
 		dropped := false
 		for _, candidate := range accepted {
 			id := probe.allocate()
-			if c.segmentSavings(markup, candidate, candidate.users, len(id)) <= 0 {
+			if segmentSavings(minify, markup, candidate, candidate.users, len(id)) <= 0 {
 				candidate.dropped = true
 				dropped = true
 				for _, user := range candidate.users {
@@ -438,7 +440,7 @@ func (c *canvas) finalizeSegmentIDs(
 	}
 }
 
-func (c *canvas) chooseSegmentAnchor(markup []rowMarkup, candidate *segmentCandidate, users []segmentOccurrence) {
+func chooseSegmentAnchor(markup []rowMarkup, candidate *segmentCandidate, users []segmentOccurrence) {
 	type position struct{ col, y int }
 	counts := make(map[position]int, len(users))
 	best, bestCount := position{}, 0
@@ -459,7 +461,8 @@ func (c *canvas) chooseSegmentAnchor(markup []rowMarkup, candidate *segmentCandi
 	}
 }
 
-func (c *canvas) segmentSavings(
+func segmentSavings(
+	minify bool,
 	markup []rowMarkup,
 	candidate *segmentCandidate,
 	users []segmentOccurrence,
@@ -468,7 +471,7 @@ func (c *canvas) segmentSavings(
 	savings := -(candidate.inlineBytes + segmentDefinitionOverhead(idLen, candidate.elements))
 	for _, user := range users {
 		dx, dy := (user.col-candidate.anchorCol)*ColWidth, (user.y-candidate.anchorY)*RowHeight
-		savings += markup[user.row].bytes(user.start, user.end) - c.segmentUseBytes(idLen, dx, dy)
+		savings += markup[user.row].bytes(user.start, user.end) - segmentUseBytes(minify, idLen, dx, dy)
 	}
 	return savings
 }

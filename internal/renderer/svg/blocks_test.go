@@ -254,7 +254,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 			t.Fatalf("block item %d = %#v; want anchor row %d", i, item.row, i+1)
 		}
 		if item.id != "" {
-			body.WriteString(c.segmentUseMarkup(item.id, 0, 0))
+			body.WriteString(segmentUseMarkup(c.config.Minify, item.id, 0, 0))
 			continue
 		}
 		body.WriteString(item.svg)
@@ -274,7 +274,7 @@ func TestBlockDefinitionUsesExactMarkupBytes(t *testing.T) {
 			t.Fatalf("state %d holds %d items, want one block reference", i, len(rows))
 		}
 		item := rows[0]
-		want := c.segmentUseMarkup(block.id, i*2*ColWidth, 0)
+		want := segmentUseMarkup(c.config.Minify, block.id, i*2*ColWidth, 0)
 		if item.svg != want || item.elements != 1 || !slices.Equal(item.uses, []string{block.id}) ||
 			len(item.rows) != 3 || item.rows[0].Y != 1 || item.rows[2].Y != 3 || !rowEqual(item.row, item.rows[0]) {
 			t.Fatalf("state %d block reference = %#v; want %q", i, item, want)
