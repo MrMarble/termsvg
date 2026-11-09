@@ -1,6 +1,7 @@
 package export
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -176,6 +177,61 @@ func TestCmd_Run_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := tt.build().Run(); err == nil {
 				t.Fatal("expected error")
+			}
+		})
+	}
+}
+
+func TestCmd_Run_AsciicastV3MatchesV2(t *testing.T) {
+	dir := t.TempDir()
+	// The same recording in both formats; v3 stores intervals and may carry
+	// comments, markers, resizes and an exit status that must not be drawn.
+	v2 := writeRunFile(t, dir, "in.v2.cast", `{"version":2,"width":20,"height":4}
+[0.25,"o","hello"]
+[1.0,"o","\r\n\u001b[31mred\u001b[0m"]
+[1.75,"o","\r\nbye"]
+`)
+	v3 := writeRunFile(t, dir, "in.v3.cast", `{"version":3,"term":{"cols":20,"rows":4,"type":"xterm-256color"}}
+[0.25,"o","hello"]
+# a comment between events
+[0.5,"m","chapter"]
+[0.25,"o","\r\n\u001b[31mred\u001b[0m"]
+[0.125,"r","90x30"]
+[0.625,"o","\r\nbye"]
+[0.5,"x","0"]
+`)
+
+	render := func(in string) []byte {
+		out := filepath.Join(dir, filepath.Base(in)+".svg")
+		if err := newCmd(in, out, "svg").Run(); err != nil {
+			t.Fatalf("export %s: %v", filepath.Base(in), err)
+		}
+		data, err := os.ReadFile(out) //nolint:gosec // test temp file
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	if want, got := render(v2), render(v3); !bytes.Equal(want, got) {
+		t.Errorf("v3 export differs from the equivalent v2 export (%d vs %d bytes)", len(got), len(want))
+	}
+}
+
+func TestCmd_Run_RejectsUnusableHeaders(t *testing.T) {
+	dir := t.TempDir()
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "v3 without terminal size", content: `{"version":3}` + "\n[1,\"o\",\"x\"]\n"},
+		{name: "v2 without terminal size", content: `{"version":2}` + "\n[1,\"o\",\"x\"]\n"},
+		{name: "unsupported version", content: `{"version":9,"width":5,"height":2}` + "\n[1,\"o\",\"x\"]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := writeRunFile(t, dir, "bad.cast", tt.content)
+			if err := newCmd(in, filepath.Join(dir, "bad.svg"), "svg").Run(); err == nil {
+				t.Fatal("expected an error, not a crash")
 			}
 		})
 	}

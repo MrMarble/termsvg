@@ -108,7 +108,9 @@ Available options:
 
 **Export recorded asciicast to svg.**
 
-This command exports given asciicast (as recorded by `rec` command) to svg.
+This command exports given asciicast (as recorded by `rec` command) to svg. Both asciicast v2 and v3
+(asciinema 3.x) files are accepted; only output events are drawn, so markers, resizes, input and exit
+events in the file are ignored.
 
 Exporting from a local file:
 

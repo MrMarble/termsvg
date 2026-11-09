@@ -171,7 +171,10 @@ func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
 				config.IdleTimeLimit = 2 * time.Second
 			},
 			events: []asciicast.Event{
-				{Time: 0}, {Time: 10}, {Time: 20}, {Time: 21},
+				{Time: 0, EventType: asciicast.Output},
+				{Time: 10, EventType: asciicast.Output},
+				{Time: 20, EventType: asciicast.Output},
+				{Time: 21, EventType: asciicast.Output},
 			},
 			want: []float64{0, 2, 4, 5},
 		},
@@ -181,7 +184,9 @@ func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
 				config.IdleTimeLimit = 2 * time.Second
 			},
 			events: []asciicast.Event{
-				{Time: 0}, {Time: 2}, {Time: 4},
+				{Time: 0, EventType: asciicast.Output},
+				{Time: 2, EventType: asciicast.Output},
+				{Time: 4, EventType: asciicast.Output},
 			},
 			want: []float64{0, 2, 4},
 		},
@@ -191,7 +196,8 @@ func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
 				config.IdleTimeLimit = 100 * time.Millisecond
 			},
 			events: []asciicast.Event{
-				{Time: 0}, {Time: math.Nextafter(0.1, 0)},
+				{Time: 0, EventType: asciicast.Output},
+				{Time: math.Nextafter(0.1, 0), EventType: asciicast.Output},
 			},
 			want: []float64{0, math.Nextafter(0.1, 0)},
 		},
@@ -201,7 +207,8 @@ func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
 				config.IdleTimeLimit = 100 * time.Millisecond
 			},
 			events: []asciicast.Event{
-				{Time: 0}, {Time: math.Nextafter(0.1, math.Inf(1))},
+				{Time: 0, EventType: asciicast.Output},
+				{Time: math.Nextafter(0.1, math.Inf(1)), EventType: asciicast.Output},
 			},
 			want: []float64{0, 0.1},
 		},
@@ -212,7 +219,9 @@ func TestProcessor_PreprocessEventsIdleTimeCap(t *testing.T) {
 				config.IdleTimeLimit = 2 * time.Second
 			},
 			events: []asciicast.Event{
-				{Time: 0}, {Time: 10}, {Time: 14},
+				{Time: 0, EventType: asciicast.Output},
+				{Time: 10, EventType: asciicast.Output},
+				{Time: 14, EventType: asciicast.Output},
 			},
 			want: []float64{0, 2, 4},
 		},

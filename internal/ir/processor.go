@@ -1,6 +1,8 @@
 package ir
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -40,20 +42,28 @@ func NewProcessor(config *ProcessorConfig) *Processor {
 	return &Processor{config: *config}
 }
 
+// sendProgress reports IR processing progress when a progress channel is set.
+func (p *Processor) sendProgress(current, total int) {
+	if p.config.ProgressCh != nil {
+		p.config.ProgressCh <- progress.Update{Phase: "IR Processing", Current: current, Total: total}
+	}
+}
+
 // Process transforms a Cast into a Recording (the IR).
 func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
+	if cast.Header.Width <= 0 || cast.Header.Height <= 0 {
+		return nil, fmt.Errorf("invalid terminal size %dx%d: the recording header must set a positive width and height",
+			cast.Header.Width, cast.Header.Height)
+	}
+
 	// 1. Pre-process the cast (compress, adjust timing)
 	events := p.preprocessEvents(cast)
 	totalEvents := len(events)
-
-	// Send initial progress
-	if p.config.ProgressCh != nil {
-		p.config.ProgressCh <- progress.Update{
-			Phase:   "IR Processing",
-			Current: 0,
-			Total:   totalEvents,
-		}
+	if totalEvents == 0 {
+		return nil, errors.New("recording has no output events")
 	}
+
+	p.sendProgress(0, totalEvents)
 
 	// 2. Initialize terminal emulator
 	term := terminal.New(cast.Header.Width, cast.Header.Height)
@@ -76,12 +86,8 @@ func (p *Processor) Process(cast *asciicast.Cast) (*Recording, error) {
 		frames = append(frames, frame)
 
 		// Send progress update every 10 events or on last event
-		if p.config.ProgressCh != nil && (i%10 == 0 || i == totalEvents-1) {
-			p.config.ProgressCh <- progress.Update{
-				Phase:   "IR Processing",
-				Current: i + 1,
-				Total:   totalEvents,
-			}
+		if i%10 == 0 || i == totalEvents-1 {
+			p.sendProgress(i+1, totalEvents)
 		}
 
 		prevTime = frameTime
@@ -247,9 +253,15 @@ func (p *Processor) cellToAttrs(
 
 // preprocessEvents applies timing adjustments and compression.
 func (p *Processor) preprocessEvents(cast *asciicast.Cast) []asciicast.Event {
-	// Work with a copy to avoid mutating input
-	events := make([]asciicast.Event, len(cast.Events))
-	copy(events, cast.Events)
+	// Work with a copy to avoid mutating input. Only output events are drawn:
+	// input, markers, resizes and exit statuses carry data that is not terminal
+	// output.
+	events := make([]asciicast.Event, 0, len(cast.Events))
+	for _, event := range cast.Events {
+		if event.EventType == asciicast.Output {
+			events = append(events, event)
+		}
+	}
 
 	// Apply speed adjustment
 	if p.config.Speed != 1.0 && p.config.Speed > 0 {

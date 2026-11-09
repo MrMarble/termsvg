@@ -12,9 +12,9 @@ import (
 
 func TestProcessorIdleCapPreservesLegacyFloatRounding(t *testing.T) {
 	events := []asciicast.Event{
-		{Time: 0.03, EventData: "a"},
-		{Time: 0.05, EventData: "b"},
-		{Time: 0.060000000000000005, EventData: "c"},
+		{Time: 0.03, EventType: asciicast.Output, EventData: "a"},
+		{Time: 0.05, EventType: asciicast.Output, EventData: "b"},
+		{Time: 0.060000000000000005, EventType: asciicast.Output, EventData: "c"},
 	}
 	cast := &asciicast.Cast{Events: events}
 	config := DefaultProcessorConfig()
@@ -38,13 +38,13 @@ func TestProcessorIdleCapPreservesLegacyFloatRounding(t *testing.T) {
 
 func TestProcessorIdleCapPreservesExactEqualityCompression(t *testing.T) {
 	cast := &asciicast.Cast{Events: []asciicast.Event{
-		{Time: 0.008, EventData: "a"},
-		{Time: 0.068, EventData: "b"},
-		{Time: 0.078, EventData: "c"},
-		{Time: 0.278, EventData: "d"},
-		{Time: 0.378, EventData: "e"},
-		{Time: 0.478, EventData: "f"},
-		{Time: 0.478, EventData: "g"},
+		{Time: 0.008, EventType: asciicast.Output, EventData: "a"},
+		{Time: 0.068, EventType: asciicast.Output, EventData: "b"},
+		{Time: 0.078, EventType: asciicast.Output, EventData: "c"},
+		{Time: 0.278, EventType: asciicast.Output, EventData: "d"},
+		{Time: 0.378, EventType: asciicast.Output, EventData: "e"},
+		{Time: 0.478, EventType: asciicast.Output, EventData: "f"},
+		{Time: 0.478, EventType: asciicast.Output, EventData: "g"},
 	}}
 	config := DefaultProcessorConfig()
 	config.Compress = true
@@ -70,7 +70,7 @@ func TestProcessorIdleCapMatchesLegacyReference(t *testing.T) {
 				gap = math.Nextafter(gap, math.Inf(1))
 			}
 			current += gap
-			events[i] = asciicast.Event{Time: current, EventData: string(rune('a' + i%26))}
+			events[i] = asciicast.Event{Time: current, EventType: asciicast.Output, EventData: string(rune('a' + i%26))}
 		}
 		cast := &asciicast.Cast{Events: events}
 		config := DefaultProcessorConfig()

@@ -17,6 +17,9 @@ type Event struct {
 const (
 	Input  EventType = "i" // Data read from stdin.
 	Output EventType = "o" // Data writed to stdout.
+	Marker EventType = "m" // A named point in the recording (v2.1+, v3).
+	Resize EventType = "r" // The terminal was resized; data is "COLSxROWS" (v2.1+, v3).
+	Exit   EventType = "x" // The recorded process exited; data is its status (v3).
 )
 
 // UnmarshalJSON reads json list as Event fields.

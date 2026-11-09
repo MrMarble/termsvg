@@ -8,6 +8,7 @@ package asciicast
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -20,6 +21,27 @@ type ThemeInfo struct {
 	Fg      string `json:"fg,omitempty"`      // Foreground color (e.g., "#d0d0d0")
 	Bg      string `json:"bg,omitempty"`      // Background color (e.g., "#212121")
 	Palette string `json:"palette,omitempty"` // 16 colon-separated ANSI colors
+}
+
+// termV3 is the "term" object of an asciicast v3 header.
+type termV3 struct {
+	Cols  int        `json:"cols"`
+	Rows  int        `json:"rows"`
+	Type  string     `json:"type,omitempty"`
+	Theme *ThemeInfo `json:"theme,omitempty"`
+}
+
+// headerV3 is the asciicast v3 header. Unlike v2, the terminal size and theme
+// live under "term". Attributes we do not use (term.version, tags, ...) are
+// ignored, as the specification requires.
+type headerV3 struct {
+	Version       int               `json:"version"`
+	Term          termV3            `json:"term"`
+	Timestamp     int64             `json:"timestamp,omitempty"`
+	IdleTimeLimit float64           `json:"idle_time_limit,omitempty"`
+	Command       string            `json:"command,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Env           map[string]string `json:"env,omitempty"`
 }
 
 // Header is JSON-encoded object containing recording meta-data.
@@ -37,11 +59,21 @@ type Header struct {
 	Theme         ThemeInfo         `json:"theme"`
 }
 
-// Cast contains asciicast file data
+// Cast contains asciicast file data.
+//
+// Whatever version a file was written in, a parsed Cast always follows the v2
+// model: event times are absolute offsets from the start and Header.Version is
+// 2. Reading a v3 file converts its relative intervals accordingly.
 type Cast struct {
 	Header Header
 	Events []Event
 }
+
+// Supported asciicast format versions.
+const (
+	versionV2 = 2
+	versionV3 = 3
+)
 
 // New will instantiate new Cast with basic medatada (version, timestamp and environment).
 func New() *Cast {
@@ -89,7 +121,7 @@ func (c *Cast) Marshal() ([]byte, error) {
 	return header, nil
 }
 
-// Unmarshal parses the JSON-encoded data into a Cast struct.
+// Unmarshal parses asciicast v2 or v3 data into a Cast struct.
 func Unmarshal(data []byte) (*Cast, error) {
 	var cast Cast
 
@@ -174,17 +206,23 @@ func (c *Cast) Compress() {
 // This function parses the file line by line to circumvent that.
 func (c *Cast) fromJSON(data string) error {
 	lines := strings.Split(data, "\n")
+	version := versionV2
 	if strings.HasPrefix(lines[0], "{") {
-		err := json.Unmarshal([]byte(lines[0]), &c.Header)
+		v, err := c.parseHeader(lines[0])
 		if err != nil {
 			return err
 		}
 
+		version = v
 		lines = lines[1:]
 	}
 
 	for _, line := range lines {
-		if line == "" {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		// v3 allows comment lines between events.
+		if version == versionV3 && strings.HasPrefix(line, "#") {
 			continue
 		}
 		var event Event
@@ -195,6 +233,58 @@ func (c *Cast) fromJSON(data string) error {
 		}
 
 		c.Events = append(c.Events, event)
+	}
+
+	if version == versionV3 {
+		// v3 events carry the interval since the previous event.
+		c.ToAbsoluteTime()
+	}
+
+	return nil
+}
+
+// parseHeader decodes the header line, accepting v2 and v3, and reports the
+// file's version. A missing version is treated as v2 for compatibility.
+func (c *Cast) parseHeader(line string) (int, error) {
+	var probe struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal([]byte(line), &probe); err != nil {
+		return 0, err
+	}
+
+	switch probe.Version {
+	case 0, versionV2:
+		return versionV2, json.Unmarshal([]byte(line), &c.Header)
+	case versionV3:
+		return versionV3, c.parseHeaderV3(line)
+	default:
+		return 0, fmt.Errorf("asciicast: unsupported format version %d (supported: 2, 3)", probe.Version)
+	}
+}
+
+func (c *Cast) parseHeaderV3(line string) error {
+	var h headerV3
+	if err := json.Unmarshal([]byte(line), &h); err != nil {
+		return err
+	}
+	if h.Term.Cols <= 0 || h.Term.Rows <= 0 {
+		return fmt.Errorf("asciicast: v3 header needs a positive term.cols and term.rows, got %dx%d",
+			h.Term.Cols, h.Term.Rows)
+	}
+
+	c.Header = Header{
+		Version:       versionV2, // the Cast holds the v2 model, see Cast
+		Width:         h.Term.Cols,
+		Height:        h.Term.Rows,
+		Timestamp:     h.Timestamp,
+		IdleTimeLimit: h.IdleTimeLimit,
+		Command:       h.Command,
+		Title:         h.Title,
+		Env:           h.Env,
+	}
+	if h.Term.Theme != nil {
+		c.Header.Theme = *h.Term.Theme
 	}
 
 	return nil

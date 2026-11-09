@@ -2,6 +2,7 @@ package asciicast
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"testing"
 )
@@ -10,6 +11,24 @@ const sampleCast = `{"version": 2, "width": 80, "height": 24, "idle_time_limit":
 [1.0, "o", "a"]
 [1.0, "o", "b"]
 [3.5, "o", "c"]
+`
+
+const v3Palette = "#000000:#111111:#222222:#333333:#444444:#555555:#666666:#777777:" +
+	"#888888:#999999:#aaaaaa:#bbbbbb:#cccccc:#dddddd:#eeeeee:#ffffff"
+
+// sampleCastV3 follows the shape of the specification's example: a header with a
+// "term" object, relative intervals, a comment line and the o/m/r/x codes.
+const sampleCastV3 = `{"version":3,"term":{"cols":80,"rows":24,"type":"xterm-256color","version":"VTE(7802)",` +
+	`"theme":{"fg":"#ffffff","bg":"#000000","palette":"` + v3Palette + `"}},` +
+	`"timestamp":1504467315,"idle_time_limit":2,"command":"/bin/zsh","title":"Demo",` +
+	`"env":{"SHELL":"/bin/zsh"},"tags":["demo"]}
+[0.248,"o","Hello "]
+[1.001,"o","World!\r\n"]
+[3.5,"m",""]
+# terminal window resized to 90 cols and 30 rows
+[0.143,"r","90x30"]
+[1.541,"o","Bye!"]
+[0.887,"x","0"]
 `
 
 func mustParse(t *testing.T, in string) *Cast {
@@ -199,5 +218,146 @@ func TestCast_WriteTo(t *testing.T) {
 	}
 	if _, err := Parse(&buf); err != nil {
 		t.Errorf("written output does not parse: %v", err)
+	}
+}
+
+func TestUnmarshal_V3(t *testing.T) {
+	c := mustParse(t, sampleCastV3)
+
+	h := c.Header
+	if h.Width != 80 || h.Height != 24 {
+		t.Errorf("size = %dx%d, want 80x24 (from term.cols/rows)", h.Width, h.Height)
+	}
+	if h.Version != 2 {
+		t.Errorf("Version = %d; a parsed Cast follows the v2 model", h.Version)
+	}
+	if h.Timestamp != 1504467315 || h.IdleTimeLimit != 2 || h.Command != "/bin/zsh" || h.Title != "Demo" ||
+		h.Env["SHELL"] != "/bin/zsh" {
+		t.Errorf("header = %+v", h)
+	}
+	if h.Theme.Fg != "#ffffff" || h.Theme.Bg != "#000000" || h.Theme.Palette != v3Palette {
+		t.Errorf("theme = %+v, want the one under term.theme", h.Theme)
+	}
+
+	wantTypes := []EventType{Output, Output, Marker, Resize, Output, Exit}
+	if len(c.Events) != len(wantTypes) {
+		t.Fatalf("events = %d, want %d (comment lines are skipped)", len(c.Events), len(wantTypes))
+	}
+	for i, want := range wantTypes {
+		if c.Events[i].EventType != want {
+			t.Errorf("event %d type = %q, want %q", i, c.Events[i].EventType, want)
+		}
+	}
+	if c.Events[3].EventData != "90x30" || c.Events[5].EventData != "0" {
+		t.Errorf("resize/exit data = %q/%q", c.Events[3].EventData, c.Events[5].EventData)
+	}
+
+	// Intervals 0.248, 1.001, 3.5, 0.143, 1.541, 0.887 become absolute offsets.
+	want := []float64{0.248, 1.249, 4.749, 4.892, 6.433, 7.32}
+	for i, w := range want {
+		if got := c.Events[i].Time; math.Abs(got-w) > 1e-9 {
+			t.Errorf("event %d time = %v, want %v", i, got, w)
+		}
+	}
+	if math.Abs(h.Duration-7.32) > 1e-9 {
+		t.Errorf("Duration = %v, want the last event's time 7.32", h.Duration)
+	}
+}
+
+func TestUnmarshal_V3MatchesEquivalentV2(t *testing.T) {
+	v3 := `{"version":3,"term":{"cols":10,"rows":3}}
+[1,"o","a"]
+[2,"o","b"]
+[0.5,"o","c"]
+`
+	v2 := `{"version":2,"width":10,"height":3}
+[1,"o","a"]
+[3,"o","b"]
+[3.5,"o","c"]
+`
+	got, want := mustParse(t, v3), mustParse(t, v2)
+	if got.Header.Width != want.Header.Width || got.Header.Height != want.Header.Height ||
+		got.Header.Duration != want.Header.Duration {
+		t.Errorf("header = %+v, want %+v", got.Header, want.Header)
+	}
+	if !equalFloats(times(got), times(want)) {
+		t.Errorf("times = %v, want %v", times(got), times(want))
+	}
+}
+
+func TestUnmarshal_V3AcceptsCRLFAndBlankLines(t *testing.T) {
+	in := "{\"version\":3,\"term\":{\"cols\":10,\"rows\":3}}\r\n\r\n[1,\"o\",\"a\"]\r\n# note\r\n[1,\"o\",\"b\"]\r\n"
+	c := mustParse(t, in)
+	if len(c.Events) != 2 || c.Events[1].Time != 2 {
+		t.Errorf("events = %+v", c.Events)
+	}
+}
+
+func TestUnmarshal_V3AndV2RoundTripThroughMarshal(t *testing.T) {
+	// A parsed v3 cast is written back out in the v2 model, so it must re-parse
+	// to the same events.
+	c := mustParse(t, sampleCastV3)
+	data, err := c.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back := mustParse(t, string(data))
+	if back.Header.Width != 80 || len(back.Events) != len(c.Events) {
+		t.Fatalf("re-parsed header=%+v events=%d", back.Header, len(back.Events))
+	}
+	for i := range c.Events {
+		if back.Events[i] != c.Events[i] {
+			t.Errorf("event %d = %+v, want %+v", i, back.Events[i], c.Events[i])
+		}
+	}
+}
+
+func TestUnmarshal_HeaderVersions(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		wantErr string
+	}{
+		{name: "v2", in: `{"version":2,"width":5,"height":2}` + "\n[1,\"o\",\"x\"]"},
+		{name: "missing version is treated as v2", in: `{"width":5,"height":2}` + "\n[1,\"o\",\"x\"]"},
+		{name: "v3", in: `{"version":3,"term":{"cols":5,"rows":2}}` + "\n[1,\"o\",\"x\"]"},
+		{name: "v1", in: `{"version":1,"width":5,"height":2}` + "\n[1,\"o\",\"x\"]", wantErr: "unsupported format version 1"},
+		{
+			name: "future version", in: `{"version":4,"term":{"cols":5,"rows":2}}` + "\n[1,\"o\",\"x\"]",
+			wantErr: "unsupported format version 4",
+		},
+		{name: "v3 without term", in: `{"version":3}` + "\n[1,\"o\",\"x\"]", wantErr: "term.cols and term.rows"},
+		{
+			name: "v3 with zero size", in: `{"version":3,"term":{"cols":0,"rows":24}}` + "\n[1,\"o\",\"x\"]",
+			wantErr: "term.cols and term.rows",
+		},
+		{
+			name: "v3 with v2 style size", in: `{"version":3,"width":80,"height":24}` + "\n[1,\"o\",\"x\"]",
+			wantErr: "term.cols and term.rows",
+		},
+		{name: "v3 bad header json", in: `{"version":3,"term":}` + "\n[1,\"o\",\"x\"]", wantErr: "invalid character"},
+		{name: "v3 bad event", in: `{"version":3,"term":{"cols":5,"rows":2}}` + "\n[1,\"o\"]", wantErr: "3 elements"},
+		{name: "v3 without events", in: `{"version":3,"term":{"cols":5,"rows":2}}`, wantErr: "no events"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Unmarshal([]byte(tt.in))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Unmarshal() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestUnmarshal_CommentsOnlySkippedInV3(t *testing.T) {
+	v2 := `{"version":2,"width":5,"height":2}` + "\n# not a comment in v2\n[1,\"o\",\"x\"]"
+	if _, err := Unmarshal([]byte(v2)); err == nil {
+		t.Error("v2 has no comment lines, so '#' should be a parse error")
 	}
 }
